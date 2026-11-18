@@ -35,6 +35,16 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   the template's had none): in the release build of `tests/generated` the standalone raw `read`/`write` symbols are
   gone and their callers inline them (no runner number yet: the benches' `Point` uses the macros since).
 
+- Generate a direct fixed-stride fallback when `TryReadRaw` or `TryWriteRaw` declines a Go layout. Apple Arm64
+  disassembly of the padded Gappy and Marked fixtures had direct decode and encode calls on the fallback.
+  Keep the exported callback helpers available for callers that supply their own codecs.
+- Keep structural composite-key discovery outside Go's scalar and string duplicate loops. When the initial #353
+  implementation sent all keys through the shared cache and added a byte-size test to the string loop,
+  [44339615693](https://github.com/JasonXuDeveloper/Nino/actions/runs/44339615693) measured the eight-int control
+  15 % higher on Neoverse-N2. Caching only the composite field walk and restoring the string probe brought both
+  controls within 2 % by median on that CPU ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411)).
+  The bytewise path still uses the reader's shared seeded table and bounded probing.
+
 ## Reuse branches
 
 - Keep reuse branches off the read path of a new value: share the body, not the dispatch. Reading into an existing

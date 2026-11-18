@@ -5,6 +5,7 @@ import (
 	"math/bits"
 	"reflect"
 	"slices"
+	"sync"
 	"unsafe"
 )
 
@@ -17,7 +18,7 @@ import (
 // hash seeded per process: integers multiplied by a random odd number, strings through hash/maphash. Data cannot choose
 // keys that share a slot without knowing the seed, and a key that still probes past maxProbes slots sends the whole
 // check to a path whose cost the data cannot raise: a sort for numbers (pdqsort falls back to heapsort), a Go map
-// (seeded too) for strings. Other comparable keys go through a Go map.
+// (seeded too) for strings and bytewise keys. Other comparable keys go through a Go map.
 
 // maxProbes bounds the slots one key may probe in a table before the check falls back (see above). With the table at
 // most half full and a seeded hash, honest data almost never comes near it.
@@ -90,7 +91,7 @@ func repeated[K comparable](p unsafe.Pointer, n, stride int, scratch *[]uint64) 
 	case k.text:
 		return repeatedStrings(p, n, stride, false, scratch)
 	}
-	return repeatedValues[K](p, n, stride)
+	return repeatedOtherKeys[K](p, n, stride, scratch)
 }
 
 // repeatedSlots is repeated for NullableSlots of a number (k): two nulls are equal, and the values present are
@@ -414,4 +415,106 @@ func repeatedNaN[K comparable](k K, nan *bool) bool {
 	}
 	*nan = true
 	return false
+}
+
+var bytewiseKeySizes sync.Map // reflect.Type -> int, 0 for keys that need Go equality
+
+// bytewiseKeySize caches the result of walking a composite key's fields. Numeric and text keys
+// take their existing paths before they get here.
+func bytewiseKeySize[K comparable]() int {
+	t := reflect.TypeFor[K]()
+	switch t.Kind() {
+	case reflect.Array, reflect.Struct:
+	default:
+		return 0
+	}
+	if size, ok := bytewiseKeySizes.Load(t); ok {
+		return size.(int)
+	}
+	size := 0
+	if bytewiseKey(t) {
+		size = int(t.Size())
+	}
+	actual, _ := bytewiseKeySizes.LoadOrStore(t, size)
+	return actual.(int)
+}
+
+// bytewiseKey proves that equality is a comparison of every byte, including all fields of a nested value.
+// Floats, blank fields, padding and pointers rule it out. DateTime, DateTimeOffset, Half and Decimal carry
+// more than one representation of some values in .NET.
+func bytewiseKey(t reflect.Type) bool {
+	switch t {
+	case reflect.TypeFor[DateTime](), reflect.TypeFor[DateTimeOffset](), reflect.TypeFor[Half](), reflect.TypeFor[Decimal]():
+		return false
+	}
+	switch t.Kind() {
+	case reflect.Bool, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int,
+		reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint:
+		return true
+	case reflect.Array:
+		return bytewiseKey(t.Elem())
+	case reflect.Struct:
+		var end uintptr
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			if f.Name == "_" || f.Offset != end || !bytewiseKey(f.Type) {
+				return false
+			}
+			end += f.Type.Size()
+		}
+		return end == t.Size()
+	}
+	return false
+}
+
+// repeatedOtherKeys keeps bytewise key handling off the scalar and string paths.
+//
+//go:noinline
+func repeatedOtherKeys[K comparable](p unsafe.Pointer, n, stride int, scratch *[]uint64) bool {
+	if size := bytewiseKeySize[K](); size != 0 && n <= 1<<(bits.UintSize-6) && int64(n) < 1<<31 {
+		if result, bounded := repeatedBytewise(p, n, stride, size, scratch); bounded {
+			return result
+		}
+	}
+	return repeatedValues[K](p, n, stride)
+}
+
+// repeatedBytewise uses the reader's seeded, probe-bounded table and a fixed-width view of each key.
+// The caller has proved that the key covers its full memory representation and contains no pointers.
+func repeatedBytewise(p unsafe.Pointer, n, stride, size int, scratch *[]uint64) (repeated, bounded bool) {
+	if n <= 16 {
+		for i := 1; i < n; i++ {
+			key := unsafe.String((*byte)(unsafe.Add(p, i*stride)), size)
+			for j := 0; j < i; j++ {
+				if key == unsafe.String((*byte)(unsafe.Add(p, j*stride)), size) {
+					return true, true
+				}
+			}
+		}
+		return false, true
+	}
+	t := table(scratch, tableBits(n))
+	mask := uint64(len(t) - 1)
+	for i := 0; i < n; i++ {
+		key := unsafe.String((*byte)(unsafe.Add(p, i*stride)), size)
+		h := maphash.String(hashSeed, key)
+		tag := h &^ 0xFFFFFFFF
+		for at, probes := h, 0; ; at, probes = at+1, probes+1 {
+			slot := t[at&mask]
+			if slot == 0 {
+				t[at&mask] = tag | uint64(i+1)
+				break
+			}
+			if slot&^0xFFFFFFFF == tag {
+				other := unsafe.Add(p, int(uint32(slot)-1)*stride)
+				if key == unsafe.String((*byte)(other), size) {
+					return true, true
+				}
+			}
+			if probes == maxProbes {
+				return false, false
+			}
+		}
+	}
+	return false, true
 }

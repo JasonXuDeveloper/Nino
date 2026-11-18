@@ -51,6 +51,11 @@ crashing. Read it before running anything under qemu or taking a listing for Arm
   8 runs with qemu 8.2 and the runners' qemu, and main's code before the run that showed it (f618b973) crashed too
   (1 of 10, more allocation only made it likelier); Go 1.24 crashed in 0 of 8, `GOMAXPROCS=1` in 0 of 18, `GOARM=6`
   did not help (4 of 8). runtimes.yml sets it on that step (r101).
+  Use QEMU user-mode 10.0.13 or later for local Go 386 tests on Arm64 Linux. Go 1.26.11's same static
+  test binary reported `bad g in signal handler` or `morestack on gsignal` on QEMU 7.2.22. On Debian
+  trixie's QEMU 10.0.13 it passed three runs and `GOARCH=386 go test -exec qemu-i386 ./...` passed with
+  asynchronous preemption enabled (#353). Where QEMU 7.2 is required, `GODEBUG=asyncpreemptoff=1` and
+  `GOMAXPROCS=1` allowed the 386, Arm32 and s390x suites to pass.
 - To run tests under qemu-aarch64, pass `-cpu neoverse-n1` (listings can keep the default): qemu 8.2's default CPU
   (`max`) has LRCPC2, whose `ldapur`/`stlur` (what the optimizing JIT emits for `Volatile.Read`/`Write` of a field) it
   emulates wrong. With or without Nino's code, runs crashed (`ToImmutableDictionary`), or a static field written by

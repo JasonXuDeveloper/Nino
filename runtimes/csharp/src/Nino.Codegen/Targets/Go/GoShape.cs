@@ -47,6 +47,18 @@ namespace Nino.Codegen.Targets
         /// <summary>Whether arrays of it are one block (<c>nino.ReadPrimitives</c>).</summary>
         public bool Block { get; internal set; }
 
+        /// <summary>Whether sequences of this value use nino.ReadBlock and nino.WriteBlock.</summary>
+        public bool BlockValue { get; internal set; }
+
+        /// <summary>Whether this value needs range validation when written outside raw memory.</summary>
+        public bool CheckedWrite { get; internal set; }
+
+        /// <summary>Whether the fixed encoder omits padding, unused slots or false booleans.</summary>
+        public bool NeedsZero => Kind is "rawstruct" or "emptystruct" or "rawnullable" or "rawtuple" || Primitive == "Bool";
+
+        /// <summary>Whether the key of each pair is checked for repeats.</summary>
+        public bool UniqueKeys { get; internal set; }
+
         /// <summary>A raw struct that can be copied as memory, its arrays as one block; else null.</summary>
         public GoRawBlock? RawBlock { get; internal set; }
 
@@ -92,7 +104,7 @@ namespace Nino.Codegen.Targets
         /// <c>fixed</c> (raw values at their stride),
         /// <c>unique</c> (a set of comparable values), <c>stringset</c>, <c>slice</c>; a map's: <c>block</c>
         /// (primitive keys and values, pairs copied as one block where their memory is their bytes; repeated keys
-        /// fail), <c>unique</c> (repeated keys fail) or <c>entries</c>.
+        /// fail), <c>fixed</c> (both shapes have a stride), <c>unique</c> (repeated keys fail) or <c>entries</c>.
         /// </summary>
         public string? Mode { get; internal set; }
 
@@ -141,7 +153,7 @@ namespace Nino.Codegen.Targets
             yield return Struct?.FullName ?? "";
             yield return Type?.FullName ?? "";
             yield return Named?.FullName ?? "";
-            yield return (Mode ?? "") + (UniqueSlots ? "/unique" : "");
+            yield return (Mode ?? "") + (UniqueSlots || UniqueKeys ? "/unique" : "");
             yield return Pair ? "pair" : "";
             yield return FlagOffset + "/" + ValueOffset + "/" + Rank + (Clean ? "/clean" : "") + (SlotElement ? "/slot" : "");
             yield return string.Join("/", Offsets);

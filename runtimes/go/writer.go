@@ -83,6 +83,22 @@ func (w *Writer) ExtendZero(n int) []byte {
 	return b
 }
 
+// ExtendFixed reserves one block for count elements of size bytes each. It clears the block when zero is true.
+func (w *Writer) ExtendFixed(count, size int, zero bool) []byte {
+	if w.err != nil {
+		return nil
+	}
+	if count < 0 || size <= 0 || count > (int(^uint(0)>>1)-len(w.buf))/size {
+		w.Fail(CodeTooLarge, "fixed-size block")
+		return nil
+	}
+	b := w.Extend(count * size)
+	if zero {
+		clear(b)
+	}
+	return b
+}
+
 //go:noinline
 func (w *Writer) grow(n int) {
 	need := len(w.buf) + n

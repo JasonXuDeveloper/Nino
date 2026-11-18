@@ -204,7 +204,7 @@ func reads_into(s)
   if s.kind == "seq"
     ret s.mode != "bytes" && s.mode != "block" && s.mode != "bools" && s.mode != "values" && s.mode != "ninonullables" && s.mode != "nullableslots" && s.mode != "unique" && s.mode != "stringset" && s.mode != "fixed"
   else if s.kind == "map"
-    ret s.mode != "block" && s.mode != "unique"
+    ret s.mode == "entries" || (s.mode == "fixed" && !s.unique_keys)
   end
   ret false
 end
@@ -311,6 +311,8 @@ func decode(s, o)
     ret decode_fn(s) + "(r, " + span(o, s.size) + ")"
   when "emptystruct"
     ret name(s.struct) + "{}"
+  when "datetimeoffset"
+    ret "r.DateTimeOffsetAt(" + span(o, s.size) + ")"
   end
   $a = at(o)
   case s.primitive
@@ -364,6 +366,8 @@ func encode(s, o, x)
     ret [encode_fn(s) + "(" + span(o, s.size) + ", " + x + ")"]
   when "emptystruct"
     ret []
+  when "datetimeoffset"
+    ret [x + ".Put(" + span(o, s.size) + ")"]
   end
   $a = at(o)
   case s.primitive
