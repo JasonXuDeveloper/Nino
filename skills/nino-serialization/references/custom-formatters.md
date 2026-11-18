@@ -8,9 +8,9 @@ ref T)`), called as `default(F)`: no instance state. Read exactly what you wrote
 the input (the data may be hostile). Those two members are all a formatter needs: the interface's other members
 are optional capabilities with defaults. Implement `FixedSize`, `WriteFixed`, `BlockMap` and `ReadBlock` only for a
 struct of a fixed size that collections should move as blocks, all four, writing the same bytes as `Serialize`. The
-rest (`BodyTraits`, `WriteElements`, and on the non-generic `INinoFormatter` it extends `HasElementLoop`,
-`HasPairLoop`, the pair writes and the prefetch members `PrefetchBytes`, `HasMemberPrefetch` and `PrefetchMembers`) are
-what generated formatters of classes and polymorphic bases implement; leave them alone.
+rest (`BodyTraits`, `WriteElements`, `WritePairs`, and on the non-generic `INinoFormatter` it extends
+`HasElementLoop`, `HasPairLoop` and the prefetch members `PrefetchBytes`, `HasMemberPrefetch` and `PrefetchMembers`)
+are what generated formatters of classes and polymorphic bases implement; leave them alone.
 
 - One member: `[NinoMemberFormatter(typeof(F))]`, `F` for exactly the member type (NINO008).
 - A type Nino does not know: `[assembly: NinoFormatter(typeof(F<,>))]`, generic formatters as open definitions; a

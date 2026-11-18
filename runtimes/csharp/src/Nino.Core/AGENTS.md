@@ -70,7 +70,8 @@ NinoDirect.cs                the top-level calls with the formatter the generato
                              ...Prefetched for arrays and lists of prefetching classes (PrefetchBytes); the sequence and
                              Stream forms, the latter through NinoStreams)
 NinoDictionaryEntry.cs       NinoDictionaryEntry: a Dictionary entry as the runtime lays it out; NinoDictionaryEntries.InUse:
-                             a dictionary's entries in place of its enumerator (generated pair loops, NinoDictionary)
+                             a dictionary's entries in place of its enumerator, Next: the entry after one (generated
+                             pair loops, NinoDictionary)
 NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory
 NinoBlocks.cs                NinoBlocks: constrained calls on block formatters, and the offsets NinoBlockMap is built from
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
@@ -100,13 +101,13 @@ Registration/                what a generated registry calls at startup:
 
 ```
 NinoFormatter.cs             INinoFormatter<T> (Serialize, Deserialize; capability members with defaults: FixedSize,
-                             WriteFixed, BlockMap, ReadBlock, BodyTraits, WriteElements, internal slots) and the
-                             non-generic INinoFormatter it extends (the element and pair loops of polymorphic bases:
-                             HasElementLoop, HasPairLoop, WritePairs32/64, WriteStringPairs; the prefetch of long
-                             collections of classes: PrefetchBytes, HasMemberPrefetch, PrefetchMembers; internal
-                             HasSizedWrite, HasExternalWrite); NinoFormatterBase<T> and its struct wrappers
-                             (StructFormatter, FixedStructFormatter, TopStructFormatter, NestingFormatter),
-                             RawFormatter, NinoTopWrites (the sized and external write queries read once per formatter),
+                             WriteFixed, BlockMap, ReadBlock, BodyTraits, WriteElements, WritePairs (one generic pair
+                             loop for every key), internal slots) and the non-generic INinoFormatter it extends (the
+                             queries of the element and pair loops of polymorphic bases: HasElementLoop, HasPairLoop;
+                             the prefetch of long collections of classes: PrefetchBytes, HasMemberPrefetch,
+                             PrefetchMembers; internal HasSizedWrite, HasExternalWrite); NinoFormatterBase<T> and
+                             its struct wrappers (StructFormatter, FixedStructFormatter, TopStructFormatter,
+                             NestingFormatter), RawFormatter, NinoTopWrites (the sized and external write queries read once per formatter),
                              NinoSized, INinoRawArrayFormatter, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
                              NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields;

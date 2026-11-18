@@ -55,6 +55,8 @@ public interface INinoFormatter<T> : INinoFormatter
     void ReadBlock(ref T value, ref byte source) => ...;      // throws: called only when BlockMap is not null
     int BodyTraits => NinoBodyTraits.Nests;                   // a class body: opens class bodies? deferrable?
     void WriteElements(ReadOnlySpan<T> values, ref Writer writer) => ...; // throws: only when HasElementLoop
+    void WritePairs<TKey, TKeyFormatter>(Dictionary<TKey, T> pairs, ref Writer writer) => ...;
+                                                              // throws: only when HasPairLoop; any key
     // internal: SlotStride and the slot members of a raw T? (UnmanagedNullableFormatter); Size, WriteSized and
     // TryWriteExternal of collection formatters (top-level calls write into an array of the exact size, or straight
     // into a caller's IBufferWriter<byte>)
@@ -63,8 +65,7 @@ public interface INinoFormatter<T> : INinoFormatter
 public interface INinoFormatter                               // what does not depend on T (hidden)
 {
     bool HasElementLoop => false;                             // arrays and lists of a polymorphic base in one loop
-    bool HasPairLoop => false;                                // Dictionary<TKey, base> in one loop (.NET 8+)
-    void WritePairs32(object dictionary, ref Writer writer) => ...;  // throws; WritePairs64, WriteStringPairs
+    bool HasPairLoop => false;                                // Dictionary<TKey, base> in one loop
     int PrefetchBytes => 0;                                   // long collections of a class prefetch its objects
     bool HasMemberPrefetch => false;                          // ... and the objects its members point to
     int PrefetchMembers(object value) => ...;                 // throws: only when HasMemberPrefetch
@@ -80,7 +81,10 @@ slot stride, `HasSizedWrite`, `HasExternalWrite`) on a formatter that may lack t
 `static readonly` field (`NinoBlockPlan<T, TFormatter>.Size`, `NinoSlots<T, TFormatter>.Stride`, `NinoLoops<TFormatter>`,
 `NinoPrefetch.Of<TFormatter>`, `NinoTopWrites<TFormatter>`), and the other members only where that field says the
 formatter has them: a constrained call to the struct's own method on every runtime, never an `is` test, a cast or a
-boxed interface field. The loop, prefetch and top-level write queries sit on the non-generic `INinoFormatter` so that
+boxed interface field. `WritePairs` is generic over the key and its formatter: one loop of the polymorphic base's
+generated formatter that the compiler specializes per key, reached by the same constrained call (a cast to the
+interface would box and look the generic method up per call; #345).
+The loop, prefetch and top-level write queries sit on the non-generic `INinoFormatter` so that
 their fields are generic over the formatter alone: a loop over a class `T` is shared generic code, where a field of a class generic over `T` is a
 lookup per collection, while the formatter is still its exact struct and its field folds. `BodyTraits` is the one
 query also called per value, on an `INinoBodyFormatter<T>`, which always implements it. Two interfaces stay apart:
