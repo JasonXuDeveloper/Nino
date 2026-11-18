@@ -25,7 +25,9 @@ on:
       - 'README.md'
       - 'runtimes/csharp/src/nuget-readme.md'
   pull_request:
-    branches: [ "main" ]
+    # feat/**: integration branches whose steps land there before one pull request takes them to main
+    # (feat/storage-layer, #355; optimize, "One storage layer").
+    branches: [ "main", "feat/**" ]
     paths: *paths
   workflow_dispatch:
 

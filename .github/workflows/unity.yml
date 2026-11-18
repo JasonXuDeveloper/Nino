@@ -33,7 +33,9 @@ on:
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
   pull_request:
-    branches: [ "main" ]
+    # feat/**: integration branches whose steps land there before one pull request takes them to main
+    # (feat/storage-layer, #355; optimize, "One storage layer").
+    branches: [ "main", "feat/**" ]
     paths: *paths
   workflow_dispatch:
     inputs:
