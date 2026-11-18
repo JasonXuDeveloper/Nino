@@ -5,7 +5,7 @@
 //!
 //! `cargo bench -p nino-bench --bench blocks` (add a filter: `-- bool`).
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::hint::black_box;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
@@ -126,6 +126,9 @@ fn benches(c: &mut Criterion) {
     case(c, "ninonullable-i32", (0..N).map(|i| NinoNullable(some(i).then_some(i))).collect::<Vec<_>>());
     case(c, "ninonullable-guid", (0..N).map(|i| NinoNullable(some(i).then(|| guid(i)))).collect::<Vec<_>>());
     case(c, "map-i32-i32", (0..1000).map(|i| (i, i * 7)).collect::<HashMap<i32, i32>>());
+    case(c, "hash-set-i32", (0..1000).map(|i| i * 7919).collect::<HashSet<i32>>());
+    case(c, "tree-set-i32", (0..1000).map(|i| i * 7919).collect::<BTreeSet<i32>>());
+    case(c, "hash-set-guid", (0..1000).map(guid).collect::<HashSet<_>>());
 }
 
 criterion_group! {
