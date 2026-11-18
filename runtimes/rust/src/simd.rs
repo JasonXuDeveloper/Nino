@@ -30,6 +30,7 @@
 #![allow(unsafe_code)]
 #![deny(unsafe_op_in_unsafe_fn, clippy::undocumented_unsafe_blocks)]
 
+pub(crate) mod byte_copy_probe;
 mod decode;
 #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
 mod neon;

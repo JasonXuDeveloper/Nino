@@ -32,6 +32,7 @@ src/
   strings.rs                 string headers and the default encoding's writer
   simd.rs                    the unsafe module: string transcoding into a Vec's spare capacity, the blocks of
                              fixed-size values, the cache facts (prefetch, last-level cache)
+  simd/byte_copy_probe.rs     runner-only AVX2 byte-vector copy for #263
   simd/decode.rs             the reader's text: Latin-1 / UTF-16 decoding into a String it builds
   simd/x86.rs                x86_64 kernels (SSSE3, SSE4.1, AVX2, AVX-512) picked at run time
   simd/neon.rs               Arm64 NEON kernels

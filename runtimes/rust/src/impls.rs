@@ -380,7 +380,7 @@ impl NinoRead for u8 {
     /// A `byte[]`: one copy.
     #[inline]
     fn read_many(r: &mut Reader<'_>, count: usize) -> Result<Vec<Self>> {
-        r.take(count).map(<[u8]>::to_vec)
+        r.take(count).map(crate::simd::byte_copy_probe::to_vec)
     }
 
     #[inline]
@@ -412,6 +412,16 @@ impl NinoWrite for u8 {
     fn write_many<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
         w.bytes(values);
         Ok(())
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_os = "linux", target_env = "gnu", not(miri)))]
+    #[inline]
+    fn write_counted<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
+        let n = i32::try_from(values.len()).map_err(|_| Error::too_large())?;
+        if crate::simd::byte_copy_probe::try_append(w.buffer(), n.to_le_bytes(), values) {
+            return Ok(());
+        }
+        write_counted_fixed(values, w)
     }
 }
 
