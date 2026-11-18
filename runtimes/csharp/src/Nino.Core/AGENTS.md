@@ -131,7 +131,7 @@ Collections/                the collection formatters, a folder per kind:
     ListFormatters.cs        general, unmanaged block and raw nullable lists
     InterfaceFormatters.cs   sequence and set interfaces
     CollectionFormatter.cs   ICollection<T> enumeration and refill
-    HashSetFormatter.cs      HashSet and derived sets, including raw element loops
+    HashSetFormatter.cs      HashSet and derived sets: its entries as a run, written and filled then linked
     QueueFormatter.cs        Queue and derived queues, with a checked backing ring
     StackFormatter.cs        Stack and derived stacks, bottom-to-top wire order
     PriorityQueueFormatter.cs PriorityQueue (net8.0 and net10.0 builds only)
@@ -204,8 +204,9 @@ NinoRecycler.cs              NinoRecycler<T> / NinoRecycler: where reuse deseria
 
 ```
 CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, MapEntry, LinkedNode); the runs
-                             of a set's and a dictionary's entries (Run); EntryBlock, the one block formatter of their
-                             entries, with the items it moves (SetValue, SetValueBytes, MapPair)
+                             of a set's and a dictionary's entries (Run: in use, or new ones a read fills); EntryBlock,
+                             the one block formatter of their entries, written and read, with the items it moves
+                             (SetValue, SetValueBytes, MapPair)
 CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,
                              SortedDictionary per runtime (offsets, the first candidate that passes), as static fields;
                              how a set and a dictionary mark free entries (SetFree, MapFree)
@@ -223,8 +224,8 @@ NinoCollectionViews.cs       reads into the backing storage shared by Queue and 
 ```
 ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder)
 ConcurrentTables.Checks.cs   its startup checks (the layout, the hash mask, chains, a built table)
-HashTables.cs                fills new HashSet / Dictionary entries and buckets directly, counting collisions
-                             against MaxHashCollisions (Plan, TryFill, Insert, Added, Walk)
+HashTables.cs                links the entries a read filled into a new HashSet / Dictionary (Link, Unlink on a
+                             rejected read), counting collisions against MaxHashCollisions; Plan, Insert, Added, Walk
 HashTables.Checks.cs         its startup checks (the hashing of each implementation, chains, references and strings)
 ```
 
@@ -237,17 +238,18 @@ NinoKind.cs                  the one element-kind decision every collection read
                              the sized and external top-level writes), NinoKind<T, TFormatter> (NinoElementKind: raw,
                              slot, block or per value, with Stride, MinWire, CopiedWhole, ReadOverwrites, Heavy,
                              HeavyHashed), NinoKind.Of / Stride (read behind the no-references guard)
-NinoRuns.cs                  the write loops over a run (NinoRun), one per element kind: values in a row (arrays, lists,
-                             spans, ring halves), a set's entries, a dictionary's entries (the pair: blocks gathered,
-                             a polymorphic value's WriteRun, string pairs, value by value)
-NinoElements.cs              shared element reads of array-like formatters, one path per kind, the one-block write and
-                             one-value write and read; capacity budgets and the read policies' accessors (MinWireSize,
-                             CopiedWhole, ReadOverwrites, from NinoKind)
+NinoRuns.cs                  the loops over a run (NinoRun), one per element kind and direction: values in a row (arrays,
+                             lists, spans, ring halves; Write, Read), a set's entries (WriteSet, ReadSet), a dictionary's
+                             entries (the pair: blocks gathered or scattered, a polymorphic value's WriteRun, string
+                             pairs, value by value; WritePairs, ReadPairs into new entries the caller links)
+NinoElements.cs              the read policies of array-like formatters (capacity budgets, ReadGrowing, EnsureLength,
+                             NewOrSame/Publish; MinWireSize, CopiedWhole, ReadOverwrites from NinoKind), the one-block
+                             write and the one-value write and read of a sequence not held in a run
 NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the
                              out-of-line helper per run; Threshold and ReverseReadIsLocal of a formatter's PrefetchBytes
-NinoDictionary.cs            shared dictionary reads and reuse; its write builds the entries' run (NinoRuns)
+NinoDictionary.cs            shared dictionary reads and reuse; its write and its fill build the entries' run (NinoRuns)
 NinoNullables.cs             fixed-stride nullable encoding and the host layout probe
 BclCollections.cs            runtime-owned collections using their checked views; linked-list ring
 BclDictionaries.cs           runtime-owned concurrent and sorted dictionaries

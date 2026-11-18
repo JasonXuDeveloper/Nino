@@ -79,7 +79,11 @@ blocks as one block (gathered out of the entries by the block kernels through on
 through the slot kernels, others value by value; a polymorphic base's values through its generated `WriteRun`, the
 compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep path are Nino.Core's. The
 member is not generic, so one serves every collection and every key written as its bytes or a string; any other key
-goes value by value (#355).
+goes value by value (#355). Reads fill the same runs, one loop per element kind: a run of values in a row (an array,
+the backing array of a list, whose count is set once it is filled, a ring from its start, a span) through the copy,
+slot and block kernels or value by value, and the entries of a new `HashSet<T>` or `Dictionary<TKey, TValue>`: raw
+values and blocks read as one block and scattered into the entries by the block kernels (the entry block formatter's
+read), others value by value into their places, then linked (below).
 
 A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members
 too (generated formatters of fixed-size and block structs, of class bodies and of polymorphic bases, the tuple and
@@ -496,9 +500,10 @@ fills exactly and sections of deferred bodies that match their region. Each fail
 (`NinoThrow`, out of line).
 
 Hash flooding (keys built to share a hash bucket, which makes each insert scan every key before it) is bounded in
-every mode by `MaxHashCollisions`, at no cost where Nino fills the table: `HashTables` (Nino.Core) writes the entries
-and buckets of a new `Dictionary<TKey, TValue>` or `HashSet<T>` itself, through a layout declared per runtime and
-checked at startup (as `CollectionViews` does), and the walk of the bucket it makes for duplicates counts. Where the
+every mode by `MaxHashCollisions`, at no cost where Nino fills the table: a read fills the entries of a new
+`Dictionary<TKey, TValue>` or `HashSet<T>` through their run and `HashTables` (Nino.Core) links them into the buckets
+in one pass, through a layout declared per runtime and checked at startup (as `CollectionViews` does); the walk of
+the bucket it makes for duplicates counts, and a read rejected part way leaves the table empty. Where the
 table adds a key itself (an existing table, a layout not found), `HashTables.Walk` walks the new key's
 bucket afterwards, out of line (`HashTables.Plan` decides per key and value type whether a loop inserts or walks).
 String keys of .NET's tables, which switch to a randomized comparer after 100 collisions, are left to them;

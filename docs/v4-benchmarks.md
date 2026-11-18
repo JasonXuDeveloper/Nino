@@ -467,8 +467,10 @@ the result objects.
   padded structs move several entries at a time, each key and value taken out of its entry (the netstandard builds:
   the registered kernels, else one at a time); with removed entries, value by value over the entries, skipping the
   free ones; with no layout recognized, through the enumerator, out of line. A new one that a read creates (default
-  comparer) is filled the other way round: entries and buckets written as `Add` would, after the constructor or
-  `EnsureCapacity` sized it, without `Add`'s comparer, free-list, resize and version checks per element; the bucket
+  comparer) is filled the other way round: its entries read through the same view (raw values and blocks scattered
+  into them by the block kernels, other values one by one into their places), then hashed and linked into the
+  buckets in one pass as `Add` would, after the constructor or `EnsureCapacity` sized it, without `Add`'s comparer,
+  free-list, resize and version checks per element; the bucket
   is .NET's fast modulo where the table keeps its multiplier, else the remainder, and the hashing (31-bit mask, bucket
   bias) is found at startup by filling a collection and checking it through the public API. Empty collections skip
   the out-of-line element loops altogether.
