@@ -36,7 +36,7 @@ namespace Nino.Core
 
             // Elements far larger in memory than on the wire: out of line, grown as they are read where the data
             // could not fill as many. A constant false for the others, and nothing compiled.
-            if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+            if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoKind<T, TFormatter>.Heavy)
             {
                 reader = NinoElements.ReadGrowing<T, TFormatter>(ref value, length, reader);
                 return;

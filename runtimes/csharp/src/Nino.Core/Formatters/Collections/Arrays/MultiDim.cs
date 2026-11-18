@@ -39,7 +39,7 @@ namespace Nino.Core
         internal static bool TryWriteRawExternal<T, TFormatter>(Array value, int rank, IBufferWriter<byte> buffer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (!BitConverter.IsLittleEndian || !RawFormatter.Is<T, TFormatter>() || value == null)
+            if (!BitConverter.IsLittleEndian || NinoKind.Of<T, TFormatter>() != NinoElementKind.Raw || value == null)
                 return false;
 
             int count = value.Length;

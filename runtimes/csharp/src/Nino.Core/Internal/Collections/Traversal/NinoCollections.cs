@@ -25,7 +25,7 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Reads <paramref name="length"/> elements into a list, as <see cref="ListFormatter{TList,T,TFormatter}"/>
-        /// does, for <see cref="NinoElements.HeavyElements{T,TFormatter}"/> elements: where they do not
+        /// does, for <see cref="NinoKind{T,TFormatter}.Heavy"/> elements: where they do not
         /// <see cref="NinoElements.Fits"/>, the list's count starts at what fits the bound (or the elements it has)
         /// and doubles as they are read, as
         /// <see cref="NinoElements.ReadGrowing{T,TFormatter}"/> does for an array. Elements it has are reused.
@@ -84,10 +84,10 @@ namespace Nino.Core.Internal
 
             // A collection that can copy its elements out is written from a rented array, as an array is, instead of
             // through two interface calls per element and an enumerator (ReadOnlyCollection<T>, Collection<T>, ...):
-            // always for elements of a fixed size (BlockStride, a constant: one block), from CopiedFrom elements on
+            // always for elements of a fixed size (NinoKind.Stride, a constant: one block), from CopiedFrom elements on
             // for the others, where renting the array costs more than it saves below.
             if (values is ICollection<T> collection &&
-                (NinoElements.BlockStride<T, TFormatter>() > 0 || count >= CopiedFrom))
+                (NinoKind.Stride<T, TFormatter>() > 0 || count >= CopiedFrom))
             {
                 WriteCopied<T, TFormatter>(collection, null, ref writer);
                 return;
@@ -247,7 +247,7 @@ namespace Nino.Core.Internal
             where TFormatter : struct, INinoFormatter<T>
         {
             // On CoreLib, rent directly for heavy elements if the pool's buffer fits the allocation budget.
-            if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value
+            if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoKind<T, TFormatter>.Heavy
 #if NET8_0_OR_GREATER
                 && !NinoElements.FitsRented(length, Unsafe.SizeOf<T>(), reader.Remaining)
 #endif
@@ -310,7 +310,7 @@ namespace Nino.Core.Internal
                 source, root, ref writer);
 
         /// <summary>
-        /// Reads <paramref name="length"/> slots (<see cref="NinoElements.SlotStride{T,TFormatter}"/>: a raw
+        /// Reads <paramref name="length"/> slots (<see cref="NinoElementKind.Slot"/>: a raw
         /// <c>T?</c>) as one run into a rented array, checked and converted by the run's kernels, and gives each to
         /// <typeparamref name="TAdder"/>: what a collection that takes its elements one at a time reads slots
         /// through. A slot read alone goes through the run's kernel once an element (1,000 <c>int?</c> into a
@@ -352,9 +352,9 @@ namespace Nino.Core.Internal
         public static void WriteSpan<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            // Elements of a fixed size (BlockStride, a constant): the length and the block in one reservation, one
+            // Elements of a fixed size (NinoKind.Stride, a constant): the length and the block in one reservation, one
             // capacity check where the length and the block would each take one.
-            int block = NinoElements.BlockStride<T, TFormatter>();
+            int block = NinoKind.Stride<T, TFormatter>();
             if (block > 0)
             {
                 ref byte elements = ref writer.ReserveCounted(values.Length, block);
@@ -370,7 +370,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool TryWriteRawExternal<T, TFormatter>(ReadOnlyMemory<T> value, IBufferWriter<byte> buffer)
             where TFormatter : struct, INinoFormatter<T> =>
-            RawFormatter.Is<T, TFormatter>() &&
+            NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw &&
             !MemoryMarshal.TryGetMemoryManager<T, MemoryManager<T>>(value, out _) &&
             MemoryMarshal.TryGetArray(value, out var segment) &&
             TryWriteCanonicalExternal(segment, buffer, nullSegment: false);
@@ -378,7 +378,8 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool TryWriteRawExternal<T, TFormatter>(ArraySegment<T> value, IBufferWriter<byte> buffer)
             where TFormatter : struct, INinoFormatter<T> =>
-            RawFormatter.Is<T, TFormatter>() && TryWriteCanonicalExternal(value, buffer, nullSegment: true);
+            NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw &&
+            TryWriteCanonicalExternal(value, buffer, nullSegment: true);
 
         private static bool TryWriteCanonicalExternal<T>(ArraySegment<T> value, IBufferWriter<byte> buffer, bool nullSegment)
         {

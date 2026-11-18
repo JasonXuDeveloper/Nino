@@ -20,7 +20,7 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            if (RawFormatter.Is<T, TFormatter>())
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw)
             {
                 int size = Unsafe.SizeOf<T>();
                 int count = value.Count;
@@ -49,7 +49,7 @@ namespace Nino.Core
             }
 
             // Slots (raw T?): copied out and written as one block, as an array of them is.
-            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
             {
                 WriteSlots(value, ref writer);
                 return;
@@ -131,7 +131,7 @@ namespace Nino.Core
 
         public void Deserialize(ref Reader reader, ref TSet value)
         {
-            bool raw = RawFormatter.Is<T, TFormatter>();
+            bool raw = NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw;
             if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinHashedSize<T, TFormatter>(), out int length))
                 return;
 
@@ -150,7 +150,7 @@ namespace Nino.Core
             // Sized for the elements, unless its entries would take far more memory than the data (large elements,
             // strings among them: a null or empty one takes one byte): then it grows as they are added.
             set.EnsureCapacity(Unsafe.SizeOf<T>() + NinoElements.HashSlot > NinoElements.Amplification &&
-                               NinoElements.HeavyHashed<T, TFormatter>.Value
+                               NinoKind<T, TFormatter>.HeavyHashed
                 ? NinoElements.Capacity(length, Unsafe.SizeOf<T>() + NinoElements.HashSlot, reader.Remaining)
                 : length);
 #endif
@@ -166,7 +166,7 @@ namespace Nino.Core
             }
 
             // Slots (raw T?), out of line.
-            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
             {
                 ReadSlots(set, length, created, ref reader);
                 return;

@@ -61,13 +61,13 @@ public class PrefetchTests
     /// with -p:NinoRegularCalls=true, which leaves out the generator's build props).
     /// </summary>
     private static bool Prefetches =>
-        NinoPrefetch.Of<NinoGen.Nino_UnitTests_PrefetchItemFormatter>.Threshold != int.MaxValue;
+        NinoKind<NinoGen.Nino_UnitTests_PrefetchItemFormatter>.PrefetchThreshold != int.MaxValue;
 
     /// <summary>Past the threshold of PrefetchItem's collections, and not a multiple of a run.</summary>
     private static int Long => Threshold + 37;
 
     private static int Threshold => Prefetches
-        ? NinoPrefetch.Of<NinoGen.Nino_UnitTests_PrefetchItemFormatter>.Threshold
+        ? NinoKind<NinoGen.Nino_UnitTests_PrefetchItemFormatter>.PrefetchThreshold
         : 2000;
 
     private static PrefetchItem[] Items(int count, int seed, bool shuffled = true)
@@ -232,7 +232,7 @@ public class PrefetchTests
     [TestMethod]
     public void LongPolymorphicArraysRoundTrip()
     {
-        int count = (Prefetches ? NinoPrefetch.Of<NinoGen.Nino_UnitTests_PrefetchShapeFormatter>.Threshold : 2000) + 21;
+        int count = (Prefetches ? NinoKind<NinoGen.Nino_UnitTests_PrefetchShapeFormatter>.PrefetchThreshold : 2000) + 21;
         var shapes = new PrefetchShape[count];
         for (int i = 0; i < count; i++)
             shapes[i] = (i % 11) switch

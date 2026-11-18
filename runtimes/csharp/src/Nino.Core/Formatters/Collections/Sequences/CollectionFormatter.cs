@@ -65,7 +65,7 @@ namespace Nino.Core
                 return;
 
             // Slots (raw T?): read as one run, as an array of them is, then added.
-            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
             {
                 NinoCollections.AddSlots<TCollection, T, TFormatter, Adder>(collection, length, ref reader);
                 return;

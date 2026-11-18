@@ -25,9 +25,9 @@ namespace Nino.Core
 
             if (value.GetType() == typeof(ConcurrentQueue<T>))
             {
-                if (NinoElements.BlockStride<T, TFormatter>() <= 0)
+                if (NinoKind.Stride<T, TFormatter>() <= 0)
                     WriteQueueSnapshot(value, ref writer);
-                else if (NinoElements.SlotStride<T, TFormatter>() > 0)
+                else if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
                     WriteQueueSlots(Unsafe.As<ConcurrentQueue<T>>(value), ref writer);
                 else
                     WriteQueueBlock(Unsafe.As<ConcurrentQueue<T>>(value), ref writer);
@@ -35,7 +35,7 @@ namespace Nino.Core
             }
 
 #if NET8_0_OR_GREATER
-            if (RawFormatter.Is<T, TFormatter>() && value.GetType() == typeof(ConcurrentStack<T>) &&
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw && value.GetType() == typeof(ConcurrentStack<T>) &&
                 ConcurrentStackNodes<T>.TryWrite(Unsafe.As<ConcurrentStack<T>>(value), ref writer))
                 return;
 #endif
@@ -116,7 +116,7 @@ namespace Nino.Core
             NinoRecycler.DrainAndDiscard(collection);
 
             // Slots (raw T?): read as one run, as an array of them is, then added.
-            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
             {
                 NinoCollections.AddSlots<TCollection, T, TFormatter, Adder>(collection, length, ref reader);
                 return;

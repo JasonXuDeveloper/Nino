@@ -192,7 +192,8 @@ namespace Nino.Core
             TValue[] values = CollectionFields.Values(list);
             if ((uint)count > (uint)keys.Length || (uint)count > (uint)values.Length)
                 NinoThrow.ModifiedDuringWrite();
-            if (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>())
+            if (NinoKind.Of<TKey, TKeyFormatter>() == NinoElementKind.Raw &&
+                NinoKind.Of<TValue, TValueFormatter>() == NinoElementKind.Raw)
             {
                 ref byte target = ref writer.ReserveCounted(count, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>());
 #if NET8_0_OR_GREATER
@@ -370,8 +371,8 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool CanReadRawSortedPairs(SortedList<TKey, TValue> list) =>
-            CollectionViews.SortedList && RawFormatter.Is<TKey, TKeyFormatter>() &&
-            RawFormatter.Is<TValue, TValueFormatter>() &&
+            CollectionViews.SortedList && NinoKind.Of<TKey, TKeyFormatter>() == NinoElementKind.Raw &&
+            NinoKind.Of<TValue, TValueFormatter>() == NinoElementKind.Raw &&
             ReferenceEquals(CollectionFields.Comparer(list), Comparer<TKey>.Default);
 
         [MethodImpl(MethodImplOptions.NoInlining)]

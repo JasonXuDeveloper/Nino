@@ -21,7 +21,7 @@ namespace Nino.Core.Internal
     /// Opt-in per project (the MSBuild property <c>NinoPrefetchLargeCollections</c>), and only top-level calls
     /// prefetch: the generated interceptors of such a project call <see cref="NinoDirect"/>'s <c>...Prefetched</c>
     /// methods for an array or a list of a class whose formatter reports <see cref="INinoFormatter.PrefetchBytes"/>,
-    /// which write it, or read into its existing objects, here when it is longer than <see cref="Of{TFormatter}.Threshold"/> and its first objects are not in
+    /// which write it, or read into its existing objects, here when it is longer than <see cref="NinoKind{TFormatter}.PrefetchThreshold"/> and its first objects are not in
     /// allocation order (<see cref="Takes{T,TFormatter}"/>): the ordinary element loop with its own writer or reader,
     /// in runs of <see cref="Run"/>, before each of which <see cref="Ahead"/> (out of line, keyed by the formatter)
     /// prefetches the objects two runs ahead and the objects the members of the next run point to. Collections nested
@@ -73,11 +73,11 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Whether a collection of <paramref name="length"/> elements of <typeparamref name="TFormatter"/> may prefetch:
-        /// more than <see cref="Of{TFormatter}.Threshold"/>, a static readonly field (int.MaxValue where nothing
+        /// more than <see cref="NinoKind{TFormatter}.PrefetchThreshold"/>, a static readonly field (int.MaxValue where nothing
         /// prefetches or the setting is off). The test the top-level calls inline: one compare against a constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool Long<TFormatter>(int length) where TFormatter : struct, INinoFormatter => length > Of<TFormatter>.Threshold;
+        public static bool Long<TFormatter>(int length) where TFormatter : struct, INinoFormatter => length > NinoKind<TFormatter>.PrefetchThreshold;
 
         /// <summary>
         /// Whether the collection <paramref name="values"/> prefetches: <see cref="Long{TFormatter}"/>, and objects
@@ -153,7 +153,7 @@ namespace Nino.Core.Internal
         public static bool Read<T, TFormatter>(ReadOnlySpan<byte> data, T[] values)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (!SameLength(data, values.Length) || !Takes<T, TFormatter>(values, Of<TFormatter>.ReverseReadIsLocal))
+            if (!SameLength(data, values.Length) || !Takes<T, TFormatter>(values, NinoKind<TFormatter>.ReverseReadIsLocal))
                 return false;
             var reader = new Reader(data);
             // The length (checked against the bytes left, as the formatter does): the array is kept.
@@ -172,7 +172,7 @@ namespace Nino.Core.Internal
             where TFormatter : struct, INinoFormatter<T>
         {
             if (!SameLength(data, values.Count) ||
-                !Takes<T, TFormatter>(ListAccess.AsSpan<T>(values), Of<TFormatter>.ReverseReadIsLocal))
+                !Takes<T, TFormatter>(ListAccess.AsSpan<T>(values), NinoKind<TFormatter>.ReverseReadIsLocal))
                 return false;
             var reader = new Reader(data);
             reader.TryReadLength(NinoElements.MinWireSize<T, TFormatter>(), out int length);
@@ -227,7 +227,7 @@ namespace Nino.Core.Internal
             ref object item = ref Unsafe.Add(ref at, 2 * Run);
             for (int i = 0; i < far; i++)
                 sum += At(Unsafe.Add(ref item, i));
-            if (Of<TFormatter>.Members)
+            if (NinoKind<TFormatter>.PrefetchMembers)
             {
                 int near = Math.Min(left - Run, Run);
                 if (near > 0)
@@ -329,33 +329,29 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// The most elements a collection of <typeparamref name="TFormatter"/>'s objects holds without prefetching:
-        /// a <see cref="CacheShare"/> of the last-level cache over the element's bytes
-        /// (<see cref="INinoFormatter.PrefetchBytes"/>), at least <see cref="MinElements"/>; int.MaxValue for a
-        /// formatter that reports none (a generated class formatter: its collections are written element by element,
-        /// never as blocks), or where nothing prefetches (<see cref="Supported"/>). The formatter's prefetch queries
-        /// are read here once, so <see cref="Ahead{TFormatter}"/> calls <see cref="INinoFormatter.PrefetchMembers"/>
-        /// only on a formatter that has it. Static readonly: the JIT takes these as constants once they are set.
+        /// The most elements a collection of objects of <paramref name="bytes"/> each
+        /// (<see cref="INinoFormatter.PrefetchBytes"/>) holds without prefetching: a <see cref="CacheShare"/> of the
+        /// last-level cache over the element's bytes, at least <see cref="MinElements"/>; int.MaxValue for a formatter
+        /// that reports none (a generated class formatter: its collections are written element by element, never as
+        /// blocks), or where nothing prefetches (<see cref="Supported"/>). Read once per formatter into
+        /// <see cref="NinoKind{TFormatter}.PrefetchThreshold"/>, a constant to the JIT.
         /// </summary>
-        public static class Of<TFormatter> where TFormatter : struct, INinoFormatter
-        {
-            private static readonly int Bytes = default(TFormatter).PrefetchBytes;
+        internal static int Threshold(int bytes) =>
+            !Supported || bytes <= 0
+                ? int.MaxValue
+                : (int)Math.Min(int.MaxValue - 1, Math.Max(MinElements, CacheBytes / CacheShare / Math.Max(1, bytes)));
 
-            /// <summary><see cref="INinoFormatter.HasMemberPrefetch"/> of a formatter that prefetches.</summary>
-            public static readonly bool Members = Bytes > 0 && default(TFormatter).HasMemberPrefetch;
-
+        /// <summary>
+        /// Whether a reverse walk of a read into existing objects of <paramref name="bytes"/> each needs no prefetch
+        /// (<see cref="NinoKind{TFormatter}.ReverseReadIsLocal"/>): on Arm64, loading ahead of a reverse walk helped
+        /// writes but cost reuse reads of small objects.
+        /// </summary>
+        internal static bool ReverseReadIsLocal(int bytes, bool members) =>
 #if NET8_0_OR_GREATER
-            // On Arm64, loading ahead of a reverse walk helped writes but cost reuse reads of small objects.
-            public static readonly bool ReverseReadIsLocal = AdvSimd.Arm64.IsSupported && !Members && Bytes is > 0 and <= 32;
+            AdvSimd.Arm64.IsSupported && !members && bytes is > 0 and <= 32;
 #else
-            public const bool ReverseReadIsLocal = false;
+            false;
 #endif
-
-            public static readonly int Threshold = !Supported || Bytes <= 0 ? int.MaxValue : ForBytes(Bytes);
-
-            private static int ForBytes(int bytes) =>
-                (int)Math.Min(int.MaxValue - 1, Math.Max(MinElements, CacheBytes / CacheShare / Math.Max(1, bytes)));
-        }
 
         /// <summary>Whether this runtime prefetches: x64 or Arm64 on .NET 8+ (see <see cref="At"/>).</summary>
         public static bool Supported =>

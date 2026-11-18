@@ -87,9 +87,18 @@ says which CPUs and cases moved.
   per-type layers are in, one pull request takes the branch to `main`, with the full runner A/B against the `main`
   the series started from, and the optimization happens there. Why: `main` stays releasable at its last stable
   state, the A/B budget is spent once on the whole instead of on intermediate shapes, and work is not spent polishing
-  code that is replaced. A fix a step needs anyway counts when it is the shape the layer keeps:
-  `NinoLoops<TFormatter>`, the queries per formatter that fold in shared code, is where the layer's once-per-type
-  decision lives.
+  code that is replaced. A fix a step needs anyway counts when it is the shape the layer keeps. The once-per-type
+  decision lives in `NinoKind` (`Internal/Collections/Traversal/NinoKind.cs`, #355 PR 1): every collection reads it,
+  never `RawFormatter.Is`, a slot stride, a `typeof(StringFormatter)` or a loop query of its own. Key a trait on the
+  formatter alone wherever the formatter decides it (`NinoKind<TFormatter>`: `Traits` with
+  `NinoBodyTraits.Dispatches`, `IsString`, the loops, prefetch, the top-level writes), so it folds in code shared over a
+  class element; key it on `<T, TFormatter>` only where the element decides it (`NinoKind<T, TFormatter>`: raw by
+  `T`'s layout, slot, block by its memory), which happens only for values without references, whose code is never
+  shared, and read it behind `IsReferenceOrContainsReferences<T>()` (`NinoKind.Of`, `NinoKind.Stride`). Raw is
+  `RawFormatter`'s layout check (`NinoLayout` canonical on this runtime), never `unmanaged` or a `typeof` that assumes
+  .NET's layout (`ValueTuple` and `KeyValuePair` are auto layout on CoreCLR; Mono, IL2CPP and Unity lay some types out
+  otherwise): a type laid out otherwise is a block or per value. Add no generic member to `INinoFormatter<T>`: Unity
+  2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`).
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks

@@ -36,13 +36,14 @@ namespace Nino.Core
                     return true;
                 case LinkedList<T> linked:
                     // Slots (raw T?): copied out of the nodes and written as one block, as an array of them is.
-                    if (NinoElements.SlotStride<T, TFormatter>() > 0)
+                    if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
                     {
                         NinoCollections.WriteCopied<T, TFormatter>(linked, null, ref writer);
                         return true;
                     }
 #if NET8_0_OR_GREATER
-                    if (linked.Count >= 32 && CollectionViews.LinkedList && RawFormatter.Is<T, TFormatter>())
+                    if (linked.Count >= 32 && CollectionViews.LinkedList &&
+                        NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw)
                     {
                         WriteLinkedRing(linked, ref writer);
                         return true;
@@ -67,7 +68,7 @@ namespace Nino.Core
         private static bool TryWritePackedTree(int count, object root, ref Writer writer)
         {
             if (!NinoUnsafe.Is64Bit || root == null ||
-                !RawFormatter.Is<T, TFormatter>() || NinoLayout<T>.HasPadding)
+                NinoKind.Of<T, TFormatter>() != NinoElementKind.Raw || NinoLayout<T>.HasPadding)
                 return false;
 
             SortedSetNodes<T>.WritePacked(root, count, ref writer);
@@ -164,7 +165,7 @@ namespace Nino.Core
         private static void WriteLinked(LinkedList<T> linked, ref Writer writer)
         {
             int count = linked.Count;
-            if (RawFormatter.Is<T, TFormatter>())
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw)
             {
                 int size = Unsafe.SizeOf<T>();
                 ref byte elements = ref writer.ReserveCounted(count, size);
@@ -238,7 +239,7 @@ namespace Nino.Core
         /// </summary>
         private static void ReadLinked(LinkedList<T> linked, int length, ref Reader reader)
         {
-            if (NinoElements.SlotStride<T, TFormatter>() > 0 && length != 0)
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot && length != 0)
             {
                 ReadLinkedSlots(linked, length, ref reader);
                 return;

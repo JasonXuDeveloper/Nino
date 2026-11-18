@@ -50,7 +50,7 @@ namespace Nino.Core
             }
 
             // Slots (raw T?): read as one run, as an array of them is, then added.
-            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
             {
                 NinoCollections.AddSlots<ConcurrentStack<T>, T, TFormatter, Adder>(stack, length, ref reader);
                 return;

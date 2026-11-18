@@ -18,6 +18,20 @@ namespace Nino.Core
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
+        /// <summary>The kind of the keys (<see cref="NinoKind"/>): a JIT-time constant.</summary>
+        private static NinoElementKind KeyKind
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => NinoKind.Of<TKey, TKeyFormatter>();
+        }
+
+        /// <summary>The kind of the values (<see cref="NinoKind"/>): a JIT-time constant.</summary>
+        private static NinoElementKind ValueKind
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => NinoKind.Of<TValue, TValueFormatter>();
+        }
+
         /// <summary>Writes the count and the pairs of a dictionary (not null).</summary>
         // Inlined, with the loops out of line: the writer's address never reaches a call that is not inlined (raw
         // pairs are written into one reservation taken here; other pairs go through a copy of the writer), so the
@@ -25,7 +39,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write(Dictionary<TKey, TValue> value, ref Writer writer)
         {
-            if (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>())
+            if (KeyKind == NinoElementKind.Raw && ValueKind == NinoElementKind.Raw)
             {
                 // Raw keys and values: one reservation for the whole dictionary, no per-element bounds checks.
                 int count = value.Count;
@@ -37,10 +51,10 @@ namespace Nino.Core
 
             // A polymorphic value: the base's generated pair loop, the dispatch inline (INinoFormatter.WritePairs32
             // and its kin, constrained calls), for keys of a word written as it lies in memory, or strings. Asked
-            // before the string pairs below return, so NinoLoops is initialized when Tier1 compiles this.
-            if ((typeof(TKeyFormatter) == typeof(StringFormatter) ||
-                 RawFormatter.Is<TKey, TKeyFormatter>() && WordKey<TKey>.Size != 0) &&
-                !typeof(TValue).IsValueType && NinoLoops<TValueFormatter>.Pairs)
+            // before the string pairs below return, so NinoKind is initialized when Tier1 compiles this.
+            if ((NinoKind<TKeyFormatter>.IsString ||
+                 KeyKind == NinoElementKind.Raw && WordKey<TKey>.Size != 0) &&
+                !typeof(TValue).IsValueType && NinoKind<TValueFormatter>.Pairs)
             {
                 int count = value.Count;
                 writer.WriteLength(count);
@@ -48,7 +62,7 @@ namespace Nino.Core
                     return;
                 Writer pairs = default;
                 writer.CopyTo(ref pairs);
-                if (typeof(TKeyFormatter) == typeof(StringFormatter))
+                if (NinoKind<TKeyFormatter>.IsString)
                     default(TValueFormatter).WriteStringPairs(value, ref pairs);
                 else if (WordKey<TKey>.Size == sizeof(int))
                     default(TValueFormatter).WritePairs32(value, ref pairs);
@@ -58,8 +72,8 @@ namespace Nino.Core
                 return;
             }
 
-            if ((RawFormatter.Is<TKey, TKeyFormatter>() && typeof(TValueFormatter) == typeof(StringFormatter)) ||
-                (typeof(TKeyFormatter) == typeof(StringFormatter) && RawFormatter.Is<TValue, TValueFormatter>()))
+            if ((KeyKind == NinoElementKind.Raw && NinoKind<TValueFormatter>.IsString) ||
+                (NinoKind<TKeyFormatter>.IsString && ValueKind == NinoElementKind.Raw))
             {
                 // Raw keys and strings, or strings and raw values: written into the free part of the buffer by value;
                 // only when they do not fit does the buffer grow, through the general loop.
@@ -131,7 +145,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool TryWriteStringPair(ref byte dst, ref nuint pos, nuint end, TKey key, TValue item)
         {
-            if (typeof(TKeyFormatter) == typeof(StringFormatter))
+            if (NinoKind<TKeyFormatter>.IsString)
             {
                 string s = Unsafe.As<TKey, string>(ref key);
                 nuint size = (nuint)(uint)(NinoStrings.MaxSize(s) + Unsafe.SizeOf<TValue>());
@@ -287,7 +301,7 @@ namespace Nino.Core
         {
             int before = dictionary.Count;
             // Also when the keys read (into an array of the length) would take far more memory than the data.
-            if (before == 0 || (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>()) ||
+            if (before == 0 || (KeyKind == NinoElementKind.Raw && ValueKind == NinoElementKind.Raw) ||
                 Unsafe.SizeOf<TKey>() > 2 * NinoElements.Amplification && HeavyKeys &&
                 !NinoElements.Fits(length, Unsafe.SizeOf<TKey>(), reader.Remaining))
             {
@@ -301,7 +315,7 @@ namespace Nino.Core
             {
                 int matched = 0;
 #if NET8_0_OR_GREATER
-                if (RawFormatter.Is<TKey, TKeyFormatter>() && typeof(TValueFormatter) == typeof(StringFormatter))
+                if (KeyKind == NinoElementKind.Raw && NinoKind<TValueFormatter>.IsString)
                     // Raw keys and strings: one loop with the state in registers (see Reader.ReadStringPairs).
                     matched = reader.RefillStringPairs(Unsafe.As<Dictionary<TKey, string>>(dictionary), seen,
                         length);
@@ -545,7 +559,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Read(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
-            if (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>())
+            if (KeyKind == NinoElementKind.Raw && ValueKind == NinoElementKind.Raw)
             {
                 // The block is taken here and the pairs added out of line: the reader's address never leaves the
                 // caller, and the caller stays small enough for the JIT to inline the rest of its path.
@@ -555,14 +569,14 @@ namespace Nino.Core
                 return;
             }
 
-            if (RawFormatter.Is<TKey, TKeyFormatter>() && typeof(TValueFormatter) == typeof(StringFormatter))
+            if (KeyKind == NinoElementKind.Raw && NinoKind<TValueFormatter>.IsString)
             {
                 // Raw keys and strings: one loop with the state in registers (see Reader.ReadStrings).
                 reader.ReadStringPairs(Unsafe.As<Dictionary<TKey, string>>(dictionary), length);
                 return;
             }
 
-            if (typeof(TKeyFormatter) == typeof(StringFormatter) && typeof(TValueFormatter) == typeof(StringFormatter))
+            if (NinoKind<TKeyFormatter>.IsString && NinoKind<TValueFormatter>.IsString)
             {
                 // Strings for both: the same, a null key invalid data.
                 if (length != 0)

@@ -46,7 +46,8 @@ namespace Nino.Core
         private static Writer WriteSegments(ReadOnlySequence<T> value, Writer writer)
         {
             int length = checked((int)value.Length);
-            if (typeof(TFormatter) == typeof(UnmanagedFormatter<byte>))
+            // Bytes written as their memory: the segments copied straight into one reservation.
+            if (typeof(T) == typeof(byte) && NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw)
             {
                 var destination = MemoryMarshal.CreateSpan(ref writer.ReserveCounted(length, 1), length);
                 NinoSequences.CopySegments(in Unsafe.As<ReadOnlySequence<T>, ReadOnlySequence<byte>>(ref value), destination);
