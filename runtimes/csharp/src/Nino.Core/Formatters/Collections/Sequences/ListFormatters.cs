@@ -12,16 +12,18 @@ namespace Nino.Core
     /// <c>List&lt;T&gt;</c> (or a type derived from it): count (-1 = null), then the elements.
     /// An existing list is reused, and its elements are reused by index.
     /// </summary>
-    public struct ListFormatter<[NinoCreated] TList, T, TFormatter> : INinoFormatter<TList>, INinoSizedFormatter<TList>
+    public struct ListFormatter<[NinoCreated] TList, T, TFormatter> : INinoFormatter<TList>
         where TList : List<T>
         where TFormatter : struct, INinoFormatter<T>
     {
+        bool INinoFormatter.HasSizedWrite => true;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoSizedFormatter<TList>.Size(TList value) =>
+        int INinoFormatter<TList>.Size(TList value) =>
             NinoElements.SizedBytes<T, TFormatter>(value == null ? -1 : value.Count);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoSizedFormatter<TList>.WriteSized(TList value, ref byte destination) =>
+        void INinoFormatter<TList>.WriteSized(TList value, ref byte destination) =>
             NinoElements.WriteSized<T, TFormatter>(ref destination,
                 value == null ? default : (ReadOnlySpan<T>)ListAccess.AsSpan<T>(value), value == null);
 
@@ -67,14 +69,17 @@ namespace Nino.Core
     }
 
     /// <summary>Unmanaged <c>List&lt;T&gt;</c>: count (-1 = null), then one block copy.</summary>
-    public struct UnmanagedListFormatter<[NinoCreated] TList, [NinoRaw] T> : INinoFormatter<TList>,
-        INinoSizedFormatter<TList>, INinoExternalFormatter<TList>
+    public struct UnmanagedListFormatter<[NinoCreated] TList, [NinoRaw] T> : INinoFormatter<TList>
         where TList : List<T>
         where T : unmanaged
     {
+        bool INinoFormatter.HasSizedWrite => true;
+
+        bool INinoFormatter.HasExternalWrite => true;
+
         // The layout of Writer.Write(ReadOnlySpan<T>) where T's memory is its wire layout.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoSizedFormatter<TList>.Size(TList value) =>
+        int INinoFormatter<TList>.Size(TList value) =>
             NinoLayout<T>.IsCanonical ? SizedBytes(value?.Count ?? 0) : -1;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -84,7 +89,7 @@ namespace Nino.Core
                 : -1;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        bool INinoExternalFormatter<TList>.TryWriteExternal(TList value, IBufferWriter<byte> buffer)
+        bool INinoFormatter<TList>.TryWriteExternal(TList value, IBufferWriter<byte> buffer)
         {
             if (!BitConverter.IsLittleEndian || !NinoLayout<T>.IsCanonical)
                 return false;
@@ -100,7 +105,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoSizedFormatter<TList>.WriteSized(TList value, ref byte destination)
+        void INinoFormatter<TList>.WriteSized(TList value, ref byte destination)
         {
             if (value == null)
                 NinoUnsafe.Write(ref destination, NinoWire.NullLength);

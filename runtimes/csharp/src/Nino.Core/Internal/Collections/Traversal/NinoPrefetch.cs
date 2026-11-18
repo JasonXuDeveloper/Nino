@@ -20,7 +20,7 @@ namespace Nino.Core.Internal
     /// <para>
     /// Opt-in per project (the MSBuild property <c>NinoPrefetchLargeCollections</c>), and only top-level calls
     /// prefetch: the generated interceptors of such a project call <see cref="NinoDirect"/>'s <c>...Prefetched</c>
-    /// methods for an array or a list of a class whose formatter implements <see cref="INinoPrefetchFormatter"/>,
+    /// methods for an array or a list of a class whose formatter reports <see cref="INinoFormatter.PrefetchBytes"/>,
     /// which write it, or read into its existing objects, here when it is longer than <see cref="Of{TFormatter}.Threshold"/> and its first objects are not in
     /// allocation order (<see cref="Takes{T,TFormatter}"/>): the ordinary element loop with its own writer or reader,
     /// in runs of <see cref="Run"/>, before each of which <see cref="Ahead"/> (out of line, keyed by the formatter)
@@ -77,7 +77,7 @@ namespace Nino.Core.Internal
         /// prefetches or the setting is off). The test the top-level calls inline: one compare against a constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool Long<TFormatter>(int length) where TFormatter : struct => length > Of<TFormatter>.Threshold;
+        public static bool Long<TFormatter>(int length) where TFormatter : struct, INinoFormatter => length > Of<TFormatter>.Threshold;
 
         /// <summary>
         /// Whether the collection <paramref name="values"/> prefetches: <see cref="Long{TFormatter}"/>, and objects
@@ -220,14 +220,14 @@ namespace Nino.Core.Internal
         /// calls it once per run, with nothing of its own in memory.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void Ahead<TFormatter>(ref object at, int left) where TFormatter : struct
+        public static void Ahead<TFormatter>(ref object at, int left) where TFormatter : struct, INinoFormatter
         {
             int sum = 0;
             int far = Math.Min(left - 2 * Run, Run);
             ref object item = ref Unsafe.Add(ref at, 2 * Run);
             for (int i = 0; i < far; i++)
                 sum += At(Unsafe.Add(ref item, i));
-            if (default(TFormatter) is INinoPrefetchFormatter)
+            if (Of<TFormatter>.Members)
             {
                 int near = Math.Min(left - Run, Run);
                 if (near > 0)
@@ -240,19 +240,19 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Prefetches, through the formatter's <see cref="INinoPrefetchFormatter.PrefetchMembers"/> (inlined here), the
+        /// Prefetches, through the formatter's <see cref="INinoFormatter.PrefetchMembers"/> (inlined here), the
         /// objects the members of the <paramref name="count"/> elements at <paramref name="first"/> (null ones skipped)
         /// point to; the sum of what it returned.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int Members<TFormatter>(ref object first, int count) where TFormatter : struct
+        private static int Members<TFormatter>(ref object first, int count) where TFormatter : struct, INinoFormatter
         {
             int sum = 0;
             for (; count > 0; count--, first = ref Unsafe.Add(ref first, 1))
             {
                 object value = first;
                 if (value != null)
-                    sum += ((INinoPrefetchFormatter)default(TFormatter)).PrefetchMembers(value);
+                    sum += default(TFormatter).PrefetchMembers(value);
             }
 
             return sum;
@@ -331,26 +331,27 @@ namespace Nino.Core.Internal
         /// <summary>
         /// The most elements a collection of <typeparamref name="TFormatter"/>'s objects holds without prefetching:
         /// a <see cref="CacheShare"/> of the last-level cache over the element's bytes
-        /// (<see cref="INinoPrefetchFormatter.PrefetchBytes"/>), at least <see cref="MinElements"/>; int.MaxValue for a
-        /// formatter that is not an <see cref="INinoPrefetchFormatter"/> (a generated class formatter: its collections are
-        /// written element by element, never as blocks), or where nothing prefetches (<see cref="Supported"/>). Static readonly: the JIT takes it as a constant once it is set.
+        /// (<see cref="INinoFormatter.PrefetchBytes"/>), at least <see cref="MinElements"/>; int.MaxValue for a
+        /// formatter that reports none (a generated class formatter: its collections are written element by element,
+        /// never as blocks), or where nothing prefetches (<see cref="Supported"/>). The formatter's prefetch queries
+        /// are read here once, so <see cref="Ahead{TFormatter}"/> calls <see cref="INinoFormatter.PrefetchMembers"/>
+        /// only on a formatter that has it. Static readonly: the JIT takes these as constants once they are set.
         /// </summary>
-        public static class Of<TFormatter> where TFormatter : struct
+        public static class Of<TFormatter> where TFormatter : struct, INinoFormatter
         {
+            private static readonly int Bytes = default(TFormatter).PrefetchBytes;
+
+            /// <summary><see cref="INinoFormatter.HasMemberPrefetch"/> of a formatter that prefetches.</summary>
+            public static readonly bool Members = Bytes > 0 && default(TFormatter).HasMemberPrefetch;
+
 #if NET8_0_OR_GREATER
             // On Arm64, loading ahead of a reverse walk helped writes but cost reuse reads of small objects.
-            public static readonly bool ReverseReadIsLocal = AdvSimd.Arm64.IsSupported &&
-                default(TFormatter) is INinoObjectPrefetchFormatter { PrefetchBytes: <= 32 };
+            public static readonly bool ReverseReadIsLocal = AdvSimd.Arm64.IsSupported && !Members && Bytes is > 0 and <= 32;
 #else
             public const bool ReverseReadIsLocal = false;
 #endif
 
-            public static readonly int Threshold = !Supported ? int.MaxValue : default(TFormatter) switch
-            {
-                INinoPrefetchFormatter formatter => ForBytes(formatter.PrefetchBytes),
-                INinoObjectPrefetchFormatter formatter => ForBytes(formatter.PrefetchBytes),
-                _ => int.MaxValue,
-            };
+            public static readonly int Threshold = !Supported || Bytes <= 0 ? int.MaxValue : ForBytes(Bytes);
 
             private static int ForBytes(int bytes) =>
                 (int)Math.Min(int.MaxValue - 1, Math.Max(MinElements, CacheBytes / CacheShare / Math.Max(1, bytes)));
