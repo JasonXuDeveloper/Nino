@@ -227,7 +227,7 @@ the reports write for the docs site: the `benchmark-cases` skill.
   group title runs past its column (the reuse chart's allocations moved into the bar labels for that).
 - Never publish a quick, local or A/B number. README.md, docs/v4-benchmarks.md, the charts, the release notes and the
   docs site take them only from `report.yml` (x64 and Arm64 shards, the runtimes and Unity sections, job id
-  `ShortRun-.NET 10.0`), through the release's assets: `release_body.py` / `readme.py --assets` and the site's sync.
+  `ShortRun-.NET 11.0`; `ShortRun-.NET 10.0` up to the release before the benchmarks moved to .NET 11), through the release's assets: `release_body.py` / `readme.py --assets` and the site's sync.
 - Take the build-time numbers (README's Build row `v3.build`, docs/v4-benchmarks.md's `doc.build.*` tables, the site's
   build tables) only from the release's `build-x64.md` asset (the "🏗️ Build: v3 3.3.13 vs v4 (source generator)"
   section): report.yml's

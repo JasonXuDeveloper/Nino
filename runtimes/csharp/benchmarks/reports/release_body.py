@@ -184,7 +184,7 @@ def dotnet_chart(path, arch, v3_path=None):
     summary = (f"Nino v4 fastest or on par in {ahead} of {len(compared)} cases against every library measured "
                f"({len(v4)} rows)")
     run = f"{arch} GitHub runners" + (", v3 3.3.13 directly before v4" if v3 else "")
-    note = f"BenchmarkDotNet, .NET 10, {run}; every case is in the table; N× = N times as long as Nino v4."
+    note = f"BenchmarkDotNet, .NET 11, {run}; every case is in the table; N× = N times as long as Nino v4."
     if any(readme.has_forms(chart) for _, _, _, chart in groups):
         note += " " + readme.FORM_NOTE
     if any(readme.has_na(chart) for _, _, _, chart in groups):

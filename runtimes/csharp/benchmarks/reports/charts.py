@@ -39,7 +39,7 @@ PAD = 20  # the background's margin around the chart
 SCALE = 2  # PNG pixels per SVG unit
 
 README_TITLE = "Time per operation (shorter is faster)"
-README_NOTE = ("BenchmarkDotNet, .NET 10, server GC, one run on one machine (v3 3.3.13 directly before v4); "
+README_NOTE = ("BenchmarkDotNet, .NET 11, server GC, one run on one machine (v3 3.3.13 directly before v4); "
                "N× = N times as long as Nino v4.")
 
 

@@ -11,6 +11,11 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <RootNamespace>Nino.Benchmark</RootNamespace>
     </PropertyGroup>
+    <!-- The net11.0 build (what nino-gen reads) compiles C# 15 for the union case (Fixtures/UnionBenchmarkData.cs, behind
+         NET11_0_OR_GREATER); the netstandard2.1 build keeps every other model to C# 9, as Unity compiles them. -->
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0'">
+        <LangVersion>preview</LangVersion>
+    </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj"/>
         <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"

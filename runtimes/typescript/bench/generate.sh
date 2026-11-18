@@ -15,7 +15,7 @@ data=${NINO_BENCH_DATA:-$here/out/data}
 
 dotnet build -c Release "$csharp/benchmarks/Nino.Benchmark" > /dev/null
 rm -rf "$data"
-dotnet "$csharp/benchmarks/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll" --write-data "$data"
+dotnet "$csharp/benchmarks/Nino.Benchmark/bin/Release/net11.0/Nino.Benchmark.dll" --write-data "$data"
 
 dotnet build -c Release "$csharp/src/Nino.Codegen.Tool" > /dev/null
 dotnet build -c Release "$csharp/benchmarks/Nino.Benchmark.Schema" > /dev/null

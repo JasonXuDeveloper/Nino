@@ -23,6 +23,7 @@ purpose). Dump both sides on the same machine (DOTNET_EnableAVX512=0 gives the c
 variation above: dump again to tell.
 """
 import argparse
+import glob
 import json
 import os
 import re
@@ -66,11 +67,21 @@ def parse(listing):
     return methods
 
 
+def newest_build(project, dll):
+    """-> the newest framework's Release build of dll in project: a REF from before the benchmarks moved to net11.0
+    has only its net10.0 build."""
+    builds = sorted(glob.glob(os.path.join(project, "bin", "Release", "net*", dll)),
+                    key=lambda p: [int(n) for n in re.findall(r"\d+", os.path.basename(os.path.dirname(p)))])
+    if not builds:
+        sys.exit(f"no Release build of {dll} in {project}")
+    return builds[-1]
+
+
 def hook():
     """-> the path of the startup hook (jitwarm/), built from this tree."""
     project = os.path.join(ROOT, "benchmarks", "asm", "jitwarm")
     subprocess.run(["dotnet", "build", "-c", "Release", "-v", "q", project], check=True, stdout=subprocess.DEVNULL)
-    return os.path.join(project, "bin", "Release", "net10.0", "JitWarm.dll")
+    return os.path.join(project, "bin", "Release", "net11.0", "JitWarm.dll")
 
 
 def dump(ref, text, keep, runs=3):
@@ -96,7 +107,7 @@ def dump(ref, text, keep, runs=3):
                 out = os.path.join(tmp, "jit.asm")
                 env = dict(dotnet_env, DOTNET_JitStdOutFile=out, DOTNET_JitDisasm=METHODS,
                            DOTNET_STARTUP_HOOKS=startup_hook, NINO_JIT_FILTER=text or "")
-                subprocess.run(["dotnet", os.path.join(project, "bin", "Release", "net10.0", "Nino.Benchmark.dll")],
+                subprocess.run(["dotnet", newest_build(project, "Nino.Benchmark.dll")],
                                env=env, cwd=project, check=True)
                 with open(out, encoding="utf-8") as f:
                     listing = f.read()

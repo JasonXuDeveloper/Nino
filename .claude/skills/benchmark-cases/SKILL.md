@@ -38,7 +38,9 @@ each harness                          -->  reads cases.json, looks the codec up 
 - Keep the models C# 9 on netstandard2.1's API in `Fixtures/` (and `Workloads/*Models.cs`). Why:
   `Nino.Benchmark.Schema` builds the same files for nino-gen and Unity, with the other libraries' attributes as
   stand-ins, and ci.yml's "Check the benchmark schema" fails when nino-gen writes other code for its types than for
-  `Nino.Benchmark`'s.
+  `Nino.Benchmark`'s. A model that needs a newer C# (the C# unions of `PolymorphicTest`'s `UnionArray`, C# 15) goes
+  in a file of its own behind `NET11_0_OR_GREATER && !NINO_BENCH_V3`, which only the benchmark's and the schema's
+  net11.0 builds compile; `cases.json` marks such a case (`union`) and Unity's `bench/generate.sh` leaves it out (#328).
 
 ## Adding a case on .NET
 

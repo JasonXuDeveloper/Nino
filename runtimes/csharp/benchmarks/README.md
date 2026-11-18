@@ -143,7 +143,7 @@ MemoryPack, and with MessagePack and protobuf-net wherever they can write the sa
 | Class | What it measures |
 |---|---|
 | `SimpleTest` | `SimpleClass`, `SimpleClass[100]`, `SimpleStruct`, `SimpleStruct[100]`, `Vector4[10000]`: serialize to a reused buffer writer, deserialize new instances (`SimpleClassSerialize`, ..., `VectorsDeserialize`), against every library |
-| `PolymorphicTest` | Polymorphic class, polymorphic class array, polymorphic `Foo[]` (`PolymorphicClassSerialize`, ...), against every library |
+| `PolymorphicTest` | Polymorphic class, polymorphic class array, polymorphic `Foo[]` (`PolymorphicClassSerialize`, ...), against every library; an array of 1,000 C# union values (`UnionArray`, Nino only: no other library writes C# unions; Go, Rust and TypeScript time it through the unions nino-gen writes) |
 | `NullableTest` | `NullableFields`, a class of eight nullable members (`int?`, `long?`, `double?`, `bool?`, `DateTime?`, `Guid?`, `decimal?`, an enum), half of them null, alone and as `NullableFields[100]` whose objects alternate which half is null (`NullableFieldsSerialize`, `NullableFieldsArraySerialize`); and nullable values on their own: one `SimpleStruct?` with a value (`NullableStructSerialize`), `SimpleStruct?[100]` with every fifth null (`NullableStructsSerialize`), one `SimpleClass` reference that is null (`NullableObjectSerialize`; `SimpleTest`'s `SimpleClass` is its counterpart with a value) `SimpleClass[100]` with every fifth null (`NullableObjectsSerialize`) and `string[1000]` with every fifth null (`NullableStringsSerialize`); `RawNullable`, a raw (unmanaged) struct with nullable members (`int`, `long?`, `double?`), one and `RawNullable[1000]` (`RawNullableSerialize`, `RawNullablesSerialize`); and `ManagedStruct`, a struct that holds a reference (`int`, `string`, `double`: not raw), with a value and nullable: one, `ManagedStruct[100]`, one `ManagedStruct?` with a value and `ManagedStruct?[100]` with every fifth null (`ManagedStructSerialize`, `ManagedStructsSerialize`, `NullableManagedStructSerialize`, `NullableManagedStructsSerialize`); and the `Deserialize` ones; against every library (see [Nullable values](#nullable-values)) |
 | `PooledTest` | `SimpleClass`'s members pooled with `[NinoPooled]`, against MemoryPack's overwrite (`PooledDeserialize`) |
 | `PooledGraphTest` | Pooled node and leaves: new, reused in place, pooled elements, against MemoryPack's overwrite (`Plain`, `Node`, `Leaves`) |
@@ -249,7 +249,9 @@ each case's codec up by its .NET type in the code nino-gen writes, and the Unity
 them, so a case declared here needs no edit on another platform (`runtimes/go/bench/generate.sh`,
 `runtimes/rust/bench/generate.sh`, `runtimes/csharp/src/Nino.Unity/bench/generate.sh`).
 
-The models (`Fixtures/`, `Workloads/*Models.cs`) are C# 9: `Nino.Benchmark.Schema` (net11.0 and netstandard2.1, `LangVersion` 9) builds
+The benchmark runs on .NET 11 (net11.0, C# 15 for the union case). The models (`Fixtures/`, `Workloads/*Models.cs`) are
+C# 9 but for the union case's (`Fixtures/UnionBenchmarkData.cs`, behind `NET11_0_OR_GREATER`, which `cases.json` marks
+`union` and Unity leaves out): `Nino.Benchmark.Schema` (net11.0 with C# 15, and netstandard2.1 with `LangVersion` 9) builds
 the same files with the other libraries' attributes as no-op stand-ins (`CompetitorAttributes.cs`), the build nino-gen
 and Unity read for the other platforms' benchmarks, and ci.yml checks that nino-gen writes the same code for its types
 as for `Nino.Benchmark`'s. A model the schema should have goes in `Fixtures/`, never in a `Cases/` file.
@@ -396,7 +398,7 @@ use by default, in every case of those classes, and in `CollectionsTest`'s nulla
 - Google.Protobuf 3 writes and reads its own generated messages, as its users do, compiled at build time by the
   protoc of Grpc.Tools: `Workloads/workloads.proto` for the workloads, `Fixtures/cases.proto` for `SimpleTest`,
   `PolymorphicTest` and the nullable data (Level300, see [Nullable values](#nullable-values)). Each file is what protobuf-net's contracts of the models generate (`RuntimeTypeModel.GetSchema`,
-  proto3; `ProtoFile` in `Fixtures/ProtobufModel.cs`): run `dotnet bin/Release/net10.0/Nino.Benchmark.dll --write-proto`
+  proto3; `ProtoFile` in `Fixtures/ProtobufModel.cs`): run `dotnet bin/Release/net11.0/Nino.Benchmark.dll --write-proto`
   in `runtimes/csharp/benchmarks/Nino.Benchmark` after changing a model, and the setup of a class that uses the file fails while it is
   stale. So both libraries write the same messages, and Google.Protobuf's data is parsed from protobuf-net's bytes of
   the same values outside the timed region. The workload models carry `CompatibilityLevel.Level300` (`DateTime` as
@@ -493,7 +495,7 @@ so a value kept in memory instead of a register (a `Reader`/`Writer` whose addre
 inlined, a `ref` local, a struct with too many live fields) costs more there.
 
 `cross-jit.sh` installs the JIT for the other architecture (arm64 on an x64 machine, x64 on Apple silicon) from
-Microsoft's crossgen2 package into the .NET 10 runtime. With it every method is compiled for both, so one machine
+Microsoft's crossgen2 package into the .NET 11 runtime. With it every method is compiled for both, so one machine
 shows both listings:
 
 ```sh

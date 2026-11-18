@@ -315,8 +315,12 @@ jobs:
           # still set them up, and one called x86's CpuId, which failed every Arm64 shard. Left out of the build.
           rm -f CpuProbe.cs
           dotnet build -c Release
+          # The newest framework the tag builds for: net11.0, or net10.0 for a tag from before the benchmarks moved to
+          # .NET 11.
+          BENCH_DLL=$(ls bin/Release/net*/Nino.Benchmark.dll | sort -V | tail -1)
+          echo "BENCH_DLL=$BENCH_DLL" >> "$GITHUB_ENV"
           # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
-          dotnet bin/Release/net10.0/Nino.Benchmark.dll --verify
+          dotnet "$BENCH_DLL" --verify
 
       # Nino v3 3.3.13 from nuget.org, the same benchmark classes as far as 3.3.13 can express them (V3/: the benchmark
       # project built with NINO_BENCH_V3=true, into bin/v3; releases up to rc.8's development kept it in benchmarks/v3,
@@ -332,8 +336,11 @@ jobs:
             echo "V3_DIR=$BENCH_V3" >> "$GITHUB_ENV"; echo "V3_DLL=bin/Release/net10.0/Nino.Benchmark.dll" >> "$GITHUB_ENV"
             (cd "$BENCH_V3" && dotnet build -c Release && dotnet bin/Release/net10.0/Nino.Benchmark.dll --verify)
           else
-            echo "V3_DIR=$BENCH" >> "$GITHUB_ENV"; echo "V3_DLL=bin/v3/Release/net10.0/Nino.Benchmark.dll" >> "$GITHUB_ENV"
-            (cd "$BENCH" && NINO_BENCH_V3=true dotnet build -c Release && NINO_BENCH_V3=true dotnet bin/v3/Release/net10.0/Nino.Benchmark.dll --verify)
+            (cd "$BENCH" && NINO_BENCH_V3=true dotnet build -c Release)
+            # The newest framework, as the v4 build's (net10.0 before the benchmarks moved to .NET 11).
+            V3_DLL=$(cd "$BENCH" && ls bin/v3/Release/net*/Nino.Benchmark.dll | sort -V | tail -1)
+            echo "V3_DIR=$BENCH" >> "$GITHUB_ENV"; echo "V3_DLL=$V3_DLL" >> "$GITHUB_ENV"
+            (cd "$BENCH" && NINO_BENCH_V3=true dotnet "$V3_DLL" --verify)
           fi
 
       - name: Run v3 benchmark
@@ -379,10 +386,10 @@ jobs:
           # The cases this shard runs, and on one shard every case, so the publish job can name a case no shard ran
           # (the BclTypesTest and CollectionsTest shards select types by name).
           mkdir -p "$OUT"
-          dotnet bin/Release/net10.0/Nino.Benchmark.dll --list flat --filter "${PATTERNS[@]}" \
+          dotnet "$BENCH_DLL" --list flat --filter "${PATTERNS[@]}" \
             | grep '^Nino\.Benchmark\.' > "$OUT/cases-${{ matrix.arch }}-${{ matrix.shard }}.txt" || true
           if [[ "${{ matrix.shard }}" == a ]]; then
-            dotnet bin/Release/net10.0/Nino.Benchmark.dll --list flat --filter '*' \
+            dotnet "$BENCH_DLL" --list flat --filter '*' \
               | grep '^Nino\.Benchmark\.' > "$OUT/cases-${{ matrix.arch }}-all.txt" || true
           fi
           # The settings of the published numbers (BDN_ARGS above, docs/v4-benchmarks.md).
