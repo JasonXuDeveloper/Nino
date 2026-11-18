@@ -29,8 +29,8 @@ func ReadPrimitives[T Primitive](r *Reader) []T {
 	return v
 }
 
-// readPrimitivesInto reads len(dst) primitives (a block without a length) into dst.
-func readPrimitivesInto[T Primitive](r *Reader, dst []T) {
+// ReadPrimitivesInto reads len(dst) primitives, a block without a length, into dst.
+func ReadPrimitivesInto[T Primitive](r *Reader, dst []T) {
 	var zero T
 	size := int(unsafe.Sizeof(zero))
 	b := r.Take(len(dst) * size)
@@ -47,11 +47,11 @@ func WritePrimitives[T Primitive](w *Writer, v []T) {
 		return
 	}
 	w.Length(len(v))
-	writePrimitivesRaw(w, v)
+	WritePrimitivesRaw(w, v)
 }
 
-// writePrimitivesRaw writes primitives as one block, without a length.
-func writePrimitivesRaw[T Primitive](w *Writer, v []T) {
+// WritePrimitivesRaw writes primitives as one block without a length.
+func WritePrimitivesRaw[T Primitive](w *Writer, v []T) {
 	var zero T
 	size := int(unsafe.Sizeof(zero))
 	b := w.Extend(len(v) * size)
@@ -354,12 +354,12 @@ func storePrimitive[T Primitive](b []byte, v T) {
 // readPrimitive reads one primitive in little-endian order.
 func readPrimitive[T Primitive](r *Reader) T {
 	var v [1]T
-	readPrimitivesInto(r, v[:])
+	ReadPrimitivesInto(r, v[:])
 	return v[0]
 }
 
 // writePrimitive writes one primitive in little-endian order.
 func writePrimitive[T Primitive](w *Writer, x T) {
 	v := [1]T{x}
-	writePrimitivesRaw(w, v[:])
+	WritePrimitivesRaw(w, v[:])
 }
