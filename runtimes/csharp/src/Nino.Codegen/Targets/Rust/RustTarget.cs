@@ -169,47 +169,6 @@ namespace Nino.Codegen.Targets
         private List<TypeModel> Allowed(TypeModel type) =>
             ObjectTypes().Where(type.IsAssignableFrom).ToList();
 
-        /// <summary>
-        /// The non-raw structs a value holds without a class body between: itself, or (behind a type id) any struct
-        /// the slot allows.
-        /// </summary>
-        private IEnumerable<TypeModel> StructsIn(ValueModel value)
-        {
-            var candidates = value.Kind switch
-            {
-                ValueKind.Type when value.Type!.Header == HeaderKind.TypeId => Allowed(value.Type),
-                ValueKind.Type => new List<TypeModel> { value.Type! },
-                ValueKind.Object => ObjectTypes().ToList(),
-                _ => new List<TypeModel>(),
-            };
-            return candidates.Where(t => t.IsValueType && !t.Raw && _supported.Contains(t));
-        }
-
-        /// <summary>
-        /// Whether a struct can hold itself through no class body: its nesting counts toward the depth limit
-        /// (<c>enter_struct</c>), as nothing else bounds it.
-        /// </summary>
-        internal bool HoldsItself(TypeModel type)
-        {
-            var seen = new HashSet<TypeModel>();
-            var pending = new Stack<TypeModel>();
-            pending.Push(type);
-            while (pending.Count != 0)
-            {
-                var next = pending.Pop();
-                foreach (var reached in next.Members.Select(m => m.Value).Concat(next.Cases.Select(c => c.Value))
-                             .SelectMany(v => v.Walk()).SelectMany(StructsIn))
-                {
-                    if (reached == type)
-                        return true;
-                    if (seen.Add(reached))
-                        pending.Push(reached);
-                }
-            }
-
-            return false;
-        }
-
         // ---------------------------------------------------------------- names
 
         /// <summary>Names a generated type must not take: the prelude's and the generated code's own.</summary>

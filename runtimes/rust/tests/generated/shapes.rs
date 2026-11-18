@@ -1204,17 +1204,21 @@ impl Measure {
             546808484 => Self::Int32(r.read()?),
             -1251563749 => Self::Double(r.read()?),
             -217079013 => {
+                let mark = r.defer_mark();
                 let value: Option<Vec<i32>> = r.read()?;
                 if value.is_none() {
                     return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
                 }
+                r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<Measure>()?.case_value()));
                 Self::ListInt32(value)
             }
             -1803246716 => {
+                let mark = r.defer_mark();
                 let value: Option<Vec<Option<String>>> = r.read()?;
                 if value.is_none() {
                     return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
                 }
+                r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<Measure>()?.case_value()));
                 Self::ListString(value)
             }
             _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
@@ -1224,25 +1228,17 @@ impl Measure {
 impl NinoRead for Measure {
     const MAY_DEFER: bool = true;
     const MIN_SIZE: usize = 4;
+    #[inline]
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        let mut v = Self::Empty;
-        v.read_into(r)?;
-        Ok(v)
-    }
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            *self = Self::Empty;
-            return Ok(());
+            return Ok(Self::Empty);
         }
         // A case can hold the union again: each level counts toward the depth limit.
         r.enter_struct()?;
-        let mark = r.defer_mark();
         let value = Self::read_case(r, id);
         r.exit_struct();
-        *self = value?;
-        r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<Measure>()?.case_value()));
-        Ok(())
+        value
     }
 }
 impl NinoWrite for Measure {
@@ -2122,10 +2118,12 @@ impl Pick {
     fn read_case(r: &mut nino::Reader<'_>, id: i32) -> nino::Result<Self> {
         Ok(match id {
             334101194 => {
+                let mark = r.defer_mark();
                 let value: Option<Box<Empty>> = r.read()?;
                 if value.is_none() {
                     return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
                 }
+                r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<Pick>()?.case_value()));
                 Self::EmptyCase(value)
             }
             -2134742284 => Self::PickPair(r.read()?),
@@ -2137,25 +2135,17 @@ impl Pick {
 impl NinoRead for Pick {
     const MAY_DEFER: bool = true;
     const MIN_SIZE: usize = 4;
+    #[inline]
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        let mut v = Self::Empty;
-        v.read_into(r)?;
-        Ok(v)
-    }
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            *self = Self::Empty;
-            return Ok(());
+            return Ok(Self::Empty);
         }
         // A case can hold the union again: each level counts toward the depth limit.
         r.enter_struct()?;
-        let mark = r.defer_mark();
         let value = Self::read_case(r, id);
         r.exit_struct();
-        *self = value?;
-        r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<Pick>()?.case_value()));
-        Ok(())
+        value
     }
 }
 impl NinoWrite for Pick {

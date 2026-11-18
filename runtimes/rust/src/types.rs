@@ -28,7 +28,7 @@ macro_rules! fixed {
 
             /// Each element converted (a copy, mostly) and checked in one pass with no early exit, a vector at a time
             /// where the compiler can (`bad`: 0 only for valid values, and for all but a few at the edge of the
-            /// range). When one fails, the block is read with [`Self::decode`] one by one, which reports the first
+            /// range). When one fails, the block is decoded one value at a time, which reports the first
             /// invalid.
             #[inline]
             fn read_many(r: &mut Reader<'_>, count: usize) -> Result<Vec<Self>> {

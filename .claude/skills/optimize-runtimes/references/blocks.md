@@ -14,6 +14,12 @@ value check in a runtime or a template.
 
 ## Fixed-size blocks in Rust
 
+- Write fixed-size Rust sets through `extend_fixed_iter`, reserving the count and payload together in iteration order.
+  In runtime A/B 44329792122, the median write time for 1,000 `i32` hash-set elements fell 33–43 % across EPYC
+  7763, 9V74, 9V45 and Xeon 8573C, and 58 % on Neoverse-N2. The GUID hash-set case fell 26–44 % on the same
+  x64 CPUs and 58 % on Neoverse-N2. The ordered `i32` case fell 37 % on Neoverse-N2 and ranged from on par
+  to 20 % lower on x64. The comparison used the same block benchmark harness on both sides.
+
 - In Rust, give every fixed-size shape `FIXED_SIZE` with `decode_fixed` / `encode_fixed` and let `read_fixed` /
   `extend_fixed` run it over `chunks_exact`; write no shuffle kernel. LLVM already turns a block whose wire bytes
   equal its memory ((i32, i32), a raw struct, a derived plain `{i32, f32}`) into vector copies (`vmovups ymm` on
@@ -74,3 +80,31 @@ value check in a runtime or a template.
   read and 92-96 % to write; narrowing Latin-1 four units a word 40-64 % faster to write. Widening Latin-1 four bytes
   a word on read (`load32`, `widen`, `store64` into a fresh slice) was slower than the byte loop: +86 % on EPYC 7763,
   +56 % on Xeon 6973P, +10 % on Neoverse-N2 (run 40822228516); the byte loop stays.
+
+## Byte block copies
+
+- Confirm copy microbenchmarks in the codec that allocates or reuses the real buffer. Runtime A/B
+  [44339615693](https://github.com/JasonXuDeveloper/Nino/actions/runs/44339615693) probed disjoint copies with
+  rotated buffers, including a destination offset of four bytes. Go's candidate lowered the Neoverse-N2 time
+  by 10–33 % at 2–4 KiB but raised it by 21 % at 256 KiB with that offset. On the x64 runners it lowered the
+  hot 1 MiB time by 20–44 %, while the 2–4 KiB results varied by CPU and alignment.
+  Keep Go's built-in copy in `Reader.ByteArray`. The Arm64 candidate for fresh 2–4 KiB reads took 5–9 %
+  longer with a hot input and 24–26 % longer with a 64 MiB source rotation on Neoverse-N2
+  ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411), `DeserializeExact`).
+  The 128-byte fallback control also took 30 % longer. The hot 1 MiB x64 copy result remains a microbenchmark.
+- Compare Rust's standard copy under the default loader and with
+  `GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112`. In the same run, forcing the historical lower
+  threshold made the unaligned 2,113-byte standard copy 7.1× its default time on EPYC 7763 and 5.8× on 9V74.
+  AVX2 took about 13–15 % of that tuned time. With the default loader the custom vectors had mixed x64 results
+  and the unaligned NEON copies cost 15–25 % more through 64 KiB. The lower threshold reproduces the AMD
+  `rep movsb` transition. The current loader still has its own upper stop threshold, so the 1 MiB row does
+  not reproduce every historical glibc configuration.
+  In real Rust codecs ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411)),
+  the scoped AVX2 candidate lowered reused writes by 14–33 % at 2,113 and 4,096 bytes on EPYC with the
+  forced threshold. The 2,113-byte writes also fell 9–10 % under the default loader on EPYC 7763 and 9V74.
+  Ordinary read measurements shifted by about 25–30 % even with the same revision on both sides. Keep the
+  current Rust copy until a write-only path and its production dispatch have their own measurements.
+- Keep `TypedArray.set` for ordinary TypeScript buffers. In 44339615693, copying through Wasm memory with both
+  staging copies took 82–339 % more time than `TypedArray.set` across the default and historical threshold
+  runs. For views already backed by Wasm memory, `memory.copy` varied from 8 % lower to 17 % higher by size and
+  CPU. These views avoid the staging cost and are timed separately from ordinary arrays.
