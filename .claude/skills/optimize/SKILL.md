@@ -57,6 +57,31 @@ Each line is the rule; the reference file holds it in full with why and the runn
 for the topic you touch before changing code there: most of these were learned by a slower commit, and the evidence
 says which CPUs and cases moved.
 
+- **One storage layer for every collection, reads and writes alike** (the owner's rule, #355; the steps are #345-#355).
+  Every collection whose memory is contiguous, or that keeps it inside (arrays, `List<T>`, spans, `Memory<T>`,
+  `ArraySegment`, `ImmutableArray`, `Queue` and `Stack` rings, `HashSet` and `Dictionary` entries, the
+  `PriorityQueue` heap, `SortedList`'s arrays, multi-dimensional arrays), is read and written by one bottom layer: it
+  describes its storage as a view (segments with start, count, stride, key and value offsets, an in-use test, ring
+  wrap), and each element kind has one loop over the view. What is not contiguous joins the same layer piece by piece:
+  `ReadOnlySequence<T>` segment by segment (each is a span), `LinkedList<T>`, `SortedSet` and the immutable trees as
+  runs of nodes gathered into a span or walked, whichever measures faster, and a bare `IEnumerable<T>` buffered into a
+  span. The element kind is decided once per type and formatter, in one place (a `static readonly` trait the JIT
+  folds on .NET 8+ and reads once on netstandard), never again per collection: unmanaged/raw: one block with the SIMD
+  kernels; `T?` or `NinoNullable<T>` of raw `T`: the slot kernels; a block formatter: the block path; a class:
+  polymorphic dispatch inline and prefetch under `NinoPrefetch`'s gate; else the general formatter. Everything is
+  devirtualized on .NET and netstandard (IL2CPP, Mono): capabilities through constrained calls on the formatter's
+  struct type parameter, never an interface cast or a virtual call, and the dispatch of a polymorphic base in its
+  fastest measured form with no indirect call per element. Every loop aligns its stores (or loads where that measures
+  better) to the vector width or cache line, not only the SIMD ones. Gathering into a span reuses pooled memory
+  (`ArrayPool`, the writer's own buffer) and copies at most a bounded number of elements per step. A new collection is
+  built the fastest way its runtime allows, through its internals where `runtime-internals` proves the layout:
+  `Dictionary` fills its entries and links the buckets in one pass after (#390, LuminPack's form), keeping the
+  collision count and the repeated- and null-key checks; `SortedSet` builds its tree in one pass; look for the same
+  in every other collection a read creates. Why: one loop per element kind is one place to make fast and to keep safe,
+  instead of the same decision copied into each collection (the audit behind #345-#355 found dozens). DRY first:
+  optimize the shared path, so every type on it gains, then give a type's own faster way (the fresh-build tricks above)
+  an extra layer over it that falls back to it, never a branch in the shared loop or a copy of it (`audit-perf`,
+  Method).
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks

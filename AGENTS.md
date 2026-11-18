@@ -150,7 +150,8 @@ reusing is written down before the task ends, in the same series of commits as t
 3. **The bytes are the contract.** .NET, Go, Rust, TypeScript and the generated code write identical bytes; a change
    to them is a wire-format change with everything `wire-format` lists.
 4. **DRY and decoupled.** One implementation, one way per job, one source of truth per fact; dependencies point one
-   way through public seams; standard practice over a new mechanism. The standard is stated in `audit-code`.
+   way through public seams; standard practice over a new mechanism. The standard is stated in `audit-code`; for
+   collections it is one storage layer and one devirtualized loop per element kind, reads and writes (`optimize`).
 5. **Proven.** Tests for behavior, the machine code for hot paths, runner numbers for speed (`benchmark`).
 
 ## Rules
