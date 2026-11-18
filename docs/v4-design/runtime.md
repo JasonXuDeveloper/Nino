@@ -55,7 +55,9 @@ public interface INinoFormatter<T> : INinoFormatter
     void ReadBlock(ref T value, ref byte source) => ...;      // throws: called only when BlockMap is not null
     int BodyTraits => NinoBodyTraits.Nests;                   // a class body: opens class bodies? deferrable?
     void WriteElements(ReadOnlySpan<T> values, ref Writer writer) => ...; // throws: only when HasElementLoop
-    // internal: SlotStride and the slot members of a raw T? (UnmanagedNullableFormatter)
+    // internal: SlotStride and the slot members of a raw T? (UnmanagedNullableFormatter); Size, WriteSized and
+    // TryWriteExternal of collection formatters (top-level calls write into an array of the exact size, or straight
+    // into a caller's IBufferWriter<byte>)
 }
 
 public interface INinoFormatter                               // what does not depend on T (hidden)
@@ -63,20 +65,30 @@ public interface INinoFormatter                               // what does not d
     bool HasElementLoop => false;                             // arrays and lists of a polymorphic base in one loop
     bool HasPairLoop => false;                                // Dictionary<TKey, base> in one loop (.NET 8+)
     void WritePairs32(object dictionary, ref Writer writer) => ...;  // throws; WritePairs64, WriteStringPairs
+    int PrefetchBytes => 0;                                   // long collections of a class prefetch its objects
+    bool HasMemberPrefetch => false;                          // ... and the objects its members point to
+    int PrefetchMembers(object value) => ...;                 // throws: only when HasMemberPrefetch
+    // internal: HasSizedWrite, HasExternalWrite (the queries of Size and TryWriteExternal)
 }
 ```
 
 A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members
 too (generated formatters of fixed-size and block structs, of class bodies and of polymorphic bases, the tuple and
 pair formatters). Calling a default on a struct boxes it (CoreCLR, Mono, IL2CPP), so Nino.Core calls only the queries
-(`FixedSize`, `BlockMap`, `BodyTraits`, `HasElementLoop`, `HasPairLoop`, the slot stride) on a formatter that may lack
-the capability, once per type into a `static readonly` field (`NinoBlockPlan<T, TFormatter>.Size`,
-`NinoSlots<T, TFormatter>.Stride`, `NinoLoops<TFormatter>`), and the other members only where that field says the
+(`FixedSize`, `BlockMap`, `BodyTraits`, `HasElementLoop`, `HasPairLoop`, `PrefetchBytes`, `HasMemberPrefetch`, the
+slot stride, `HasSizedWrite`, `HasExternalWrite`) on a formatter that may lack the capability, once per type into a
+`static readonly` field (`NinoBlockPlan<T, TFormatter>.Size`, `NinoSlots<T, TFormatter>.Stride`, `NinoLoops<TFormatter>`,
+`NinoPrefetch.Of<TFormatter>`, `NinoTopWrites<TFormatter>`), and the other members only where that field says the
 formatter has them: a constrained call to the struct's own method on every runtime, never an `is` test, a cast or a
-boxed interface field. The loop queries sit on the non-generic `INinoFormatter` so that their fields are generic over
-the formatter alone: a loop over a class `T` is shared generic code, where a field of a class generic over `T` is a
+boxed interface field. The loop, prefetch and top-level write queries sit on the non-generic `INinoFormatter` so that
+their fields are generic over the formatter alone: a loop over a class `T` is shared generic code, where a field of a class generic over `T` is a
 lookup per collection, while the formatter is still its exact struct and its field folds. `BodyTraits` is the one
-query also called per value, on an `INinoBodyFormatter<T>`, which always implements it.
+query also called per value, on an `INinoBodyFormatter<T>`, which always implements it. Two interfaces stay apart:
+`INinoRawFormatter`, a marker with no members tested as a type (by reflection, and on .NET 8+ by a test of the struct
+type parameter the JIT folds while importing, without boxing), and the internal raw-array formatter that
+`NinoRawArray<T>` holds for the top-level calls of an array of raw elements, which are generic over the array type
+alone (no formatter type parameter to call through), so its field is the boxed formatter itself, whose exact type Tier1
+code knows.
 
 `Deserialize` takes the reader first, as every read API does, and the current value by `ref`. Passing `default` creates a new instance, and passing an
 existing instance populates it in place when possible. One code path serves both `Deserialize` and ref

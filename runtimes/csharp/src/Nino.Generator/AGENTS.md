@@ -86,7 +86,7 @@ Model.cs                     the equatable model records (TypeModel, MemberModel
 ModelBuilder.cs              turns a [NinoType] symbol into a TypeModel (reports through a DiagnosticSink): the type,
                              its construction, dispatch and registrations
 ModelBuilder.Members.cs      the MemberModel of each serialized member, and whether members start at their defaults
-PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoPrefetchFormatter):
+PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoFormatter.PrefetchBytes):
                              the object's estimated bytes for the cache budget, and which members' objects it prefetches
 TypeFacts.cs                 everything model builds ask about one compilation's symbols, memoized and shared
 TypeShape.cs                 TypeShape (what a [NinoType] is: kind, format, tracking, raw, ...) and TypeRules (the rules

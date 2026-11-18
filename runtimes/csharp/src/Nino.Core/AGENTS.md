@@ -60,15 +60,14 @@ NinoLayoutsAttribute.cs      [assembly: NinoLayouts(@"...")]: an assembly's layo
 
 ```
 FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBodyTraits), INinoRawBodyFormatter<T>, INinoTopFormatter<T>
-                             (__Top twins), INinoRawFormatter, INinoPrefetchFormatter (classes whose long collections
-                             prefetch, in a project built with NinoPrefetchLargeCollections)
-NinoPrefetched.cs            NinoPrefetched.At: the prefetch generated INinoPrefetchFormatter.PrefetchMembers calls
+                             (__Top twins), INinoRawFormatter (a marker, tested as a type)
+NinoPrefetched.cs            NinoPrefetched.At: the prefetch generated INinoFormatter.PrefetchMembers calls
 NinoObject.cs                header handling of generated class formatters: presence byte / type id / reference header,
                              then the body; the ...Raw forms write header and raw body into one reservation
 NinoFieldBlock.cs            generated raw bodies of classes: whether the fields lie in the object as the body lays them
                              out (checked once on an uninitialized instance), then one block copy
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
-                             ...Prefetched for arrays and lists of INinoPrefetchFormatter classes; the sequence and
+                             ...Prefetched for arrays and lists of prefetching classes (PrefetchBytes); the sequence and
                              Stream forms, the latter through NinoStreams)
 NinoDictionaryEntry.cs       NinoDictionaryEntry: a Dictionary entry as the runtime lays it out; NinoDictionaryEntries.InUse:
                              a dictionary's entries in place of its enumerator (generated pair loops, NinoDictionary)
@@ -103,10 +102,12 @@ Registration/                what a generated registry calls at startup:
 NinoFormatter.cs             INinoFormatter<T> (Serialize, Deserialize; capability members with defaults: FixedSize,
                              WriteFixed, BlockMap, ReadBlock, BodyTraits, WriteElements, internal slots) and the
                              non-generic INinoFormatter it extends (the element and pair loops of polymorphic bases:
-                             HasElementLoop, HasPairLoop, WritePairs32/64, WriteStringPairs); NinoFormatterBase<T> and
-                             its struct wrappers (StructFormatter, FixedStructFormatter, TopStructFormatter,
-                             NestingFormatter), RawFormatter,
-                             INinoSizedFormatter / NinoSized, CachedFormatter<T>
+                             HasElementLoop, HasPairLoop, WritePairs32/64, WriteStringPairs; the prefetch of long
+                             collections of classes: PrefetchBytes, HasMemberPrefetch, PrefetchMembers; internal
+                             HasSizedWrite, HasExternalWrite); NinoFormatterBase<T> and its struct wrappers
+                             (StructFormatter, FixedStructFormatter, TopStructFormatter, NestingFormatter),
+                             RawFormatter, NinoTopWrites (the sized and external write queries read once per formatter),
+                             NinoSized, INinoRawArrayFormatter, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
                              NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields;
                              NinoMissingFormatter<T> (the never-null stand-in of a type without one)
@@ -235,7 +236,7 @@ NinoElements.cs              shared element loops of array-like formatters, capa
 NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the
-                             out-of-line helper per run
+                             out-of-line helper per run; Of, the formatter's prefetch queries read once
 NinoDictionary.cs            shared dictionary read, write and reuse loops
 NinoNullables.cs             fixed-stride nullable encoding and the host layout probe
 BclCollections.cs            runtime-owned collections using their checked views; linked-list ring
