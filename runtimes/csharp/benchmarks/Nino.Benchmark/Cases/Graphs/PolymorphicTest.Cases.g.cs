@@ -42,6 +42,7 @@ partial class PolymorphicTest
     private static readonly byte[][] SerializedPolymorphicClassArray;
     private static readonly P.PolymorphicClassList PolymorphicClassArrayProto;
     private static readonly byte[][] SerializedUnionArray;
+    private static readonly byte[][] SerializedTaggedUnionArray;
 
     static PolymorphicTest()
     {
@@ -78,10 +79,14 @@ partial class PolymorphicTest
         SerializedUnionArray = new byte[3][];
         SerializedUnionArray[2] = NinoSerializer.Serialize(UnionArray);
 
+        SerializedTaggedUnionArray = new byte[3][];
+        SerializedTaggedUnionArray[2] = NinoSerializer.Serialize(TaggedUnionArray);
+
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClass), SerializedPolymorphicClass[2]);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicFooArray), SerializedPolymorphicFooArray[2]);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClassArray), SerializedPolymorphicClassArray[2]);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeUnionArray), SerializedUnionArray[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTaggedUnionArray), SerializedTaggedUnionArray[2]);
 
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClass), SerializedPolymorphicClass[1]);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[1]);
@@ -305,6 +310,14 @@ partial class PolymorphicTest
         return _ninoBuffer.WrittenCount;
     }
 
+    [Benchmark(Baseline = true), BenchmarkCategory("TaggedUnionArraySerialize")]
+    public int NinoSerializeTaggedUnionArray()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(TaggedUnionArray, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicClassDeserialize")]
     public PolymorphicClassBase NinoDeserializePolymorphicClass()
     {
@@ -441,6 +454,12 @@ partial class PolymorphicTest
     public UnionValue[] NinoDeserializeUnionArray()
     {
         return NinoDeserializer.Deserialize<UnionValue[]>(SerializedUnionArray[2]);
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("TaggedUnionArrayDeserialize")]
+    public UnionTagged[] NinoDeserializeTaggedUnionArray()
+    {
+        return NinoDeserializer.Deserialize<UnionTagged[]>(SerializedTaggedUnionArray[2]);
     }
 }
 #else

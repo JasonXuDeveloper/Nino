@@ -9016,6 +9016,79 @@ impl UnionItem {
     nino::type_consts!(0x25DE307Au32 as i32, "Nino.Benchmark.UnionItem", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x25DE307A; deferrable=true; members=Id:int:raw(4);Name:string:string;Score:double:raw(8)");
 }
 
+/// `Nino.Benchmark.UnionTagged`, a C# union: the case it holds, or `Empty` (type id 0).
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum UnionTagged {
+    /// The empty union.
+    #[default]
+    Empty,
+    /// `System.Int32`.
+    Int32(i32),
+    /// `System.Int16`.
+    Int16(i16),
+    /// `System.String`.
+    String(Option<String>),
+}
+impl UnionTagged {
+    fn read_case(r: &mut nino::Reader<'_>, id: i32) -> nino::Result<Self> {
+        Ok(match id {
+            546808484 => Self::Int32(r.read()?),
+            1083077026 => Self::Int16(r.read()?),
+            -65934901 => {
+                let value: Option<String> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                Self::String(value)
+            }
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        })
+    }
+}
+impl NinoRead for UnionTagged {
+    const MIN_SIZE: usize = 4;
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        let mut v = Self::Empty;
+        v.read_into(r)?;
+        Ok(v)
+    }
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        let id = r.i32()?;
+        if id == 0 {
+            *self = Self::Empty;
+            return Ok(());
+        }
+        *self = Self::read_case(r, id)?;
+        Ok(())
+    }
+}
+impl NinoWrite for UnionTagged {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::Int32(v) => {
+                w.i32(546808484);
+                w.write(v)
+            }
+            Self::Int16(v) => {
+                w.i32(1083077026);
+                w.write(v)
+            }
+            Self::String(v) if v.is_some() => {
+                w.i32(-65934901);
+                w.write(v)
+            }
+            _ => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+impl UnionTagged {
+    nino::type_consts!(0x27630713u32 as i32, "Nino.Benchmark.UnionTagged", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x27630713; deferrable=false; members=[elements]::union(type(int),type(short),type(string))");
+}
+
 /// `Nino.Benchmark.UnionValue`, a C# union: the case it holds, or `Empty` (type id 0).
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -9875,6 +9948,7 @@ pub enum AnyObject {
     TreeNode(Box<TreeNode>),
     UnionItem(Box<UnionItem>),
     UnionPoint(Box<UnionPoint>),
+    UnionTagged(Box<UnionTagged>),
     UnionValue(Box<UnionValue>),
     UseItemCommand(Box<UseItemCommand>),
     Utf8Strings(Box<Utf8Strings>),
@@ -10072,6 +10146,7 @@ impl AnyObject {
             Self::TreeNode(v) => &mut **v,
             Self::UnionItem(v) => &mut **v,
             Self::UnionPoint(v) => &mut **v,
+            Self::UnionTagged(v) => &mut **v,
             Self::UnionValue(v) => &mut **v,
             Self::UseItemCommand(v) => &mut **v,
             Self::Utf8Strings(v) => &mut **v,
@@ -10801,6 +10876,10 @@ impl NinoRead for AnyObject {
                 r.read_into(&mut **v)?;
                 true
             }
+            Some(Self::UnionTagged(v)) if id == UnionTagged::NINO_TYPE_ID => {
+                r.read_into(&mut **v)?;
+                true
+            }
             Some(Self::UnionValue(v)) if id == UnionValue::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
@@ -11035,6 +11114,7 @@ impl NinoRead for AnyObject {
                 TreeNode::NINO_TYPE_ID => Self::TreeNode(Box::new(r.read_class()?)),
                 UnionItem::NINO_TYPE_ID => Self::UnionItem(Box::new(r.read_class()?)),
                 UnionPoint::NINO_TYPE_ID => Self::UnionPoint(Box::new(r.read()?)),
+                UnionTagged::NINO_TYPE_ID => Self::UnionTagged(Box::new(r.read()?)),
                 UnionValue::NINO_TYPE_ID => Self::UnionValue(Box::new(r.read()?)),
                 UseItemCommand::NINO_TYPE_ID => Self::UseItemCommand(Box::new(r.read_class()?)),
                 Utf8Strings::NINO_TYPE_ID => Self::Utf8Strings(Box::new(r.read_class()?)),
@@ -11760,6 +11840,10 @@ impl NinoWrite for AnyObject {
             }
             Self::UnionPoint(v) => {
                 w.i32(UnionPoint::NINO_TYPE_ID);
+                w.write(&**v)
+            }
+            Self::UnionTagged(v) => {
+                w.i32(UnionTagged::NINO_TYPE_ID);
                 w.write(&**v)
             }
             Self::UnionValue(v) => {
@@ -19198,6 +19282,10 @@ pub type CasePolymorphicClassArray = Option<Vec<Option<PolymorphicClassBaseRef>>
 /// `nino::serialize`.
 pub type CaseUnionArray = Option<Vec<UnionValue>>;
 
+/// `Nino.Benchmark.UnionTagged[]` as a whole payload (`--roots`): read and write it with `nino::deserialize::<CaseTaggedUnionArray>` and
+/// `nino::serialize`.
+pub type CaseTaggedUnionArray = Option<Vec<UnionTagged>>;
+
 /// `System.ValueTuple<System.Int32,System.Int64>[]` as a whole payload (`--roots`): read and write it with `nino::deserialize::<CaseIntLongPairs32>` and
 /// `nino::serialize`.
 pub type CaseIntLongPairs32 = Option<Vec<(i32, i64)>>;
@@ -19366,6 +19454,7 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Nino.Benchmark.TreeNode" => f.visit::<Option<TreeNodeRef>>(),
         "Nino.Benchmark.UnionItem" => f.visit::<Option<Box<UnionItem>>>(),
         "Nino.Benchmark.UnionPoint" => f.visit::<UnionPoint>(),
+        "Nino.Benchmark.UnionTagged" => f.visit::<UnionTagged>(),
         "Nino.Benchmark.UnionValue" => f.visit::<UnionValue>(),
         "Nino.Benchmark.Utf8Strings" => f.visit::<Option<Box<Utf8Strings>>>(),
         "Nino.Benchmark.Utf8Text" => f.visit::<Option<Box<Utf8Text>>>(),
@@ -19508,6 +19597,7 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Nino.Benchmark.PolymorphicFooBase[]" => f.visit::<CasePolymorphicFooArray>(),
         "Nino.Benchmark.PolymorphicClassBase[]" => f.visit::<CasePolymorphicClassArray>(),
         "Nino.Benchmark.UnionValue[]" => f.visit::<CaseUnionArray>(),
+        "Nino.Benchmark.UnionTagged[]" => f.visit::<CaseTaggedUnionArray>(),
         "System.ValueTuple<System.Int32,System.Int64>[]" => f.visit::<CaseIntLongPairs32>(),
         "System.ValueTuple<System.Byte,System.Int32>[]" => f.visit::<CaseByteIntPairs32>(),
         "System.ValueTuple<System.Double,System.Int64,System.Double,System.Single,System.Byte>[]" => f.visit::<CaseFiveTuples32>(),
@@ -19645,6 +19735,7 @@ pub fn with_nino_serde_type<R>(name: &str, f: impl NinoSerdeVisit<R>) -> Option<
         "Nino.Benchmark.TreeNode" => f.visit::<Option<TreeNodeRef>>(),
         "Nino.Benchmark.UnionItem" => f.visit::<Option<Box<UnionItem>>>(),
         "Nino.Benchmark.UnionPoint" => f.visit::<UnionPoint>(),
+        "Nino.Benchmark.UnionTagged" => f.visit::<UnionTagged>(),
         "Nino.Benchmark.UnionValue" => f.visit::<UnionValue>(),
         "Nino.Benchmark.Utf8Strings" => f.visit::<Option<Box<Utf8Strings>>>(),
         "Nino.Benchmark.Utf8Text" => f.visit::<Option<Box<Utf8Text>>>(),
@@ -19787,6 +19878,7 @@ pub fn with_nino_serde_type<R>(name: &str, f: impl NinoSerdeVisit<R>) -> Option<
         "Nino.Benchmark.PolymorphicFooBase[]" => f.visit::<CasePolymorphicFooArray>(),
         "Nino.Benchmark.PolymorphicClassBase[]" => f.visit::<CasePolymorphicClassArray>(),
         "Nino.Benchmark.UnionValue[]" => f.visit::<CaseUnionArray>(),
+        "Nino.Benchmark.UnionTagged[]" => f.visit::<CaseTaggedUnionArray>(),
         "System.ValueTuple<System.Int32,System.Int64>[]" => f.visit::<CaseIntLongPairs32>(),
         "System.ValueTuple<System.Byte,System.Int32>[]" => f.visit::<CaseByteIntPairs32>(),
         "System.ValueTuple<System.Double,System.Int64,System.Double,System.Single,System.Byte>[]" => f.visit::<CaseFiveTuples32>(),
