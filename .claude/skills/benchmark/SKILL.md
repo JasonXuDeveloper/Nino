@@ -228,6 +228,14 @@ the reports write for the docs site: the `benchmark-cases` skill.
 - Never publish a quick, local or A/B number. README.md, docs/v4-benchmarks.md, the charts, the release notes and the
   docs site take them only from `report.yml` (x64 and Arm64 shards, the runtimes and Unity sections, job id
   `ShortRun-.NET 11.0`; `ShortRun-.NET 10.0` up to the release before the benchmarks moved to .NET 11), through the release's assets: `release_body.py` / `readme.py --assets` and the site's sync.
+- After changing the job, the runtime or the target framework of `Nino.Benchmark`, time one case for real
+  (`NINO_BENCH_QUICK=1 dotnet bin/Release/net11.0/Nino.Benchmark.dll --filter '*CollectionsTest.NinoDeserializeIntDictionary'`)
+  and one probe config: `--verify` and `--list` (all ci.yml runs) never start BenchmarkDotNet's runner. Why: #385 moved
+  the job to `CoreRuntime.CreateForNewVersion("net11.0", ...)`, whose moniker `NotRecognized` makes 0.15.8 throw
+  `NotImplementedException` in its SDK check and build partitions, and `CpuProbe` kept `Core10_0`, a framework the
+  project no longer built (NU1201); CI stayed green while every report.yml, ab-bench and dotnet-ab run would have
+  failed. `NinoJobAttribute.OnNet11` (net11.0 under the .NET 10 moniker, with a net11.0 csproj toolchain) is the one
+  place every job gets its runtime; replace it with `CoreRuntime.Core11_0` once a stable BenchmarkDotNet has it.
 - Take the build-time numbers (README's Build row `v3.build`, docs/v4-benchmarks.md's `doc.build.*` tables, the site's
   build tables) only from the release's `build-x64.md` asset (the "🏗️ Build: v3 3.3.13 vs v4 (source generator)"
   section): report.yml's
