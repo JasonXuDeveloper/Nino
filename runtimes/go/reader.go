@@ -277,7 +277,7 @@ func (r *Reader) ByteArray() []byte {
 		return nil
 	}
 	out := make([]byte, n)
-	copy(out, b)
+	copyFreshBytes(out, b)
 	return out
 }
 
