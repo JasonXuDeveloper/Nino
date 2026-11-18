@@ -45,6 +45,11 @@
       <NinoPrefetchLargeCollections>true</NinoPrefetchLargeCollections>
     </PropertyGroup>
 
+    <!-- The generated per-base steps of #355's probe (DispatchEmitter.EmitSteps, DispatchTests). -->
+    <PropertyGroup>
+      <DefineConstants>$(DefineConstants);NINO_PROBE_STEPS</DefineConstants>
+    </PropertyGroup>
+
     <!-- The netstandard2.1 build of Nino.Core has no PriorityQueue formatter (netstandard has no PriorityQueue). -->
     <PropertyGroup Condition="'$(NinoCoreTfm)' != ''">
       <DefineConstants>$(DefineConstants);NINO_CORE_NETSTANDARD</DefineConstants>

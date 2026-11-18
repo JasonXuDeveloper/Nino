@@ -234,7 +234,10 @@ internal static class DispatchEmitter
             w.Line(WriteOther(t, services) + ";");
             w.Close();
             if (!closedForm)
+            {
                 EmitWriteElements(w, t, subtypes, services);
+                EmitSteps(w, t, subtypes, services);
+            }
 
             w.Line();
             w.Line($"{GeneratedCode.NoInline} static {Core}Writer __WriteSubtypeDeep({t} value, {Core}Writer writer)");
@@ -285,9 +288,55 @@ internal static class DispatchEmitter
     /// them within the JIT's budget, and one it leaves out is a call to the subtype's own formatter, not to shared
     /// generic code that looks the formatter up (#305).
     /// </summary>
-    private static string WriteShallow(DispatchEntry s, string services, string exit) => s.RawBody
-        ? $$"""if (value.GetType() == typeof({{s.TypeName}})) { ref byte __block = ref writer.Reserve(sizeof(int) + default({{s.FormatterName}}).BodySize); {{services}}NinoUnsafe.Write(ref __block, {{s.TypeId.ToString(CultureInfo.InvariantCulture)}}); default({{s.FormatterName}}).WriteRawBody({{services}}NinoObject.SameType<{{s.TypeName}}>(value), ref __block, sizeof(int)); {{exit}} }"""
-        : $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); {{exit}} }""";
+    private static string WriteShallow(DispatchEntry s, string services, string exit) =>
+        $"if ({IsExactly(s)}) {{ {ShallowBody(s, services)} {exit} }}";
+
+    /// <summary>The exact-type test of <paramref name="s"/>: one method table compare.</summary>
+    private static string IsExactly(DispatchEntry s) => $"value.GetType() == typeof({s.TypeName})";
+
+    /// <summary>The statements that write <paramref name="s"/>'s id and body (shallow), as <see cref="WriteShallow"/>.</summary>
+    private static string ShallowBody(DispatchEntry s, string services) => s.RawBody
+        ? $$"""ref byte __block = ref writer.Reserve(sizeof(int) + default({{s.FormatterName}}).BodySize); {{services}}NinoUnsafe.Write(ref __block, {{s.TypeId.ToString(CultureInfo.InvariantCulture)}}); default({{s.FormatterName}}).WriteRawBody({{services}}NinoObject.SameType<{{s.TypeName}}>(value), ref __block, sizeof(int));"""
+        : $$"""{{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer);""";
+
+    /// <summary>
+    /// The #355 PR 3 probe, compiled only where <c>NINO_PROBE_STEPS</c> is defined (the benchmark probe and the unit
+    /// tests): the base's per-value write as a step (<c>INinoStep&lt;T&gt;</c>) for Nino.Core's kernels
+    /// (<c>NinoKernel.WriteEach</c>, <c>WriteEntries</c>), which hold the writer in a local and check the depth once.
+    /// <c>__Step</c> keeps only the chain of exact-type compares inline, each subtype's body a direct call
+    /// (<c>NoInlining</c>, the kernel's writer by reference), so the step stays small for any number of subtypes;
+    /// <c>__StepInline</c> writes the bodies inline, as the generated element loop does.
+    /// </summary>
+    private static void EmitSteps(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
+    {
+        string step = $"{services}INinoStep<{t}>";
+        string write = $"public void Write({t} value, ref {Core}Writer writer)";
+        w.Line();
+        w.Line("#if NINO_PROBE_STEPS");
+        w.Open($"internal struct __Step : {step}");
+        w.Line(GeneratedCode.Inline);
+        w.Open(write);
+        w.Line("if (value == null) { writer.UnsafeWrite(0); return; }");
+        for (int i = 0; i < subtypes.Count; i++)
+            w.Line($"if ({IsExactly(subtypes[i])}) {{ __Body{i}(value, ref writer); return; }}");
+        w.Line(WriteOther(t, services) + ";");
+        w.Close();
+        w.Line();
+        for (int i = 0; i < subtypes.Count; i++)
+            w.Line($"{GeneratedCode.NoInline} static void __Body{i}({t} value, ref {Core}Writer writer) {{ {ShallowBody(subtypes[i], services)} }}");
+        w.Close();
+        w.Line();
+        w.Open($"internal struct __StepInline : {step}");
+        w.Line(GeneratedCode.Inline);
+        w.Open(write);
+        w.Line("if (value == null) { writer.UnsafeWrite(0); return; }");
+        foreach (var s in subtypes)
+            w.Line(WriteShallow(s, services, "return;"));
+        w.Line(WriteOther(t, services) + ";");
+        w.Close();
+        w.Close();
+        w.Line("#endif");
+    }
 
     /// <summary>
     /// <c>WriteElements</c> (<c>HasElementLoop</c>): the elements of an array or a list of the base in one

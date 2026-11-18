@@ -71,6 +71,8 @@ NinoDirect.cs                the top-level calls with the formatter the generato
                              Stream forms, the latter through NinoStreams)
 NinoDictionaryEntry.cs       NinoDictionaryEntry: a Dictionary entry as the runtime lays it out; NinoDictionaryEntries.InUse:
                              a dictionary's entries in place of its enumerator (generated pair loops, NinoDictionary)
+NinoKernel.cs                NinoKernel (WriteEach, WritePairs, WriteEntries): kernels generic over a step (INinoStep<T>, one value's
+                             write; NinoPairStep: a key and a value step), the writer in a local; the #355 probe only
 NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory, built item by item (Item)
 NinoBlocks.cs                NinoBlocks: the items of composites (ItemSize, WriteItem, ReadItem: raw, or a block through
                              constrained calls), and the offsets NinoBlockMap is built from

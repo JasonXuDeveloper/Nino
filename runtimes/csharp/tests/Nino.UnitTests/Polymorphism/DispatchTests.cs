@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 using Nino.UnitTests.GenericPolymorphism;
 
 namespace Nino.UnitTests
@@ -107,6 +108,98 @@ namespace Nino.UnitTests
             dictionary.Remove(key(0));
             CollectionAssert.AreEqual(Pairs(dictionary), NinoSerializer.Serialize(dictionary));
         }
+
+#if NINO_PROBE_STEPS
+        private delegate void WriteSpan(ReadOnlySpan<DispatchRoot> values, ref Writer writer);
+
+        private delegate void WriteDictionary(Dictionary<int, DispatchRoot> pairs, ref Writer writer);
+
+        /// <summary>
+        /// The #355 probe's kernels (NinoKernel.WriteEach, WritePairs, WriteEntries) with the generated steps (__Step: the bodies
+        /// out of line; __StepInline: inline) write what the element and pair loops write, shallow and deep.
+        /// </summary>
+        [TestMethod]
+        public void StepKernelsWriteTheBytesOfTheElementLoop()
+        {
+            DispatchRoot[] values =
+            {
+                new DispatchSibling { A = 1, D = 2.5 }, null, new DispatchLeaf { A = 3, B = "leaf", C = 4 },
+                new DispatchMid { A = 5, B = "mid" },
+                new DispatchHolder { A = 6, Kids = new List<DispatchRoot> { null, new DispatchSibling { A = 7 } } },
+            };
+            var expected = NinoSerializer.Serialize(values);
+            CollectionAssert.AreEqual(expected, Run(values, 0,
+                NinoKernel.WriteEach<DispatchRoot, NinoGen.Nino_UnitTests_DispatchRootFormatter,
+                    NinoGen.Nino_UnitTests_DispatchRootFormatter.__Step>));
+            CollectionAssert.AreEqual(expected, Run(values, 0,
+                NinoKernel.WriteEach<DispatchRoot, NinoGen.Nino_UnitTests_DispatchRootFormatter,
+                    NinoGen.Nino_UnitTests_DispatchRootFormatter.__StepInline>));
+
+            // A writer already deep: the kernel writes each value through the formatter (the dispatch's deep path).
+            var deep = Run(values, NinoDepth.Inline, PerValue);
+            CollectionAssert.AreEqual(deep, Run(values, NinoDepth.Inline,
+                NinoKernel.WriteEach<DispatchRoot, NinoGen.Nino_UnitTests_DispatchRootFormatter,
+                    NinoGen.Nino_UnitTests_DispatchRootFormatter.__Step>));
+
+            var dictionary = new Dictionary<int, DispatchRoot>();
+            for (int i = 0; i < values.Length; i++)
+                dictionary.Add(i, values[i]);
+            PairStepsMatch(dictionary);
+            // Removed entries: the kernel's enumerator path.
+            dictionary.Add(values.Length, values[0]);
+            dictionary.Remove(0);
+            PairStepsMatch(dictionary);
+        }
+
+        private static void PerValue(ReadOnlySpan<DispatchRoot> values, ref Writer writer)
+        {
+            foreach (var value in values)
+                default(NinoGen.Nino_UnitTests_DispatchRootFormatter).Serialize(value, ref writer);
+        }
+
+        private static void PairStepsMatch(Dictionary<int, DispatchRoot> dictionary)
+        {
+            var expected = NinoSerializer.Serialize(dictionary);
+            CollectionAssert.AreEqual(expected, Run(dictionary,
+                NinoKernel.WritePairs<int, UnmanagedFormatter<int>, DispatchRoot,
+                    NinoGen.Nino_UnitTests_DispatchRootFormatter, NinoGen.Nino_UnitTests_DispatchRootFormatter.__Step>));
+            CollectionAssert.AreEqual(expected, Run(dictionary,
+                NinoKernel.WritePairs<int, UnmanagedFormatter<int>, DispatchRoot,
+                    NinoGen.Nino_UnitTests_DispatchRootFormatter,
+                    NinoGen.Nino_UnitTests_DispatchRootFormatter.__StepInline>));
+            CollectionAssert.AreEqual(expected, Run(dictionary,
+                NinoKernel.WriteEntries<int, UnmanagedFormatter<int>, DispatchRoot,
+                    NinoGen.Nino_UnitTests_DispatchRootFormatter,
+                    NinoPairStep<int, UnmanagedFormatter<int>, DispatchRoot,
+                        NinoGen.Nino_UnitTests_DispatchRootFormatter.__Step>>));
+            CollectionAssert.AreEqual(expected, Run(dictionary,
+                NinoKernel.WriteEntries<int, UnmanagedFormatter<int>, DispatchRoot,
+                    NinoGen.Nino_UnitTests_DispatchRootFormatter,
+                    NinoPairStep<int, UnmanagedFormatter<int>, DispatchRoot,
+                        NinoGen.Nino_UnitTests_DispatchRootFormatter.__StepInline>>));
+        }
+
+        private static byte[] Run(DispatchRoot[] values, int depth, WriteSpan write)
+        {
+            using var buffer = new NinoArrayBufferWriter();
+            var writer = new Writer(buffer);
+            writer.Depth = depth;
+            writer.WriteLength(values.Length);
+            write(values, ref writer);
+            writer.Flush();
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        private static byte[] Run(Dictionary<int, DispatchRoot> pairs, WriteDictionary write)
+        {
+            using var buffer = new NinoArrayBufferWriter();
+            var writer = new Writer(buffer);
+            writer.WriteLength(pairs.Count);
+            write(pairs, ref writer);
+            writer.Flush();
+            return buffer.WrittenSpan.ToArray();
+        }
+#endif
 
         private static byte[] Pairs<TKey, T>(Dictionary<TKey, T> dictionary)
         {
