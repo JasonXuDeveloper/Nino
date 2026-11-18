@@ -189,17 +189,6 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Writes <paramref name="count"/> elements starting at <paramref name="first"/> (a multi-dimensional array's),
-        /// as <see cref="Write{T,TFormatter}(ReadOnlySpan{T}, ref Writer)"/> writes a span of them.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write<T, TFormatter>(ref T first, int count, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            Write<T, TFormatter>(MemoryMarshal.CreateReadOnlySpan(ref first, count), ref writer);
-        }
-
-        /// <summary>
         /// Reads <paramref name="count"/> elements into the slots starting at <paramref name="first"/> (a
         /// multi-dimensional array's), as <see cref="Read{T,TFormatter}(Span{T}, ref Reader)"/> reads a span of them.
         /// </summary>
@@ -210,66 +199,9 @@ namespace Nino.Core.Internal
             Read<T, TFormatter>(MemoryMarshal.CreateSpan(ref first, count), ref reader, prechecked);
         }
 
-        /// <summary>Writes the elements of a span.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            // Elements of a fixed size (NinoKind.Stride): one capacity check for the block, none per element. Raw
-            // elements too, as the unmanaged formatters write them: an interface, Stack or Queue of them, or any
-            // collection whose formatter is not specialized for them, would otherwise check the capacity per element.
-            int block = NinoKind.Stride<T, TFormatter>();
-            if (block > 0)
-            {
-                if (!values.IsEmpty)
-                    WriteBlock<T, TFormatter>(ref writer.ReserveElements(values.Length, block), values);
-                return;
-            }
-
-            // The loop stays in this method: a helper of its own was not inlined where the element's formatter
-            // writes a collection of its own type (a tree), which added a call per level (SelfTree serialize 0.86x on
-            // EPYC 9V74, runner A/B of the rc.10 review head against main 51a7bd18).
-            // A polymorphic base: its generated loop, with the dispatch inline (INinoFormatter.WriteElements), a
-            // constrained call on the formatter on every target. Only classes have one.
-            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Elements)
-            {
-                if (!values.IsEmpty)
-                    default(TFormatter).WriteElements(values, ref writer);
-                return;
-            }
-
-            if (WritesOnLocal<T, TFormatter>())
-            {
-                if (!values.IsEmpty)
-                    writer = WriteOnLocal<T, TFormatter>(values, writer);
-                return;
-            }
-
-            // By reference, as in WriteOnLocal.
-            ref T item = ref MemoryMarshal.GetReference(values);
-            for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
-                default(TFormatter).Serialize(item, ref writer);
-        }
-
-        /// <summary>
-        /// The elements one by one through a local copy of the writer (as Read does), out of line: Write is inlined
-        /// into every collection formatter, and a second loop there slows down the code around it (as
-        /// HashSetFormatter's raw loop was).
-        /// </summary>
-        private static Writer WriteOnLocal<T, TFormatter>(ReadOnlySpan<T> values, Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            // By reference, not by index: a span's length is not known to the JIT to be positive (a list's count, for
-            // one), and over a loop with a call in it each element kept a bounds check of its own.
-            ref T item = ref MemoryMarshal.GetReference(values);
-            for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
-                default(TFormatter).Serialize(item, ref writer);
-            return writer;
-        }
-
         /// <summary>
         /// Writes one element of a sequence that is not written from a span (an enumerator, a node): its slot where
-        /// elements are slots, so that it is the bytes <see cref="Write{T,TFormatter}(ReadOnlySpan{T}, ref Writer)"/>
+        /// elements are slots, so that it is the bytes <see cref="NinoRuns.Write{T,TFormatter}(ReadOnlySpan{T}, ref Writer)"/>
         /// writes for it, else through its formatter.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -423,7 +355,7 @@ namespace Nino.Core.Internal
         {
             // The reader a local, its cursor in registers, where through a reference every element would store it and
             // load it back (List<(int, long)>: 2x faster).
-            ref T item = ref MemoryMarshal.GetReference(values); // by reference, see WriteOnLocal
+            ref T item = ref MemoryMarshal.GetReference(values); // by reference, see NinoRuns.WriteOnLocal
             for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
                 default(TFormatter).Deserialize(ref reader, ref item);
             return reader;

@@ -27,6 +27,10 @@ namespace Nino.Core
             get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1>>() && Size > 0;
         }
 
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>();
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1> value, ref Writer writer)
         {
@@ -104,6 +108,10 @@ namespace Nino.Core
             get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && Size > 0;
         }
 
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>();
+
         public void Serialize(Tuple<T1> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
@@ -160,6 +168,10 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2>>() && Size > 0;
         }
+
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2> value, ref Writer writer)
@@ -246,6 +258,10 @@ namespace Nino.Core
             get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && Size > 0;
         }
 
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>();
+
         public void Serialize(Tuple<T1, T2> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
@@ -310,6 +326,10 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3>>() && Size > 0;
         }
+
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3> value, ref Writer writer)
@@ -404,6 +424,10 @@ namespace Nino.Core
             get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && Size > 0;
         }
 
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>();
+
         public void Serialize(Tuple<T1, T2, T3> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
@@ -476,6 +500,10 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4>>() && Size > 0;
         }
+
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>() | NinoBlocks.Dispatches<TF4>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3, T4> value, ref Writer writer)
@@ -578,6 +606,10 @@ namespace Nino.Core
             get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && Size > 0;
         }
 
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>() | NinoBlocks.Dispatches<TF4>();
+
         public void Serialize(Tuple<T1, T2, T3, T4> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
@@ -658,6 +690,10 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5>>() && Size > 0;
         }
+
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>() | NinoBlocks.Dispatches<TF4>() | NinoBlocks.Dispatches<TF5>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3, T4, T5> value, ref Writer writer)
@@ -768,6 +804,10 @@ namespace Nino.Core
             get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && !NinoUnsafe.IsReferenceOrContainsReferences<T5>() && Size > 0;
         }
 
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>() | NinoBlocks.Dispatches<TF4>() | NinoBlocks.Dispatches<TF5>();
+
         public void Serialize(Tuple<T1, T2, T3, T4, T5> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
@@ -856,6 +896,10 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6>>() && Size > 0;
         }
+
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>() | NinoBlocks.Dispatches<TF4>() | NinoBlocks.Dispatches<TF5>() | NinoBlocks.Dispatches<TF6>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3, T4, T5, T6> value, ref Writer writer)
@@ -974,6 +1018,10 @@ namespace Nino.Core
             get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && !NinoUnsafe.IsReferenceOrContainsReferences<T5>() && !NinoUnsafe.IsReferenceOrContainsReferences<T6>() && Size > 0;
         }
 
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>() | NinoBlocks.Dispatches<TF4>() | NinoBlocks.Dispatches<TF5>() | NinoBlocks.Dispatches<TF6>();
+
         public void Serialize(Tuple<T1, T2, T3, T4, T5, T6> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
@@ -1070,6 +1118,10 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>() && Size > 0;
         }
+
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>() | NinoBlocks.Dispatches<TF4>() | NinoBlocks.Dispatches<TF5>() | NinoBlocks.Dispatches<TF6>() | NinoBlocks.Dispatches<TF7>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3, T4, T5, T6, T7> value, ref Writer writer)
@@ -1196,6 +1248,10 @@ namespace Nino.Core
             get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && !NinoUnsafe.IsReferenceOrContainsReferences<T5>() && !NinoUnsafe.IsReferenceOrContainsReferences<T6>() && !NinoUnsafe.IsReferenceOrContainsReferences<T7>() && Size > 0;
         }
 
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>() | NinoBlocks.Dispatches<TF4>() | NinoBlocks.Dispatches<TF5>() | NinoBlocks.Dispatches<TF6>() | NinoBlocks.Dispatches<TF7>();
+
         public void Serialize(Tuple<T1, T2, T3, T4, T5, T6, T7> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
@@ -1301,6 +1357,10 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>() && Size > 0;
         }
+
+        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TF1>() | NinoBlocks.Dispatches<TF2>() | NinoBlocks.Dispatches<TF3>() | NinoBlocks.Dispatches<TF4>() | NinoBlocks.Dispatches<TF5>() | NinoBlocks.Dispatches<TF6>() | NinoBlocks.Dispatches<TF7>() | NinoBlocks.Dispatches<TF8>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value, ref Writer writer)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
@@ -108,6 +109,19 @@ namespace Nino.Core.Internal
         /// bound (the entries in use, live or free) and the version; for <see cref="HashTables"/>, the buckets, the
         /// fast-mod multiplier (-1: none, the bucket is the hash modulo the bucket count) and the live count.
         /// </summary>
+        /// <summary>
+        /// How a set or a dictionary tells a free entry from one in use, which a run of its entries skips
+        /// (<see cref="NinoRun.InUse"/>): its next index below -1 (.NET 5 and later: the free list is encoded below
+        /// -1), or its hash code below 0 (.NET Framework's and Mono's class library: -1), or not known (the entries are
+        /// read only while none is free).
+        /// </summary>
+        internal enum FreeEntries : byte
+        {
+            Unknown,
+            Next,
+            HashCode,
+        }
+
         internal readonly struct HashOffsets
         {
             public readonly int Entries, Bound, Version, Buckets, FastMod, Count;
@@ -356,6 +370,24 @@ namespace Nino.Core.Internal
         public static readonly int DictionaryEntries = DictionaryLayout?.Entries ?? 0;
         public static readonly int DictionaryBound = DictionaryLayout?.Bound ?? 0;
         internal static HashOffsets? DictionaryOffsets => DictionaryLayout;
+
+        /// <summary>How this runtime marks a <see cref="HashSet{T}"/>'s free entries (after the layout above).</summary>
+        public static readonly FreeEntries SetFree = HashSet ? FindFree(CheckSetFree) : FreeEntries.Unknown;
+
+        /// <summary>How this runtime marks a <see cref="Dictionary{TKey,TValue}"/>'s free entries.</summary>
+        public static readonly FreeEntries MapFree = Dictionary ? FindFree(CheckMapFree) : FreeEntries.Unknown;
+
+        /// <summary>The first rule <paramref name="check"/> accepts, or <see cref="FreeEntries.Unknown"/>.</summary>
+        private static FreeEntries FindFree(Func<FreeEntries, bool> check)
+        {
+            foreach (var free in new[] { FreeEntries.Next, FreeEntries.HashCode })
+            {
+                if (ObjectTypes.Passes(() => check(free)))
+                    return free;
+            }
+
+            return FreeEntries.Unknown;
+        }
 
         private static int At<TField>(object instance, ref TField field) => ObjectFields.OffsetOf(instance, ref field);
 

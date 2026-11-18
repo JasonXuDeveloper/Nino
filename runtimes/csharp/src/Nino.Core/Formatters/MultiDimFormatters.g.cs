@@ -30,7 +30,7 @@ namespace Nino.Core
 
             MultiDim.WriteLengths(value, 2, ref writer);
             if (value.Length != 0)
-                NinoElements.Write<T, TFormatter>(ref value[0, 0], value.Length, ref writer);
+                NinoRuns.Write<T, TFormatter>(ref value[0, 0], value.Length, ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref T[,] value)
@@ -98,7 +98,7 @@ namespace Nino.Core
 
             MultiDim.WriteLengths(value, 3, ref writer);
             if (value.Length != 0)
-                NinoElements.Write<T, TFormatter>(ref value[0, 0, 0], value.Length, ref writer);
+                NinoRuns.Write<T, TFormatter>(ref value[0, 0, 0], value.Length, ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref T[,,] value)
@@ -166,7 +166,7 @@ namespace Nino.Core
 
             MultiDim.WriteLengths(value, 4, ref writer);
             if (value.Length != 0)
-                NinoElements.Write<T, TFormatter>(ref value[0, 0, 0, 0], value.Length, ref writer);
+                NinoRuns.Write<T, TFormatter>(ref value[0, 0, 0, 0], value.Length, ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref T[,,,] value)

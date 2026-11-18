@@ -64,7 +64,7 @@ namespace Nino.Core
                 value.CopyTo(buffer, 0);
                 var items = new Span<T>(buffer, 0, count);
                 items.Reverse();
-                NinoElements.Write<T, TFormatter>(items, ref writer);
+                NinoRuns.Write<T, TFormatter>(items, ref writer);
             }
             finally
             {

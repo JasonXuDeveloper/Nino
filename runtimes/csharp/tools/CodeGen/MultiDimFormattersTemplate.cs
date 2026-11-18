@@ -64,7 +64,7 @@ namespace Nino.CodeGen
             sb.Append("\n");
             sb.Append($"            MultiDim.WriteLengths(value, {rank}, ref writer);\n");
             sb.Append("            if (value.Length != 0)\n");
-            sb.Append($"                NinoElements.Write<T, TFormatter>(ref value[{first}], value.Length, ref writer);\n");
+            sb.Append($"                NinoRuns.Write<T, TFormatter>(ref value[{first}], value.Length, ref writer);\n");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append($"        public void Deserialize(ref Reader reader, ref {type} value)\n");

@@ -214,7 +214,7 @@ namespace Nino.Core.Internal
                 return false;
             if (ObjectFields.At<object>(dictionary, at.Entries) is not Array { Length: >= 4 } array ||
                 array.GetType().GetElementType() is not { IsValueType: true, IsGenericType: true } ||
-                Unsafe.As<NinoDictionaryEntry<long, short>[]>(array) is not { } entries ||
+                Unsafe.As<CollectionFields.MapEntry<long, short>[]>(array) is not { } entries ||
                 entries[0].Key != 10 || entries[2].Value != 3 || entries[3].Key != 13 || entries[3].Value != 4)
                 return false;
             dictionary.Add(14, 5); // into the free entry: bound 4, count 4
@@ -224,10 +224,45 @@ namespace Nino.Core.Internal
             // Entries holding references (laid out by the runtime, as the mirror's are): the pair loops read them too.
             var named = new Dictionary<string, long> { { "a", 1 }, { "b", 2 } };
             return ObjectFields.At<object>(named, at.Entries) is Array { Length: >= 2 } namedArray &&
-                   Unsafe.As<NinoDictionaryEntry<string, long>[]>(namedArray) is { } namedEntries &&
+                   Unsafe.As<CollectionFields.MapEntry<string, long>[]>(namedArray) is { } namedEntries &&
                    namedEntries[0].Key == "a" && namedEntries[0].Value == 1 && namedEntries[1].Key == "b" &&
                    namedEntries[1].Value == 2;
         }
+
+        // A set of four entries whose second is free: the rule must tell it, and only it.
+        private static bool CheckSetFree(FreeEntries free)
+        {
+            var set = new HashSet<long> { 10, 11, 12, 13 };
+            set.Remove(11);
+            var entries = Unsafe.As<CollectionFields.SetEntry<long>[]>(ObjectFields.At<object>(set, HashSetEntries));
+            for (int i = 0; i < 4; i++)
+            {
+                if (IsFree(free, entries[i].HashCode, entries[i].Next) != (i == 1))
+                    return false;
+            }
+
+            return true;
+        }
+
+        // As CheckSetFree.
+        private static bool CheckMapFree(FreeEntries free)
+        {
+            var dictionary = new Dictionary<long, short> { { 10, 1 }, { 11, 2 }, { 12, 3 }, { 13, 4 } };
+            dictionary.Remove(11);
+            var entries = Unsafe.As<CollectionFields.MapEntry<long, short>[]>(
+                ObjectFields.At<object>(dictionary, DictionaryEntries));
+            for (int i = 0; i < 4; i++)
+            {
+                if (IsFree(free, entries[i].HashCode, entries[i].Next) != (i == 1))
+                    return false;
+            }
+
+            return true;
+        }
+
+        // The test NinoRun.Skips makes, by the rule.
+        private static bool IsFree(FreeEntries free, int hashCode, int next) =>
+            free == FreeEntries.Next ? next < -1 : hashCode < 0;
 
         private static bool CheckSortedDictionary(SortedDictionaryOffsets at)
         {

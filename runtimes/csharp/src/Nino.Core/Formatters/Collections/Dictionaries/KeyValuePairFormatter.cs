@@ -33,6 +33,10 @@ namespace Nino.Core
             get => !NinoUnsafe.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>() && Size > 0;
         }
 
+        // A pair whose key or value dispatches subtypes dispatches them too (its items' bits).
+        int INinoFormatter.BodyTraits =>
+            NinoBodyTraits.Nests | NinoBlocks.Dispatches<TKeyFormatter>() | NinoBlocks.Dispatches<TValueFormatter>();
+
         int INinoFormatter<KeyValuePair<TKey, TValue>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]

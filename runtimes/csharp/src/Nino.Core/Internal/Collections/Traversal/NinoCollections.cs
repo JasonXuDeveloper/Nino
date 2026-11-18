@@ -364,7 +364,7 @@ namespace Nino.Core.Internal
             }
 
             writer.WriteLength(values.Length);
-            NinoElements.Write<T, TFormatter>(values, ref writer);
+            NinoRuns.Write<T, TFormatter>(values, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

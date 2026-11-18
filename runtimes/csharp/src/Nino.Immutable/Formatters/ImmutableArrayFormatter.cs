@@ -15,27 +15,9 @@ namespace Nino.Immutable
     public struct ImmutableArrayFormatter<T, TFormatter> : INinoFormatter<ImmutableArray<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
-        public void Serialize(ImmutableArray<T> value, ref Writer writer)
-        {
-            // References (strings, classes) element by element: the array formatter's loop is slower here, reached
-            // out of line with the writer behind a ref (100 strings: 290 ns against 264). Values as an array, raw
-            // ones as one block.
-            if (!typeof(T).IsValueType)
-            {
-                if (value.IsDefault)
-                {
-                    writer.WriteNullLength();
-                    return;
-                }
-
-                writer.WriteLength(value.Length);
-                foreach (var item in value)
-                    default(TFormatter).Serialize(item, ref writer);
-                return;
-            }
-
+        // Its array as a T[] (a default value's is null: the null length), so its elements are a run of the one layer.
+        public void Serialize(ImmutableArray<T> value, ref Writer writer) =>
             default(ArrayFormatter<T, TFormatter>).Serialize(ImmutableCollectionsMarshal.AsArray(value), ref writer);
-        }
 
         public void Deserialize(ref Reader reader, ref ImmutableArray<T> value) =>
             value = ImmutableCollectionsMarshal.AsImmutableArray(ImmutableCollections.Read<T, TFormatter>(ref reader));
