@@ -136,12 +136,12 @@ func TestUniqueBytewiseKeys(t *testing.T) {
 		Id Guid
 		Hi [2]uint64
 	}
-	if kindOf[Guid]().bytes != 16 || kindOf[nested]().bytes != 32 {
+	if bytewiseKeySize[Guid]() != 16 || bytewiseKeySize[nested]() != 32 {
 		t.Fatal("packed pointer-free keys did not use the bytewise check")
 	}
-	if kindOf[padded]().bytes != 0 || kindOf[Decimal]().bytes != 0 ||
-		kindOf[struct{ F float64 }]().bytes != 0 || kindOf[struct{ P *int }]().bytes != 0 ||
-		kindOf[DateTimeOffset]().bytes != 0 {
+	if bytewiseKeySize[padded]() != 0 || bytewiseKeySize[Decimal]() != 0 ||
+		bytewiseKeySize[struct{ F float64 }]() != 0 || bytewiseKeySize[struct{ P *int }]() != 0 ||
+		bytewiseKeySize[DateTimeOffset]() != 0 {
 		t.Fatal("noncanonical or pointer-bearing key used the bytewise check")
 	}
 	for _, n := range []int{2, 16, 17, 1024} {
@@ -380,7 +380,7 @@ func TestUniqueStrings(t *testing.T) {
 				t.Fatalf("%d strings (repeated %v): %v", len(v), want, r.Err())
 			}
 			p := unsafe.Pointer(unsafe.SliceData(v))
-			if repeatedStringsMap(p, len(v), int(unsafe.Sizeof(v[0])), true, 0) != want {
+			if repeatedStringsMap(p, len(v), int(unsafe.Sizeof(v[0])), true) != want {
 				t.Fatalf("%d strings through the map: want %v", len(v), want)
 			}
 		}
