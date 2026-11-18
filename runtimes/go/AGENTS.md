@@ -69,6 +69,10 @@ marshal.go                   Marshal / Unmarshal through the tag plans
 block_test.go                block sizes and ReadBlock / WriteBlock against element-by-element reads; BenchmarkBlocks
                              (checked blocks: dates, decimals, bools, raw structs with a bool; Guids as the copy alone)
 raw_test.go                  bool blocks, raw struct blocks and padded structs
+copy_probe.go, copy_probe_test.go  development-only #263 experiment (ninocopyprobe build tag): Go copy against
+                             a bounded AVX2/NEON loop, fixed lengths and offsets, byte and canary checks
+copy_probe_amd64.go, copy_probe_amd64.s  AVX2 detection and copy loop for the probe
+copy_probe_arm64.go, copy_probe_arm64.s  Arm64 NEON copy loop for the probe
 nullable_test.go             NinoNullable blocks against NinoNullableAt on each element, NullableSlot blocks byte by
                              byte; BenchmarkNinoNullables and BenchmarkNullableSlots (the block against the element
                              loop and the []*T it replaced), BenchmarkSlotSets (a set of slots against a set of ints)
