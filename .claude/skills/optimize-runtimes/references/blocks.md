@@ -63,3 +63,18 @@ value check in a runtime or a template.
   read and 92-96 % to write; narrowing Latin-1 four units a word 40-64 % faster to write. Widening Latin-1 four bytes
   a word on read (`load32`, `widen`, `store64` into a fresh slice) was slower than the byte loop: +86 % on EPYC 7763,
   +56 % on Xeon 6973P, +10 % on Neoverse-N2 (run 40822228516); the byte loop stays.
+
+## Byte block copies
+
+- Confirm copy microbenchmarks in the codec that allocates or reuses the real buffer. Runtime A/B
+  [44339615693](https://github.com/JasonXuDeveloper/Nino/actions/runs/44339615693) probed disjoint copies with
+  rotated buffers, including a destination offset of four bytes. Go's candidate lowered the Neoverse-N2 time
+  by 10–33 % at 2–4 KiB but raised it by 21 % at 256 KiB with that offset. On the x64 runners it lowered the
+  hot 1 MiB time by 20–44 %, while the 2–4 KiB results varied by CPU and alignment.
+- Compare Rust's standard copy under the default loader and with
+  `GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112`. In the same run, forcing the historical lower
+  threshold made the unaligned 2,113-byte standard copy 7.1× its default time on EPYC 7763 and 5.8× on 9V74.
+  AVX2 took about 13–15 % of that tuned time. With the default loader the custom vectors had mixed x64 results
+  and the unaligned NEON copies cost 15–25 % more through 64 KiB. The lower threshold reproduces the AMD
+  `rep movsb` transition. The current loader still has its own upper stop threshold, so the 1 MiB row does
+  not reproduce every historical glibc configuration.
