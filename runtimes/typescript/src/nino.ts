@@ -1,236 +1,5 @@
-// Nino runtime for TypeScript (5.7 or later, for the typed arrays' buffer types), written by nino-gen (Nino.Codegen) next to the generated types: reads and writes the bytes
-// Nino writes in .NET. Little-endian and unaligned; lengths are int32, -1 = null; string headers take 1, 3 or 5 bytes. Do not edit: it is overwritten on
-// every build.
-
-/**
- * The Nino version of this runtime: nino-gen's for the copy it writes next to the generated types (which expect the
- * same one), the package's for the npm package (scripts/version.mjs).
- */
-export const ninoVersion = "__NINO_VERSION__";
-
-/** Reads and writes one type's values. Generated for every [NinoType]. */
-export interface NinoCodec<T> {
-  read(reader: NinoReader): T;
-  write(writer: NinoWriter, value: T): void;
-  /**
-   * Reads a value into `value` where it can (see `deserializeInto`) and returns the value read: `value` itself when it
-   * was reused. Optional: a codec without it reads a new value.
-   */
-  readInto?(reader: NinoReader, value: T): T;
-}
-
-/** A rectangular array's dimensions and its flat data, with the last index varying fastest. */
-export interface NinoGrid<T extends ArrayLike<unknown>> {
-  readonly lengths: readonly number[];
-  data: T;
-}
-
-// .NET's Array.MaxLength and the maximum product of the dimensions (wire-format spec §9.13).
-const maxGridLength = 0x7fff_ffc7;
-const maxGridElements = 0xffff_ffff;
-
-let shared: NinoWriter | null = null;
-/** The smallest buffer `serialize` writes its results into (see `NinoWriter.next`). */
-const slabSize = 64 * 1024;
-
-/**
- * Serializes `value` with `codec` (what `NinoSerializer.Serialize<T>` writes in .NET) into a new array. Results are
- * written one after another into a shared buffer and returned as views of it, never copied or overwritten (as
- * msgpackr does, and as Node's `Buffer`s share a pool): a new `ArrayBuffer` for every result costs more than most
- * serializations. Read a result by its `byteOffset` and `length`, not through `.buffer`.
- */
-export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array<ArrayBuffer> {
-  // A codec that serializes (a custom one) while this runs gets a writer of its own.
-  const writer = shared ?? new NinoWriter();
-  shared = null;
-  try {
-    writer.next();
-    codec.write(writer, value);
-    return writer.detach();
-  } finally {
-    if (writer.capacity <= 1 << 20) shared = writer;
-  }
-}
-
-/** The writer `serializeInto` writes a `Uint8Array`'s value with: null while it is in use, or before the first call. */
-let scratchWriter: NinoWriter | null = null;
-
-/**
- * Serializes `value` with `codec` into memory the caller owns, and returns the value's size in bytes:
- *
- * - into a `NinoWriter`, after what it holds (what `NinoSerializer.Serialize(value, bufferWriter)` does in .NET),
- *   growing it as needed; `written()` views the bytes until the writer writes again. A writer reused with `reset` keeps
- *   its buffer, so once it is large enough writing allocates no memory at all: no new `ArrayBuffer` per value, which
- *   V8 counts toward a full garbage collection (about every 64 MB of them in Node 24) until a scavenge frees them. If
- *   `codec` throws, the writer is left as it was before the call.
- * - into a `Uint8Array`, from its start, when the value fits. A size larger than `target.length` means it did not:
- *   `target` is then unchanged, and a call with that many bytes succeeds.
- *
- * Not for a writer that is writing a value (from a custom codec): references and depth are counted per call.
- */
-export function serializeInto<T>(codec: NinoCodec<T>, value: T, target: NinoWriter | Uint8Array): number {
-  if (target instanceof NinoWriter) {
-    const start = target.pos;
-    target["begin"]();
-    try {
-      codec.write(target, value);
-    } catch (e) {
-      target.pos = start;
-      throw e;
-    }
-    return target.pos - start;
-  }
-  // A codec that serializes (a custom one) while this runs gets a writer of its own.
-  const writer = scratchWriter ?? new NinoWriter();
-  scratchWriter = null;
-  try {
-    writer.reset();
-    codec.write(writer, value);
-    const size = writer.pos;
-    if (size <= target.length) target.set(writer.written());
-    return size;
-  } finally {
-    if (writer.capacity <= 1 << 20) scratchWriter = writer;
-  }
-}
-
-/**
- * Deserializes one value written by `NinoSerializer.Serialize<T>` (or `serialize`). Nothing it returns refers to
- * `data`, which it does not change. Bytes after the value are not read (see `deserializeExact`).
- */
-export function deserialize<T>(codec: NinoCodec<T>, data: Uint8Array): T {
-  return readValue(codec, data, false);
-}
-
-/** `deserialize` that also throws a `NinoError` when bytes follow the value. */
-export function deserializeExact<T>(codec: NinoCodec<T>, data: Uint8Array): T {
-  return readValue(codec, data, true);
-}
-
-/**
- * Deserializes one value into `value`, as `NinoDeserializer.Deserialize(data, ref value)` does in .NET, and returns
- * the value read: the members of objects are read into the objects `value` holds (of the same class), arrays keep
- * their storage and read their elements into the old ones by index, maps and sets are cleared and refilled, and a
- * polymorphic member is read into only when the data holds the same class (tracked objects are read new). Bytes after
- * the value are not read. If it throws, `value` holds what was read before the error, the rest as it was.
- */
-export function deserializeInto<T>(codec: NinoCodec<T>, data: Uint8Array, value: T): T {
-  return readValue({ read: (r) => r.into(codec, value), write: codec.write }, data, false);
-}
-
-function readValue<T>(codec: NinoCodec<T>, data: Uint8Array, exact: boolean): T {
-  let reader = scratchReader;
-  if (reader === null || data.length > scratchSize) {
-    if (reader !== null || scratchMade || data.length > scratchSize) {
-      return readAll(codec, new NinoReader(data), exact ? data.length : -1);
-    }
-    reader = makeScratch();
-  }
-  // A codec that deserializes (a custom one) while this runs gets a reader of its own.
-  scratchReader = null;
-  try {
-    reader["load"](data);
-    return readAll(codec, reader, exact ? data.length : -1);
-  } finally {
-    scratchReader = reader;
-  }
-}
-
-/** One value from `reader`, which must then be at `end` (the length of the data), unless `end` is -1. */
-function readAll<T>(codec: NinoCodec<T>, reader: NinoReader, end: number): T {
-  const value = codec.read(reader);
-  if (end >= 0 && reader.pos !== end) throw new NinoError(`${end - reader.pos} bytes after the value.`);
-  return value;
-}
-
-/**
- * Values up to this size are copied into the bytes of one reader that `deserialize` reuses: a copy costs less than
- * the `DataView` a new reader makes (about 75 ns in Node 22, 50 in Chromium), which is most of the time of a small
- * value.
- */
-const scratchSize = 4096;
-/** The reader `deserialize` reuses: null while it is in use, or before the first call made it. */
-let scratchReader: NinoReader | null = null;
-let scratchMade = false;
-
-/** The reader `deserialize` reuses: its bytes are in the kernels' memory when they are used, so text needs no copy. */
-function makeScratch(): NinoReader {
-  scratchMade = true;
-  const k = nodeText === null ? wasm() : null;
-  return new NinoReader(k !== null ? new Uint8Array(k.memory.buffer, 0, scratchSize) : new Uint8Array(scratchSize));
-}
-
-/**
- * A member that is .NET's `NinoNullable<T>` (`Nino.Core`): the value or `null`, as a `T?` member is (`T | null`), under
- * the name that says which bytes it has: its memory wherever it is, a presence and a value of a `T` each
- * (`NinoReader.ninoNullableAt`), where a `T?` is a presence byte and the value, or a slot in a sequence
- * (`NullableSlot`). An alias only: no wrapper object and nothing at run time.
- */
-export type NinoNullable<T> = T | null;
-
-/**
- * A .NET `T?` of a fixed-size `T` (a number, a date, a raw struct) as the element of a sequence: the value or `null`,
- * under the name that says which bytes it has: a slot of `T`'s alignment plus its size in every sequence, the presence
- * byte first, zeros up to the alignment, then the value, zeros when absent. `NullableSlot<number>[]` is an `int?[]`, a
- * `List<int?>` or a `Queue<int?>`, `Set<NullableSlot<number>>` a `HashSet<int?>`. A single `T?` (a member, a map's
- * key or value, a tuple's item) is not these bytes: it is a presence byte and the value only when present, declared
- * `T | null`. An alias only: no wrapper object and nothing at run time.
- */
-export type NullableSlot<T> = T | null;
-
-/**
- * A typed array of a fixed-size number type: how generated code holds an array or list of `sbyte`, `byte`, `short`,
- * `ushort`, `int`, `uint`, `long`, `ulong`, `float` or `double` (`NinoReader.numbers`, `NinoWriter.numbers`).
- */
-export type NinoNumbers = Int8Array | Uint8Array | Int16Array | Uint16Array | Int32Array | Uint32Array |
-  BigInt64Array | BigUint64Array | Float32Array | Float64Array;
-
-/** The constructor of a `NinoNumbers` type (`Int32Array`, ...). */
-export interface NinoNumbersType<T extends NinoNumbers> {
-  readonly BYTES_PER_ELEMENT: number;
-  new (length: number): T;
-  new (buffer: ArrayBuffer, byteOffset: number, length: number): T;
-}
-
-/** Whether this host stores numbers little-endian, as Nino writes them: typed arrays are then copied as bytes. */
-const littleEndian = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
-
-/** Reverses the bytes of each `size`-byte element in `bytes` from `at` to `end`: Nino's order and a big-endian host's. */
-function swapBytes(bytes: Uint8Array, at: number, end: number, size: number): void {
-  for (; at < end; at += size) {
-    for (let i = at, j = at + size - 1; i < j; i++, j--) {
-      const b = bytes[i];
-      bytes[i] = bytes[j];
-      bytes[j] = b;
-    }
-  }
-}
-
-/**
- * Typed arrays `NinoReader.numbers` reads up to this many bytes are views of a shared buffer (numbersSlab bytes), as
- * Node's small `Buffer`s share a pool: one over 64 bytes has its memory outside V8's heap, and allocating that costs
- * more than the copy (in Node 22 about 2 µs for 1,000 int32s against 0.6 µs for a pool view). Generated code reads
- * those of up to 64 bytes one element at a time into a typed array of their own, which V8 keeps on its heap: viewing
- * such an array's bytes (`.buffer`) allocates outside memory for it, which made reading 4 int64s 5 times slower than
- * reading them into an array (test branch 97deeca).
- */
-const numbersPooled = 8192;
-const numbersSlab = 64 * 1024;
-let numbersBuffer = new ArrayBuffer(0);
-let numbersBytes = new Uint8Array(0);
-let numbersPos = 0;
-
-/** Where `bytes` bytes start in the shared buffer (8-byte aligned, as a view must be aligned to its elements). */
-function poolNumbers(bytes: number): number {
-  let at = numbersPos;
-  if (bytes > numbersBytes.length - at) {
-    numbersBuffer = new ArrayBuffer(numbersSlab);
-    numbersBytes = new Uint8Array(numbersBuffer);
-    at = 0;
-  }
-  numbersPos = (at + bytes + 7) & ~7;
-  return at;
-}
+// Nino runtime for TypeScript (5.7 or later, for the typed arrays' buffer types).
+// Generated from src/runtime/ by npm run build:bundle. nino-gen writes this file next to the generated types.
 
 /** Thrown for data that is not a valid value of the type read, or a value that cannot be written. */
 export class NinoError extends Error {
@@ -239,60 +8,6 @@ export class NinoError extends Error {
     this.name = "NinoError";
   }
 }
-
-// ignoreBOM keeps a leading U+FEFF, which is text in Nino.
-const utf8Decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
-const utf8Encoder = new TextEncoder();
-
-/**
- * The bytes a string header (below 2^32, wire-format spec §2.3.1) takes: 1 below 0x80 (the value itself), 3 up to
- * 0xFFFF (0x80 and a uint16), else 5 (0x81 and a uint32).
- */
-function headerSize(value: number): number {
-  return value < 0x80 ? 1 : value <= 0xffff ? 3 : 5;
-}
-/** Browsers decode "latin1" as windows-1252, which differs from Latin-1 in 0x80-0x9F (see `decodeLatin1`). */
-const latin1Decoder = new TextDecoder("latin1");
-/** Replaces unpaired surrogates with U+FFFD, which .NET keeps (see `decodeUtf16`). */
-const utf16Decoder = new TextDecoder("utf-16le", { ignoreBOM: true });
-/** A char wider than a byte. A string without one is one byte per char in Nino. */
-const wide = /[^\x00-\xff]/;
-/** A char outside ASCII. */
-const nonAscii = /[^\x00-\x7f]/;
-/** Milliseconds between 0001-01-01 and 1970-01-01. */
-const unixEpochMilliseconds = 62135596800000;
-/** Milliseconds between 0001-01-01 and 10000-01-01: past `DateTime.MaxValue`. */
-const maxDateMilliseconds = 315537897600000;
-/** The char codes of each byte's high and low hex digit. */
-const hexHigh = Uint8Array.from({ length: 256 }, (_, i) => "0123456789abcdef".charCodeAt(i >> 4));
-const hexLow = Uint8Array.from({ length: 256 }, (_, i) => "0123456789abcdef".charCodeAt(i & 15));
-/** The value of each hex digit by its char code, else -1. */
-const hexValues = Int8Array.from({ length: 128 }, (_, c) =>
-  c >= 48 && c <= 57 ? c - 48 : (c | 32) >= 97 && (c | 32) <= 102 ? (c | 32) - 87 : -1);
-/** Chars per `String.fromCharCode` call, well under any engine's argument limit. */
-const chunk = 4096;
-/**
- * With Node's methods, text longer than this is written by a native call (`latin1Write`, `ucs2Write`, after a regex
- * for chars past U+00FF); shorter text is narrowed char by char in JavaScript, which costs less up to about 48 chars
- * on x64 and Arm64 (32 and 64 measured the same, 8 took twice as long on short text).
- */
-const shortText = 48;
-/** Without Node's methods, the longest text read and written in JavaScript: TextDecoder and TextEncoder cost more. */
-const mediumText = 32;
-/**
- * Without Node's methods, the longest text written in JavaScript: a `TextEncoder.encodeInto` call costs about as
- * much as writing 300 chars in Chromium.
- */
-const loopText = 256;
-/**
- * With Node's methods, the longest text sliced from the reader's decoded window. V8 copies a substring this short
- * into a plain string; a longer one would be a slice of the window, slower to write or test with a regex later.
- */
-const textSlice = 12;
-/** The window's largest size. */
-const textWindow = 4096;
-/** The char codes of a text being read, passed to `String.fromCharCode` at once. */
-const codes: number[] = [];
 
 /**
  * Open class bodies after which the next one is deferred, as `NinoDepth.Inline` in .NET: its slot gets the instance
@@ -334,6 +49,20 @@ class NinoDeferrals<S> {
   }
 }
 
+function tooDeep(): NinoError {
+  return new NinoError(`data nested deeper than ${maxDepth} bodies.`);
+}
+
+/** A rectangular array's dimensions and its flat data, with the last index varying fastest. */
+export interface NinoGrid<T extends ArrayLike<unknown>> {
+  readonly lengths: readonly number[];
+  data: T;
+}
+
+// .NET's Array.MaxLength and the maximum product of the dimensions (wire-format spec §9.13).
+const maxGridLength = 0x7fff_ffc7;
+const maxGridElements = 0xffff_ffff;
+
 /**
  * The most keys a key read from the data may find in its bucket of the `Map` or `Set` it goes into, as
  * `NinoSettings.MaxHashCollisions`'s default in .NET. See `NinoKeyGuard`.
@@ -341,13 +70,6 @@ class NinoDeferrals<S> {
 const maxHashCollisions = 100;
 /** Maps and sets of up to this many keys are not guarded: their keys cannot cost more than this many probes each. */
 const guardedKeys = 128;
-
-/**
- * What the collections of one read may allocate ahead of their elements (`NinoReader.capacity`): 16 bytes per byte of
- * data plus 16 KB, an element counted as 8 bytes (an array slot), as the Go and Rust readers budget a read.
- */
-const presizePerByte = 16;
-const presizeFloor = 16384;
 
 /**
  * Bounds what keys read from the data cost a `Map` or `Set` (hash flooding), as `NinoSettings.MaxHashCollisions`
@@ -505,9 +227,122 @@ function guardKey<K>(guard: NinoKeyGuard, key: K): K {
   return key;
 }
 
-function tooDeep(): NinoError {
-  return new NinoError(`data nested deeper than ${maxDepth} bodies.`);
+/**
+ * A typed array of a fixed-size number type: how generated code holds an array or list of `sbyte`, `byte`, `short`,
+ * `ushort`, `int`, `uint`, `long`, `ulong`, `float` or `double` (`NinoReader.numbers`, `NinoWriter.numbers`).
+ */
+export type NinoNumbers = Int8Array | Uint8Array | Int16Array | Uint16Array | Int32Array | Uint32Array |
+  BigInt64Array | BigUint64Array | Float32Array | Float64Array;
+
+/** The constructor of a `NinoNumbers` type (`Int32Array`, ...). */
+export interface NinoNumbersType<T extends NinoNumbers> {
+  readonly BYTES_PER_ELEMENT: number;
+  new (length: number): T;
+  new (buffer: ArrayBuffer, byteOffset: number, length: number): T;
 }
+
+/** Whether this host stores numbers little-endian, as Nino writes them: typed arrays are then copied as bytes. */
+const littleEndian = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+
+/** Reverses the bytes of each `size`-byte element in `bytes` from `at` to `end`: Nino's order and a big-endian host's. */
+function swapBytes(bytes: Uint8Array, at: number, end: number, size: number): void {
+  for (; at < end; at += size) {
+    for (let i = at, j = at + size - 1; i < j; i++, j--) {
+      const b = bytes[i];
+      bytes[i] = bytes[j];
+      bytes[j] = b;
+    }
+  }
+}
+
+/**
+ * Typed arrays `NinoReader.numbers` reads up to this many bytes are views of a shared buffer (numbersSlab bytes), as
+ * Node's small `Buffer`s share a pool: one over 64 bytes has its memory outside V8's heap, and allocating that costs
+ * more than the copy (in Node 22 about 2 µs for 1,000 int32s against 0.6 µs for a pool view). Generated code reads
+ * those of up to 64 bytes one element at a time into a typed array of their own, which V8 keeps on its heap: viewing
+ * such an array's bytes (`.buffer`) allocates outside memory for it, which made reading 4 int64s 5 times slower than
+ * reading them into an array (test branch 97deeca).
+ */
+const numbersPooled = 8192;
+const numbersSlab = 64 * 1024;
+let numbersBuffer = new ArrayBuffer(0);
+let numbersBytes = new Uint8Array(0);
+let numbersPos = 0;
+
+/** Where `bytes` bytes start in the shared buffer (8-byte aligned, as a view must be aligned to its elements). */
+function poolNumbers(bytes: number): number {
+  let at = numbersPos;
+  if (bytes > numbersBytes.length - at) {
+    numbersBuffer = new ArrayBuffer(numbersSlab);
+    numbersBytes = new Uint8Array(numbersBuffer);
+    at = 0;
+  }
+  numbersPos = (at + bytes + 7) & ~7;
+  return at;
+}
+
+/** Milliseconds between 0001-01-01 and 1970-01-01. */
+const unixEpochMilliseconds = 62135596800000;
+/** Milliseconds between 0001-01-01 and 10000-01-01: past `DateTime.MaxValue`. */
+const maxDateMilliseconds = 315537897600000;
+/** The char codes of each byte's high and low hex digit. */
+const hexHigh = Uint8Array.from({ length: 256 }, (_, i) => "0123456789abcdef".charCodeAt(i >> 4));
+const hexLow = Uint8Array.from({ length: 256 }, (_, i) => "0123456789abcdef".charCodeAt(i & 15));
+/** The value of each hex digit by its char code, else -1. */
+const hexValues = Int8Array.from({ length: 128 }, (_, c) =>
+  c >= 48 && c <= 57 ? c - 48 : (c | 32) >= 97 && (c | 32) <= 102 ? (c | 32) - 87 : -1);
+
+/**
+ * Values up to this size are copied into the bytes of one reader that `deserialize` reuses: a copy costs less than
+ * the `DataView` a new reader makes (about 75 ns in Node 22, 50 in Chromium), which is most of the time of a small
+ * value.
+ */
+const scratchSize = 4096;
+
+// ignoreBOM keeps a leading U+FEFF, which is text in Nino.
+const utf8Decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const utf8Encoder = new TextEncoder();
+
+/**
+ * The bytes a string header (below 2^32, wire-format spec §2.3.1) takes: 1 below 0x80 (the value itself), 3 up to
+ * 0xFFFF (0x80 and a uint16), else 5 (0x81 and a uint32).
+ */
+function headerSize(value: number): number {
+  return value < 0x80 ? 1 : value <= 0xffff ? 3 : 5;
+}
+/** Browsers decode "latin1" as windows-1252, which differs from Latin-1 in 0x80-0x9F (see `decodeLatin1`). */
+const latin1Decoder = new TextDecoder("latin1");
+/** Replaces unpaired surrogates with U+FFFD, which .NET keeps (see `decodeUtf16`). */
+const utf16Decoder = new TextDecoder("utf-16le", { ignoreBOM: true });
+/** A char wider than a byte. A string without one is one byte per char in Nino. */
+const wide = /[^\x00-\xff]/;
+/** A char outside ASCII. */
+const nonAscii = /[^\x00-\x7f]/;
+
+/** Chars per `String.fromCharCode` call, well under any engine's argument limit. */
+const chunk = 4096;
+/**
+ * With Node's methods, text longer than this is written by a native call (`latin1Write`, `ucs2Write`, after a regex
+ * for chars past U+00FF); shorter text is narrowed char by char in JavaScript, which costs less up to about 48 chars
+ * on x64 and Arm64 (32 and 64 measured the same, 8 took twice as long on short text).
+ */
+const shortText = 48;
+/** Without Node's methods, the longest text read and written in JavaScript: TextDecoder and TextEncoder cost more. */
+const mediumText = 32;
+/**
+ * Without Node's methods, the longest text written in JavaScript: a `TextEncoder.encodeInto` call costs about as
+ * much as writing 300 chars in Chromium.
+ */
+const loopText = 256;
+/**
+ * With Node's methods, the longest text sliced from the reader's decoded window. V8 copies a substring this short
+ * into a plain string; a longer one would be a slice of the window, slower to write or test with a regex later.
+ */
+const textSlice = 12;
+/** The window's largest size. */
+const textWindow = 4096;
+/** The char codes of a text being read, passed to `String.fromCharCode` at once. */
+const codes: number[] = [];
 
 /** The native Latin-1 and UTF-16 text methods of Node's `Buffer` (Bun's and Deno's too), called on a Uint8Array. */
 interface NodeText {
@@ -797,6 +632,49 @@ function decodeShortUtf16(v: DataView, at: number, length: number): string {
         v.getUint16(at + 40, true), v.getUint16(at + 42, true), v.getUint16(at + 44, true), v.getUint16(at + 46, true));
   }
 }
+
+function readValue<T>(codec: NinoCodec<T>, data: Uint8Array, exact: boolean): T {
+  let reader = scratchReader;
+  if (reader === null || data.length > scratchSize) {
+    if (reader !== null || scratchMade || data.length > scratchSize) {
+      return readAll(codec, new NinoReader(data), exact ? data.length : -1);
+    }
+    reader = makeScratch();
+  }
+  // A codec that deserializes (a custom one) while this runs gets a reader of its own.
+  scratchReader = null;
+  try {
+    reader["load"](data);
+    return readAll(codec, reader, exact ? data.length : -1);
+  } finally {
+    scratchReader = reader;
+  }
+}
+
+/** One value from `reader`, which must then be at `end` (the length of the data), unless `end` is -1. */
+function readAll<T>(codec: NinoCodec<T>, reader: NinoReader, end: number): T {
+  const value = codec.read(reader);
+  if (end >= 0 && reader.pos !== end) throw new NinoError(`${end - reader.pos} bytes after the value.`);
+  return value;
+}
+
+/** The reader `deserialize` reuses: null while it is in use, or before the first call made it. */
+let scratchReader: NinoReader | null = null;
+let scratchMade = false;
+
+/** The reader `deserialize` reuses: its bytes are in the kernels' memory when they are used, so text needs no copy. */
+function makeScratch(): NinoReader {
+  scratchMade = true;
+  const k = nodeText === null ? wasm() : null;
+  return new NinoReader(k !== null ? new Uint8Array(k.memory.buffer, 0, scratchSize) : new Uint8Array(scratchSize));
+}
+
+/**
+ * What the collections of one read may allocate ahead of their elements (`NinoReader.capacity`): 16 bytes per byte of
+ * data plus 16 KB, an element counted as 8 bytes (an array slot), as the Go and Rust readers budget a read.
+ */
+const presizePerByte = 16;
+const presizeFloor = 16384;
 
 /**
  * Reads values from bytes written by Nino. Generated code reads a run of fixed-size values with one `take`, then
@@ -1471,6 +1349,9 @@ export class NinoReader {
   }
 }
 
+/** The smallest buffer `serialize` writes its results into (see `NinoWriter.next`). */
+const slabSize = 64 * 1024;
+
 /**
  * Writes values in Nino's format. Generated code writes a run of fixed-size values with one `reserve`, then each
  * value into `view` at its offset.
@@ -2070,6 +1951,128 @@ export class NinoWriter {
   }
 }
 
+/**
+ * The Nino version of this runtime: nino-gen's for the copy it writes next to the generated types (which expect the
+ * same one), the package's for the npm package (scripts/version.mjs).
+ */
+export const ninoVersion = "__NINO_VERSION__";
+
+/** Reads and writes one type's values. Generated for every [NinoType]. */
+export interface NinoCodec<T> {
+  read(reader: NinoReader): T;
+  write(writer: NinoWriter, value: T): void;
+  /**
+   * Reads a value into `value` where it can (see `deserializeInto`) and returns the value read: `value` itself when it
+   * was reused. Optional: a codec without it reads a new value.
+   */
+  readInto?(reader: NinoReader, value: T): T;
+}
+
+let shared: NinoWriter | null = null;
+
+/**
+ * Serializes `value` with `codec` (what `NinoSerializer.Serialize<T>` writes in .NET) into a new array. Results are
+ * written one after another into a shared buffer and returned as views of it, never copied or overwritten (as
+ * msgpackr does, and as Node's `Buffer`s share a pool): a new `ArrayBuffer` for every result costs more than most
+ * serializations. Read a result by its `byteOffset` and `length`, not through `.buffer`.
+ */
+export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array<ArrayBuffer> {
+  // A codec that serializes (a custom one) while this runs gets a writer of its own.
+  const writer = shared ?? new NinoWriter();
+  shared = null;
+  try {
+    writer.next();
+    codec.write(writer, value);
+    return writer.detach();
+  } finally {
+    if (writer.capacity <= 1 << 20) shared = writer;
+  }
+}
+
+/** The writer `serializeInto` writes a `Uint8Array`'s value with: null while it is in use, or before the first call. */
+let scratchWriter: NinoWriter | null = null;
+
+/**
+ * Serializes `value` with `codec` into memory the caller owns, and returns the value's size in bytes:
+ *
+ * - into a `NinoWriter`, after what it holds (what `NinoSerializer.Serialize(value, bufferWriter)` does in .NET),
+ *   growing it as needed; `written()` views the bytes until the writer writes again. A writer reused with `reset` keeps
+ *   its buffer, so once it is large enough writing allocates no memory at all: no new `ArrayBuffer` per value, which
+ *   V8 counts toward a full garbage collection (about every 64 MB of them in Node 24) until a scavenge frees them. If
+ *   `codec` throws, the writer is left as it was before the call.
+ * - into a `Uint8Array`, from its start, when the value fits. A size larger than `target.length` means it did not:
+ *   `target` is then unchanged, and a call with that many bytes succeeds.
+ *
+ * Not for a writer that is writing a value (from a custom codec): references and depth are counted per call.
+ */
+export function serializeInto<T>(codec: NinoCodec<T>, value: T, target: NinoWriter | Uint8Array): number {
+  if (target instanceof NinoWriter) {
+    const start = target.pos;
+    target["begin"]();
+    try {
+      codec.write(target, value);
+    } catch (e) {
+      target.pos = start;
+      throw e;
+    }
+    return target.pos - start;
+  }
+  // A codec that serializes (a custom one) while this runs gets a writer of its own.
+  const writer = scratchWriter ?? new NinoWriter();
+  scratchWriter = null;
+  try {
+    writer.reset();
+    codec.write(writer, value);
+    const size = writer.pos;
+    if (size <= target.length) target.set(writer.written());
+    return size;
+  } finally {
+    if (writer.capacity <= 1 << 20) scratchWriter = writer;
+  }
+}
+
+/**
+ * Deserializes one value written by `NinoSerializer.Serialize<T>` (or `serialize`). Nothing it returns refers to
+ * `data`, which it does not change. Bytes after the value are not read (see `deserializeExact`).
+ */
+export function deserialize<T>(codec: NinoCodec<T>, data: Uint8Array): T {
+  return readValue(codec, data, false);
+}
+
+/** `deserialize` that also throws a `NinoError` when bytes follow the value. */
+export function deserializeExact<T>(codec: NinoCodec<T>, data: Uint8Array): T {
+  return readValue(codec, data, true);
+}
+
+/**
+ * Deserializes one value into `value`, as `NinoDeserializer.Deserialize(data, ref value)` does in .NET, and returns
+ * the value read: the members of objects are read into the objects `value` holds (of the same class), arrays keep
+ * their storage and read their elements into the old ones by index, maps and sets are cleared and refilled, and a
+ * polymorphic member is read into only when the data holds the same class (tracked objects are read new). Bytes after
+ * the value are not read. If it throws, `value` holds what was read before the error, the rest as it was.
+ */
+export function deserializeInto<T>(codec: NinoCodec<T>, data: Uint8Array, value: T): T {
+  return readValue({ read: (r) => r.into(codec, value), write: codec.write }, data, false);
+}
+
+/**
+ * A member that is .NET's `NinoNullable<T>` (`Nino.Core`): the value or `null`, as a `T?` member is (`T | null`), under
+ * the name that says which bytes it has: its memory wherever it is, a presence and a value of a `T` each
+ * (`NinoReader.ninoNullableAt`), where a `T?` is a presence byte and the value, or a slot in a sequence
+ * (`NullableSlot`). An alias only: no wrapper object and nothing at run time.
+ */
+export type NinoNullable<T> = T | null;
+
+/**
+ * A .NET `T?` of a fixed-size `T` (a number, a date, a raw struct) as the element of a sequence: the value or `null`,
+ * under the name that says which bytes it has: a slot of `T`'s alignment plus its size in every sequence, the presence
+ * byte first, zeros up to the alignment, then the value, zeros when absent. `NullableSlot<number>[]` is an `int?[]`, a
+ * `List<int?>` or a `Queue<int?>`, `Set<NullableSlot<number>>` a `HashSet<int?>`. A single `T?` (a member, a map's
+ * key or value, a tuple's item) is not these bytes: it is a presence byte and the value only when present, declared
+ * `T | null`. An alias only: no wrapper object and nothing at run time.
+ */
+export type NullableSlot<T> = T | null;
+
 interface NinoEntry {
   id: number;
   read(reader: NinoReader): unknown;
@@ -2128,4 +2131,3 @@ export class NinoSubtypes {
     };
   }
 }
-

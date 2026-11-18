@@ -1,25 +1,38 @@
 # TypeScript runtime: file map
 
-> Read when: reading or changing the TypeScript runtime (runtimes/typescript: src/nino.ts, its WebAssembly kernels, tests or benchmark).
+> Read when: reading or changing the TypeScript runtime (runtimes/typescript: src/runtime/, its single-file bundle, WebAssembly kernels, tests or benchmark).
 
 The npm package `nino-serialization` (ES module, Node 15+ for the published build; tests on Node 22.18+ type
-stripping): `src/nino.ts` is the whole runtime, embedded in nino-gen (`runtimes/csharp/src/Nino.Codegen`) and written next to the
-generated TypeScript. README.md documents it. `audit-runtimes` audits it, `audit-security` its reader.
+stripping): edit the modules in `src/runtime/`. The checked-in bundle `src/nino.ts` is the file nino-gen embeds and
+writes next to generated TypeScript. The npm package compiles that bundle to `dist/nino.js` and its declarations.
+README.md documents it. `audit-runtimes` audits it, `audit-security` its reader.
 
 ```
-package.json                 the package (exports dist/nino.js + .d.ts) and scripts: build, build:wasm, typecheck, test
+package.json                 the package (exports dist/nino.js + .d.ts) and scripts: build, build:bundle, build:wasm, typecheck, test
                              (tsc, then the suite in Node, as a browser, and as a browser without WebAssembly)
 package-lock.json            dev dependencies: typescript, @types/node, fast-check
 tsconfig.json                type checks src, test and wasm (noEmit)
 tsconfig.build.json          builds src/nino.ts into dist (npm run build)
 LICENSE                      MIT license text included in the npm package
 README.md                    usage, the API, guarantees, tests, benchmarks
-src/nino.ts                  the runtime: reader and writer, strings, collections, depth and deferral, type ids,
-                             reference tracking; embeds the WebAssembly text kernels between wasm:begin / wasm:end
+src/
+  nino.ts                    generated single-file bundle: embedded by nino-gen, compiled for npm (do not edit)
+  runtime/                   authoritative modules; index.ts declares the bundle's public API via named re-exports
+    api.ts                   codecs, nullable types, serialize and deserialize entry points, ninoVersion
+    reader.ts, writer.ts     wire I/O, collection and reference state, reader scratch buffer and writer slab
+    deferrals.ts             shallow-stack reading and writing of nested bodies
+    error.ts                 shared NinoError
+    keys.ts                  hash-flooding guard
+    numbers.ts               typed arrays, endianness, shared buffer for numeric blocks
+  grid.ts                    rectangular array shape and dimension limits
+    scalars.ts               date and GUID constants
+    subtypes.ts              registry by type id and by class
+    text.ts                  Node and JavaScript text paths, Wasm text kernels and loader
+scripts/bundle.mjs           npm run build:bundle: flattens the modules into src/nino.ts; build and test check it
 scripts/version.mjs          after tsc: writes the package version over the placeholder in dist
 wasm/
   text.wat                   the WebAssembly kernels (SIMD, GC, JS String Builtins) for text <-> Nino's string bytes
-  embed.ts                   npm run build:wasm: assembles text.wat with wasm-tools into src/nino.ts (base64 + SHA-256)
+  embed.ts                   npm run build:wasm: assembles text.wat with wasm-tools into src/runtime/text.ts (base64 + SHA-256)
 test/
   primitives.test.ts         every primitive's bytes and round trip
   strings.test.ts            both string encodings, Node's and the browser's paths
@@ -45,12 +58,13 @@ bench/                       the .NET suite's cases (runtimes/csharp/benchmarks)
 ```
 
 Generated files: `test/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test runtimes/csharp/tests/Nino.Codegen.Tests`;
-the embedded module in `src/nino.ts` by `npm run build:wasm`.
+the embedded kernels in `src/runtime/text.ts` and the bundle by `npm run build:wasm`.
 
 ## TypeScript runtime (runtimes/typescript)
 
-`src/nino.ts` is the runtime Nino.Codegen embeds and nino-gen writes next to the generated TypeScript. The
-reader takes hostile input as the Go and Rust ones do: check bounds and lengths before allocating, count depth as .NET
-does and defer past it, never build objects whose keys come from the data on a plain object (`__proto__`): use `Map`.
+Run `npm run build:bundle` after editing a module. Commit the bundle alongside its source so building Nino.Codegen
+requires only .NET. Keep internal imports relative and named.
+The reader takes hostile input as the Go and Rust ones do: check bounds and lengths before allocating, count depth
+as .NET does and defer past it, and use `Map` for keys from the data (`__proto__`).
 Before committing: `npm ci && npm test` (type check and the `node:test` suite) in `runtimes/typescript`, and the
 `Nino.Codegen.Integration.Tests` and `Nino.Codegen.Tests` .NET tests.
