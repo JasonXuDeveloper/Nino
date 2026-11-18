@@ -178,6 +178,19 @@ Rules in short:
   MinOpts and the raw helper was 284 B in FullOpts; entry IL was 172 to 177 B with a 104 B helper. Wire bytes and
   allocation matched and the .NET 8/10 targeted suites passed. Both trials were withdrawn. Arm64 only; x64 unmeasured.
 
+## New dictionaries of objects
+
+- Read the pairs of a new dictionary Nino may fill (`HashTables.CanInsert`: default comparer, empty, sized) straight
+  into its entries with only the formatters in the loop (`NinoDictionary.ReadEntries`), then build the buckets in one
+  pass (`HashTables.Link`, which keeps every check `Insert` made: null key, repeated key, `MaxHashCollisions`), and
+  clear entries and buckets on any exception (`HashTables.Unlink`); below four pairs keep the one-at-a-time insert
+  loop. Why: `HashTables.Insert` per pair is a call that loads the table's fields again each time, and LuminPack's
+  entries fill read `Dictionary<int, IFoo>` faster; but the entries fill adds two calls, which one pair does not repay.
+  Evidence (#320, runs 44243147222 and 44246428900, PolyDictProbe, Xeon 6975P-C and Neoverse-N2): int keys, 12 to 100
+  pairs, 1.02–1.05x on x64 and 1.04–1.13x on Arm64 against main, one pair 0.91–0.96x with the fill (hence the
+  threshold), string keys on par (their hashing and comparing dominate); Nino then leads LuminPack in every size with
+  both key types, int keys with one pair on par.
+
 ## Dictionary refill (reading into an existing dictionary)
 
 - Skip the seen-key set when the stale dictionary pass removes every entry, preserving removal and recycling order, and
