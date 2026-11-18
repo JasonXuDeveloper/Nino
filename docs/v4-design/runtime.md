@@ -98,8 +98,8 @@ generator sets on a polymorphic base's formatter), `IsString` (a `typeof` of `St
 loops, the prefetch and the top-level write queries; its fields fold in code shared over a class element, where a field
 of a class generic over the element is a lookup per collection. `NinoKind<T, TFormatter>` holds the kind of a value
 type without references, in this order: raw (an `INinoRawFormatter` whose `NinoLayout` is canonical on this runtime,
-`RawFormatter`'s check read as it is: being unmanaged is not enough), slot (a raw `T?`), block (a `BlockMap`, and
-`DateTimeOffset` until it is one, #348), else per value; with the stride of the block kinds and the read policies that
+`RawFormatter`'s check read as it is: being unmanaged is not enough), slot (a raw `T?`), block (a `BlockMap`: `DateTimeOffset`,
+and composites whose items are raw or blocks, #348), else per value; with the stride of the block kinds and the read policies that
 follow (`MinWire`, `CopiedWhole`, `ReadOverwrites`, `Heavy`, `HeavyHashed`). Its code is never shared, so it is read
 behind `IsReferenceOrContainsReferences<T>()` (`NinoKind.Of`, `NinoKind.Stride`). Every trait is a query of the
 formatter or a `typeof`, never an `is` test or a cast, and no member is generic (Unity 2022.3's IL2CPP fails on generic

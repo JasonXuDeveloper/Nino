@@ -145,6 +145,12 @@ public static class BclStructs
         Top("Around<(int,long)>?[]", new Around<(int, long)>?[] { new Around<(int, long)> { A = 1, B = (2, 3), C = 4 }, null });
         Top("List<Around<DateTimeOffset>?>", new List<Around<DateTimeOffset>?> { null, new Around<DateTimeOffset> { A = 5, B = dto1, C = 6 } });
         Top("(int,long)", (1, -2L));
+        // Composed blocks (#348): moved as one copy where this runtime lays them out as the wire does, else through
+        // their maps or one value at a time, the same bytes either way.
+        Top("(int,int)[]", new[] { (1, -2), (int.MaxValue, int.MinValue) });
+        Top("KVP<int,int>[]", new[] { new KeyValuePair<int, int>(1, -2), new KeyValuePair<int, int>(3, int.MinValue) });
+        Top("(int,DateTimeOffset)[]", new[] { (1, dto1), (-2, dto1) });
+        Top("KVP<int,DateTimeOffset>[]", new[] { new KeyValuePair<int, DateTimeOffset>(7, dto1) });
         Top("KVP<byte,DateTime>", new KeyValuePair<byte, DateTime>(1, dt1));
 
         // Structs under every StructLayout form (Pack, Size, Explicit), alone, nullable, in collections and as members of

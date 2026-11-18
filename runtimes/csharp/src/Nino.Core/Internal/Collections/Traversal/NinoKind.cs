@@ -30,10 +30,10 @@ namespace Nino.Core.Internal
         Slot,
 
         /// <summary>
-        /// Block formatters (<see cref="INinoFormatter{T}.BlockMap"/>: tuples and pairs of raw items, fixed-size
-        /// generated structs): one block, each value moved by the block kernels (one copy where the block is the
-        /// value's memory here, <see cref="NinoBlockPlan{T,TFormatter}.IsMemory"/>). <see cref="DateTimeOffset"/>
-        /// too, by its own kernel until it is a block formatter (#348).
+        /// Block formatters (<see cref="INinoFormatter{T}.BlockMap"/>: <see cref="DateTimeOffset"/>, value tuples,
+        /// pairs and generated structs whose items are raw or blocks, composed by
+        /// <see cref="NinoBlockMap.Item{TItem,TFormatter}"/>): one block, each value moved by the block kernels (one
+        /// copy where the block is the value's memory here, <see cref="NinoBlockPlan{T,TFormatter}.IsMemory"/>).
         /// </summary>
         Block,
     }
@@ -136,9 +136,7 @@ namespace Nino.Core.Internal
         {
             NinoElementKind.Raw => Unsafe.SizeOf<T>(),
             NinoElementKind.Slot => default(TFormatter).SlotStride,
-            NinoElementKind.Block => typeof(TFormatter) == typeof(DateTimeOffsetFormatter)
-                ? NinoWire.DateTimeOffsetSize
-                : NinoBlockPlan<T, TFormatter>.Size,
+            NinoElementKind.Block => NinoBlockPlan<T, TFormatter>.Size,
             _ => -1,
         };
 
@@ -147,16 +145,18 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// <see cref="NinoElements.CopiedWhole{T,TFormatter}"/>. Block reads write every byte of a value, padding as 0
-        /// (NinoBlockCollections.ReadEach); values read a field at a time (ReadSize -1, Untrusted mode, and
-        /// DateTimeOffset) leave their padding as it was. Slots that are memory copy every byte and clear the run when
-        /// they reject it (NinoNullables.ReadPrechecked); other slots are read one by one after the presence bytes are
-        /// checked, so data they reject would leave the new array as it was allocated.
+        /// (NinoBlockCollections.ReadEach); values read a field at a time (ReadSize -1, Untrusted mode) leave their
+        /// padding as it was, and blocks without a map (DateTimeOffset, a tuple holding one) are read value by value,
+        /// which takes a zeroed array (see <see cref="NinoElements.CopiedWhole{T,TFormatter}"/>). Slots that are memory
+        /// copy every byte and clear the run when they reject it (NinoNullables.ReadPrechecked); other slots are read
+        /// one by one after the presence bytes are checked, so data they reject would leave the new array as it was
+        /// allocated.
         /// </summary>
         public static readonly bool CopiedWhole = Kind switch
         {
             NinoElementKind.Raw => NinoLayout<T>.CopiesAsIs,
             NinoElementKind.Slot => default(TFormatter).SlotsAreMemory,
-            NinoElementKind.Block => NinoBlockPlan<T, TFormatter>.ReadSize > 0,
+            NinoElementKind.Block => NinoBlockPlan<T, TFormatter>.ReadSize > 0 && NinoBlockPlan<T, TFormatter>.Mapped,
             _ => false,
         };
 
@@ -197,9 +197,7 @@ namespace Nino.Core.Internal
                 return NinoElementKind.Raw;
             if (default(TFormatter).SlotStride > 0)
                 return NinoElementKind.Slot;
-            return NinoBlockPlan<T, TFormatter>.Size > 0 || typeof(TFormatter) == typeof(DateTimeOffsetFormatter)
-                ? NinoElementKind.Block
-                : NinoElementKind.PerValue;
+            return NinoBlockPlan<T, TFormatter>.Size > 0 ? NinoElementKind.Block : NinoElementKind.PerValue;
         }
     }
 }

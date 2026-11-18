@@ -148,19 +148,37 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   instance field a member, or an auto-property's backing field, each directly assignable, no `[NinoConstructor]`, and
   each member raw and portable, a value tuple or `KeyValuePair` of such items, or another such struct) also implements
   `BlockMap()` and `ReadBlock` (the model's
-  `TypeModel.Block`, `TypeFacts.IsBlock`), as the tuple and pair formatters of Nino.Core do (their `FixedSize` is -1
-  when an item is not raw). One write serves both: a block is the bytes of `WriteFixed`. Arrays, lists and spans of it then take the
+  `TypeModel.Block`, `TypeFacts.IsBlock`), as the tuple and pair formatters of Nino.Core do. One write serves both: a
+  block is the bytes of `WriteFixed`. Arrays, lists and spans of it then take the
   paths of `NinoBlockPlan<T, TFormatter>`: one bounds check for the collection, and where the block map gives every wire
   byte one memory byte (`NinoBlockMap.Runs`) the vector shuffles and permutes (AVX-512 VBMI groups and 64-byte
   permutes, AVX2 or SSSE3 lanes, Arm64 `tbl`, WebAssembly's swizzle; with VBMI, values of more than 16 bytes in
   memory, which its groups and permutes do not take, are written in the AVX2 lane plan's partial groups); elsewhere (no SIMD, a map that overlaps, Mono
   and the netstandard2.1 build of Nino.Core) the scalar loop of `WriteFixed`/`ReadBlock`, inlined, one
-  value after another, unless kernels are registered (below). `BlockMap()` is built once per type from `NinoBlockMap` (`Raw<TItem>(memory, wire)` for a raw
-  item, `Block<TItem, TFormatter>` for a nested block, whose map is merged); the memory offset of a field is
+  value after another, unless kernels are registered (below). `BlockMap()` is built once per type from `NinoBlockMap`,
+  item by item in wire order (`Item<TItem, TFormatter>(memory)`: raw by `RawFormatter`'s layout check, a block with
+  its own map merged, else no fixed size), each at the bytes the items before it take; the memory offset of a field is
   `NinoBlocks.Offset`, of an auto-property's backing field (which generated code cannot name) `NinoBlocks.Find`, which
-  stores a marked value through the property. An item with padding, references or a layout other than the canonical
-  one fails the map, and the values are then moved one at a time. Nullable members are not blocks: a null value is one
-  byte, so they are not of fixed size. The bytes are those of the values written one at a time.
+  stores a marked value through the property. An item with padding, references, a layout other than the canonical
+  one or a block whose map says nothing (`DateTimeOffset`'s) fails the map, and the values are then moved one at a
+  time. Nullable members are not blocks: a null value is one byte, so they are not of fixed size. The bytes are those
+  of the values written one at a time.
+* **Composites compose their kind (#348).** A value tuple of any arity (`TupleFormatters.g.cs`, from
+  `runtimes/csharp/tools/CodeGen`), a `KeyValuePair` (`KeyValuePairFormatter`) and a generic `[NinoType]` struct share
+  one pattern: each item's size is `NinoBlocks.ItemSize<TItem, TFormatter>()` (its layout's for a raw item, its
+  block's for a block, -1 otherwise), read once into `static readonly` fields; `FixedSize` is their sum, or -1 when one
+  is -1 (and for a value with references, without reading the fields: such code is shared over a class);
+  `WriteFixed` and `ReadBlock` write and read each item at the summed offsets (`NinoBlocks.WriteItem`/`ReadItem`: a raw
+  item through `NinoLayout`, which converts where this runtime lays it out otherwise, a block through its constrained
+  `WriteFixed`/`ReadBlock`); `Serialize` reserves the whole value once when its size is fixed, else writes item by
+  item; `BlockMap` is built from `NinoBlockMap.Item` with this runtime's memory offsets. So `(int, DateTimeOffset)`,
+  `KeyValuePair<int, BlockStruct>` and generic structs of fixed members are blocks, written as the items one after
+  another as before. A `Tuple<...>` writes its presence byte, then its items the same way. The generator assumes no
+  layout for a generic struct: a member typed by a type parameter (`TypeFacts.IsComposedItem`) takes the run-time form,
+  members raw at compile time stay those `RawLayout.IsPortable` allows, and its generated `Serialize` takes
+  `WriteFixed` only where `FixedSize` is not -1. Whether a composite's block is its memory is
+  `NinoBlockPlan<T, TFormatter>.IsMemory`, per runtime: `(int, int)` is one copy on CoreCLR, `(int, long)` (12 bytes on
+  the wire, 16 in memory) is permuted, and where Unity orders a tuple otherwise its map is not the identity.
 * Reads of blocks keep every check a value's own read makes. The `bool` offsets of a block (`NinoBlockMap`, from its
   `bool` items) are checked over the whole collection before the vector paths move the bytes (`NinoChecks.Bools` with
   the block's stride, out of line, `NinoBlockCollections.CheckBools`): the shuffles copy bytes without looking at them, so a

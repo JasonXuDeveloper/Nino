@@ -99,6 +99,22 @@ internal static class FormatterEmitter
         w.Line();
         switch (m.Kind)
         {
+            case FormatterKind.Struct when m.IsGeneric && m.FixedSize:
+                // Of a fixed size where every item is raw or a block on this runtime (a JIT-time constant): one
+                // reservation for the value, as a tuple's, and no depth to count; else member by member.
+                w.Line(names.Inline);
+                w.Open(Signature.Serialize(t));
+                w.Open("if (FixedSize > 0)");
+                w.Line("WriteFixed(in value, ref writer.Reserve(FixedSize));");
+                w.Line("return;");
+                w.Close();
+                w.Line();
+                w.Line("WriteBody(value, ref writer);");
+                w.Close();
+                w.Line();
+                w.Line(names.Inline);
+                w.Line($"{Signature.Deserialize(t)} => ReadBody(ref reader, ref value);");
+                break;
             case FormatterKind.Struct:
                 w.Line(names.Inline);
                 w.Line($"{Signature.Serialize(t)} => WriteBody(value, ref writer);");

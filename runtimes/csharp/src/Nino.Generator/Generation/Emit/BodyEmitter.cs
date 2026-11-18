@@ -280,7 +280,8 @@ internal sealed partial class BodyEmitter
             return;
         }
 
-        if (_m.Block && !_mode.Shallow)
+        // A generic struct's size is known only at run time: its Serialize takes WriteFixed when it has one.
+        if (_m.Block && !_m.IsGeneric && !_mode.Shallow)
         {
             // Keep the body's inlining boundary, but reserve all fixed-size writes in one step.
             _w.Open(signature);
@@ -493,8 +494,8 @@ internal sealed partial class BodyEmitter
                 continue;
             }
 
-            string size = member.Raw?.Expression ?? (IsBlockItem(member)
-                ? $"{CoreCompilerServices}NinoBlocks.FixedSize<{member.TypeName}, {Formatter(member)}>()"
+            string size = member.Raw?.Expression ?? (IsItem(member)
+                ? ItemSize(member)
                 : $"default({Formatter(member)}).FixedSize");
             symbolic = RawBlock.AppendSymbolic(symbolic, size);
         }
@@ -503,12 +504,17 @@ internal sealed partial class BodyEmitter
     }
 
     /// <summary>
-    /// Whether a member of a type of fixed size is a value tuple or pair of raw values (<c>TypeFacts.IsBlockItem</c>),
-    /// written by Nino.Core's formatter as a block (<c>NinoBlocks</c>); else, when not raw, it is a generated struct of
-    /// fixed size.
+    /// Whether a member of a type of fixed size is an item of a composite, written through <c>NinoBlocks</c>
+    /// (<c>ItemSize</c>, <c>WriteItem</c>, <c>ReadItem</c>; <c>NinoBlockMap.Item</c>): in a generic struct every member
+    /// not raw, whose size is known only at run time (<c>TypeFacts.IsComposedItem</c>), and elsewhere a value tuple or
+    /// pair of raw values (<c>TypeFacts.IsBlockItem</c>); else, when not raw, it is a generated struct of fixed size.
     /// </summary>
-    private static bool IsBlockItem(MemberModel member) =>
-        member.Raw == null && (member.Traits & FormatterTraits.Generated) == 0;
+    private bool IsItem(MemberModel member) =>
+        member.Raw == null && (_m.IsGeneric || (member.Traits & FormatterTraits.Generated) == 0);
+
+    /// <summary>The wire bytes of an item (<see cref="IsItem"/>): a JIT-time constant, -1 when it has no fixed size.</summary>
+    private string ItemSize(MemberModel member) =>
+        $"{CoreCompilerServices}NinoBlocks.ItemSize<{member.TypeName}, {Formatter(member)}>()";
 
     /// <summary>The statements writing the members of a value of fixed size at <c>destination</c> (<see cref="FixedLayout"/>).</summary>
     private void EmitFixedWrites(string[] offsets)
@@ -527,8 +533,8 @@ internal sealed partial class BodyEmitter
 
             string formatter = Formatter(member);
             string at = $"ref {CoreCompilerServices}NinoUnsafe.Add(ref destination, {offset})";
-            _w.Line(IsBlockItem(member)
-                ? $"{CoreCompilerServices}NinoBlocks.WriteFixed<{member.TypeName}, {formatter}>({Get(_m, member, "value")}, {at});"
+            _w.Line(IsItem(member)
+                ? $"{CoreCompilerServices}NinoBlocks.WriteItem<{member.TypeName}, {formatter}>({Get(_m, member, "value")}, {at});"
                 : $"default({formatter}).WriteFixed({Get(_m, member, "value")}, {at});");
         }
     }
@@ -542,6 +548,15 @@ internal sealed partial class BodyEmitter
     {
         bool rawBody = _m.RawBody;
         var (offsets, size) = FixedLayout(emitOffsets: !rawBody);
+        if (_m.IsGeneric)
+        {
+            // Its items' sizes are known at run time: -1 where one has none, and without reading them for a value with
+            // references (code shared over a class, where each would be a lookup), which is never of a fixed size.
+            var tests = _m.Members.Where(IsItem).Select(m => ItemSize(m) + " < 0")
+                .Prepend($"{CoreCompilerServices}NinoUnsafe.IsReferenceOrContainsReferences<{T}>()");
+            size = $"{string.Join(" || ", tests)} ? -1 : {size}";
+        }
+
         _w.Line($"public int FixedSize => {size};");
         _w.Line();
         _w.Line(_names.Inline);
@@ -595,15 +610,11 @@ internal sealed partial class BodyEmitter
         for (int i = 0; i < offsets.Length; i++)
         {
             var member = _m.Members[i];
-            string offset = offsets[i];
             string memory = member.IsProperty
                 ? $"{CoreCompilerServices}NinoBlocks.Find<{T}>({CoreCompilerServices}NinoUnsafe.SizeOf<{member.TypeName}>(), () => " +
                   $$"""{ var __m = default({{T}}); {{Set(_m, member, "__m", $"{CoreCompilerServices}NinoBlocks.Marked<{member.TypeName}>()")}} return __m; })"""
                 : $"{CoreCompilerServices}NinoBlocks.Offset(ref __v, ref {Get(_m, member, "__v")})";
-            string item = member.Raw != null
-                ? $"Raw<{member.TypeName}>"
-                : $"Block<{member.TypeName}, {Formatter(member)}>";
-            _w.Line($"    .{item}({memory}, {offset}){(i == offsets.Length - 1 ? ";" : "")}");
+            _w.Line($"    .Item<{member.TypeName}, {Formatter(member)}>({memory}){(i == offsets.Length - 1 ? ";" : "")}");
         }
         _w.Close();
         _w.Line();
@@ -620,7 +631,7 @@ internal sealed partial class BodyEmitter
                 continue;
             }
 
-            string read = $"{CoreCompilerServices}NinoBlocks.ReadBlock<{member.TypeName}, {Formatter(member)}>(ref ";
+            string read = $"{CoreCompilerServices}NinoBlocks.ReadItem<{member.TypeName}, {Formatter(member)}>(ref ";
             string at = $", ref {CoreCompilerServices}NinoUnsafe.Add(ref source, {offset}));";
             if (Ref(_m, member, "value") is { } field)
             {

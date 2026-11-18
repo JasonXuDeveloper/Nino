@@ -34,7 +34,7 @@ namespace Nino.Core
                 var entries = CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
                 if (entries != null && count <= entries.Length)
                     // Several entries at a time where the CPU permutes vectors, each value packed out of its entry.
-                    NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBlock<T>>(ref elements,
+                    NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBlock<T, TFormatter>>(ref elements,
                         ref entries[0], count, size);
                 else
                     WriteEnumerated(value, ref elements, count);

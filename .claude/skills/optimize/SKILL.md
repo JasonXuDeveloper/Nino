@@ -97,7 +97,17 @@ says which CPUs and cases moved.
   shared, and read it behind `IsReferenceOrContainsReferences<T>()` (`NinoKind.Of`, `NinoKind.Stride`). Raw is
   `RawFormatter`'s layout check (`NinoLayout` canonical on this runtime), never `unmanaged` or a `typeof` that assumes
   .NET's layout (`ValueTuple` and `KeyValuePair` are auto layout on CoreCLR; Mono, IL2CPP and Unity lay some types out
-  otherwise): a type laid out otherwise is a block or per value. Add no generic member to `INinoFormatter<T>`: Unity
+  otherwise): a type laid out otherwise is a block or per value. Compose a composite's kind from its items, never by a rule of
+  its own (#348, #355 PR 2): a value tuple, a `KeyValuePair`, a generic `[NinoType]` struct (and the entry blocks of
+  sets and dictionaries) read each item's size as `NinoBlocks.ItemSize` (raw by the layout check, else a block's
+  `NinoBlockPlan.Size`, else -1) into `static readonly` fields, behind `IsReferenceOrContainsReferences` of the
+  composite so shared code reads none; `FixedSize` is their sum or -1, `WriteFixed`/`ReadBlock` move each item at the
+  summed offsets through `NinoBlocks.WriteItem`/`ReadItem`, `Serialize` reserves once when fixed, and `BlockMap` is
+  `NinoBlockMap.Item` per item with this runtime's memory offsets (`Offset`/`Find`), so whether the block is its
+  memory is `NinoBlockPlan.IsMemory` on each runtime, never assumed; a block whose own map is empty
+  (`DateTimeOffset`: a read checks the range and widens the minutes) leaves the composite moved value by value. Why:
+  `(int, DateTimeOffset)` and `KeyValuePair<int, BlockStruct>` were written element by element because each composite
+  tested `RawFormatter.Is` per item and `DateTimeOffset` was a `typeof` in four places. Add no generic member to `INinoFormatter<T>`: Unity
   2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`).
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is

@@ -7,7 +7,9 @@ A formatter is a **struct** implementing `INinoFormatter<T>` (`Serialize(T, ref 
 ref T)`), called as `default(F)`: no instance state. Read exactly what you wrote, in order, and bound every loop by
 the input (the data may be hostile). Those two members are all a formatter needs: the interface's other members
 are optional capabilities with defaults. Implement `FixedSize`, `WriteFixed`, `BlockMap` and `ReadBlock` only for a
-struct of a fixed size that collections should move as blocks, all four, writing the same bytes as `Serialize`. The
+struct of a fixed size that collections should move as blocks, all four, writing the same bytes as `Serialize`;
+`BlockMap` names each field in wire order with its formatter, `new NinoBlockMap().Item<int,
+UnmanagedFormatter<int>>(NinoBlocks.Offset(ref v, ref v.X))...`. Tuples and pairs of such values are blocks too. The
 rest (`BodyTraits`, `WriteElements`, and on the non-generic `INinoFormatter` it extends `HasElementLoop`,
 `HasPairLoop`, the pair writes and the prefetch members `PrefetchBytes`, `HasMemberPrefetch` and `PrefetchMembers`) are
 what generated formatters of classes and polymorphic bases implement; leave them alone.
