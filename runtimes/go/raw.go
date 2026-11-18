@@ -219,20 +219,27 @@ func normalizeBools(b []byte) {
 func ReadPrimitiveEntries[K, V Primitive](r *Reader) []Entry[K, V] {
 	var e Entry[K, V]
 	size := int(unsafe.Sizeof(e))
-	wire := int(unsafe.Sizeof(e.Key) + unsafe.Sizeof(e.Value))
-	if !littleEndian || size != wire {
-		return readUniqueEntries(r, wire, readPrimitive[K], readPrimitive[V])
-	}
-	n := r.Length(size)
+	ks := int(unsafe.Sizeof(e.Key))
+	wire := ks + int(unsafe.Sizeof(e.Value))
+	n := r.Length(wire)
 	if n < 0 {
 		return nil
 	}
-	b := r.Take(n * size)
-	if len(b) != n*size {
+	b := r.Take(n * wire)
+	if len(b) != n*wire {
 		return nil
 	}
-	v := make([]Entry[K, V], n)
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), n*size), b)
+	var v []Entry[K, V]
+	if littleEndian && size == wire {
+		v = make([]Entry[K, V], n)
+		copy(unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), n*wire), b)
+	} else {
+		v = make([]Entry[K, V], 0, r.SliceCap(n, size))
+		for len(b) >= wire {
+			v = append(v, Entry[K, V]{Key: loadPrimitive[K](b), Value: loadPrimitive[V](b[ks:])})
+			b = b[wire:]
+		}
+	}
 	if repeated[K](unsafe.Pointer(unsafe.SliceData(v)), n, size, &r.keys) {
 		r.Fail(CodeDuplicateKey, "")
 		return nil
@@ -243,22 +250,28 @@ func ReadPrimitiveEntries[K, V Primitive](r *Reader) []Entry[K, V] {
 // WritePrimitiveEntries writes a dictionary of primitive keys and values as its pairs, in order (nil is null): one
 // block copied from memory where [ReadPrimitiveEntries] reads one, else one pair at a time.
 func WritePrimitiveEntries[K, V Primitive](w *Writer, e []Entry[K, V]) {
-	var p Entry[K, V]
-	size := int(unsafe.Sizeof(p))
-	if !littleEndian || size != int(unsafe.Sizeof(p.Key)+unsafe.Sizeof(p.Value)) {
-		writeEntries(w, e, writePrimitive[K], writePrimitive[V])
-		return
-	}
 	if e == nil {
 		w.NullLength()
 		return
 	}
+	var p Entry[K, V]
+	size := int(unsafe.Sizeof(p))
+	ks := int(unsafe.Sizeof(p.Key))
+	wire := ks + int(unsafe.Sizeof(p.Value))
 	w.Length(len(e))
-	b := w.Extend(len(e) * size)
-	if len(b) != len(e)*size {
+	b := w.Extend(len(e) * wire)
+	if len(b) != len(e)*wire {
 		return
 	}
-	copy(b, unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(e))), len(e)*size))
+	if littleEndian && size == wire {
+		copy(b, unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(e))), len(e)*wire))
+		return
+	}
+	for _, pair := range e {
+		storePrimitive(b, pair.Key)
+		storePrimitive(b[ks:], pair.Value)
+		b = b[wire:]
+	}
 }
 
 // ReadPrimitiveMap reads a dictionary of primitive keys and values into a map (nil for null): a key read twice
