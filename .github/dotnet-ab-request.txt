@@ -425,4 +425,8 @@
 # #305 baseline: main c2c6920b on both sides, Nino against LuminPack on the cases #305 lists (head's columns).
 # done (run 44260496168, baseline on #305): c2c6920b c2c6920b 1 *PolymorphicTest.Nino* *PolymorphicTest.LuminPack* *CollectionsTest.*Set *CollectionsTest.*IntDictionary *CommonTypesTest.*StringDictionary *CommonTypesTest.*Inventory *BclTypesTest.*Immutable* *BclTypesTest.*StringBuilder *BclTypesTest.*TimeZoneInfo *BclTypesTest.*ReadOnlyCollection *SimpleTest.Nino* *SimpleTest.LuminPack*
 # #305 ImmutableStack write (claude/immutable-stack-write b8eeef22): one walk of the nodes. Base main b099c39e.
-b099c39e b8eeef22 3 *BclTypesTest.NinoSerializeImmutableStack *BclTypesTest.LuminPackSerializeImmutableStack *BclTypesTest.NinoSerializeImmutableQueue *BclTypesTest.NinoDeserializeImmutableStack
+# done (run 44267141376): b099c39e b8eeef22 3 *BclTypesTest.NinoSerializeImmutableStack *BclTypesTest.LuminPackSerializeImmutableStack *BclTypesTest.NinoSerializeImmutableQueue *BclTypesTest.NinoDeserializeImmutableStack
+# #346 step 1 (claude/constrained-capabilities 8bd85d4d): block and slot members on INinoFormatter<T>, constrained
+# calls in place of casts and boxed fields. RyuJIT already devirtualized most of them, so this checks for no loss on
+# the block and slot cases. Base main c8dc678c.
+c8dc678c 8bd85d4d 3 *NullableTest.Nino* *CollectionsTest.Nino* *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.NinoDeserializeSimpleStructs *CommonTypesTest.Nino*
