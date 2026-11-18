@@ -14,6 +14,12 @@ value check in a runtime or a template.
 
 ## Fixed-size blocks in Rust
 
+- Write fixed-size Rust sets through `extend_fixed_iter`, reserving the count and payload together in iteration order.
+  In runtime A/B 44329792122, the median write time for 1,000 `i32` hash-set elements fell 33–43 % across EPYC
+  7763, 9V74, 9V45 and Xeon 8573C, and 58 % on Neoverse-N2. The GUID hash-set case fell 26–44 % on the same
+  x64 CPUs and 58 % on Neoverse-N2. The ordered `i32` case fell 37 % on Neoverse-N2 and ranged from on par
+  to 20 % lower on x64. The comparison used the same block benchmark harness on both sides.
+
 - In Rust, give every fixed-size shape `FIXED_SIZE` with `decode_fixed` / `encode_fixed` and let `read_fixed` /
   `extend_fixed` run it over `chunks_exact`; write no shuffle kernel. LLVM already turns a block whose wire bytes
   equal its memory ((i32, i32), a raw struct, a derived plain `{i32, f32}`) into vector copies (`vmovups ymm` on
