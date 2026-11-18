@@ -415,4 +415,6 @@
 # f1bab197 = d76a2c4b + #389's .NET 11 job + PolyDictProbe (polymorphic dictionaries, 1 to 100 pairs, int and string
 # keys, Nino and LuminPack); base main 24981cf1 with the probe's benchmark project.
 # Run 44241848002 failed before timing: set -f kept net* from expanding (fixed in this push).
-24981cf1 f1bab197 3 *PolyDictProbe.NinoDeserialize* *PolyDictProbe.LuminPackDeserialize* *PolyDictProbe.NinoSerializeIntMap100 *PolymorphicTest.NinoDeserializePolymorphicClass
+# done (run 44243147222): >= 4 pairs 1.02-1.13x, string keys on par, 1 pair 0.91-0.96x on 6975P-C and N2; head leads LuminPack in every case but int x1 (on par): 24981cf1 f1bab197 3 *PolyDictProbe.NinoDeserialize* *PolyDictProbe.LuminPackDeserialize* *PolyDictProbe.NinoSerializeIntMap100 *PolymorphicTest.NinoDeserializePolymorphicClass
+# 4263eb17 keeps main's one-at-a-time loop below 4 pairs; probe cae37658 = that + PolyDictProbe. Base main a2de9944.
+a2de9944 cae37658 3 *PolyDictProbe.NinoDeserialize*
