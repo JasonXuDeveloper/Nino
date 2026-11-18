@@ -14,6 +14,8 @@
         <!-- The v3 build (NINO_BENCH_V3=true): Program.cs without the proto writer, the shared models without their v4-only
              attributes. -->
         <DefineConstants Condition="'$(NinoBenchV3)' == 'true'">$(DefineConstants);NINO_BENCH_V3</DefineConstants>
+        <!-- The generated per-base steps of #355's probe (Harness/StepProbe.cs, DispatchEmitter.EmitSteps). -->
+        <DefineConstants Condition="'$(NinoBenchV3)' != 'true' and '$(NinoBenchLegacy)' != 'true'">$(DefineConstants);NINO_PROBE_STEPS</DefineConstants>
         <!-- LuminPack's generator writes the types reachable from [LuminPackable] types and its serializer's calls, and
              the public types (its default writes every type of the project); the code for a type is the same in every
              mode. Light, the narrower mode, writes no top-level arrays (SimpleClass[]: no overload, no dispatch). -->

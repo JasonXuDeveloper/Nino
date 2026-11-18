@@ -322,6 +322,16 @@ dotnet run -c Release -- --filter '*CopyProbe*' '*NewArrayCopyProbe*'   # x64
 dotnet run -c Release -- --filter '*Copy128Probe*'                      # Arm64
 ```
 
+`Harness/StepProbe.cs` holds #355's probe: a polymorphic base's arrays, lists and `Dictionary<int, Base>` written by
+the generated per-base loops (`WriteElements`, `WritePairs32`), by `NinoKernel` with the base's generated step
+(`__Step`, bodies out of line; `__StepInline`, bodies inline; compiled under `NINO_PROBE_STEPS`, which this project
+defines), and per value, on LuminPack's 20-subtype `IFoo` and a 3-subtype hierarchy. Its setup throws unless every
+shape writes NinoSerializer's bytes; its methods start with `NinoStep` for `asm.py --filter NinoStep`:
+
+```sh
+dotnet run -c Release -- --filter '*StepProbe*' '*StepDictProbe*'
+```
+
 ### Nullable values
 
 `NullableTest` (nullable fields, a nullable struct alone and in an array, a null class reference alone and in an array,
