@@ -3,7 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.Core.Internal;
+using Nino.UnitTests;
 using Nino.UnitTests.GenericPolymorphism;
+using RootFormatter = NinoGen.Nino_UnitTests_DispatchRootFormatter;
+
+[assembly: NinoFormatter(typeof(DispatchCustomKeyFormatter))]
 
 namespace Nino.UnitTests
 {
@@ -39,6 +44,133 @@ namespace Nino.UnitTests
     public sealed class DispatchHolder : DispatchRoot
     {
         public List<DispatchRoot> Kids;
+    }
+
+    /// <summary>A struct key with a body of its own (not raw: it holds a string).</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public struct DispatchStructKey
+    {
+        public int A;
+        public string B;
+    }
+
+    /// <summary>A key written by a formatter of the user's (<see cref="DispatchCustomKeyFormatter"/>).</summary>
+    public readonly struct DispatchCustomKey : IEquatable<DispatchCustomKey>
+    {
+        public readonly int Value;
+
+        public DispatchCustomKey(int value) => Value = value;
+
+        public bool Equals(DispatchCustomKey other) => Value == other.Value;
+
+        public override bool Equals(object obj) => obj is DispatchCustomKey other && Equals(other);
+
+        public override int GetHashCode() => Value;
+    }
+
+    /// <summary>Writes the key as its value negated, in 8 bytes, so it differs from any built-in form.</summary>
+    public struct DispatchCustomKeyFormatter : INinoFormatter<DispatchCustomKey>
+    {
+        public void Serialize(DispatchCustomKey value, ref Writer writer) => writer.UnsafeWrite(-(long)value.Value);
+
+        public void Deserialize(ref Reader reader, ref DispatchCustomKey value) =>
+            value = new DispatchCustomKey((int)-reader.UnsafeRead<long>());
+    }
+
+    /// <summary>An unmanaged key without padding, written as its bytes.</summary>
+    public struct DispatchVec2
+    {
+        public float X, Y;
+    }
+
+    /// <summary>An unmanaged key with three bytes of padding after <see cref="A"/>.</summary>
+    public struct DispatchPadded
+    {
+        public byte A;
+        public int B;
+    }
+
+    /// <summary>A sealed class key, equal by its id.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public sealed class DispatchClassKey : IEquatable<DispatchClassKey>
+    {
+        public int Id;
+
+        public bool Equals(DispatchClassKey other) => other != null && Id == other.Id;
+
+        public override bool Equals(object obj) => Equals(obj as DispatchClassKey);
+
+        public override int GetHashCode() => Id;
+    }
+
+    /// <summary>A class key with a subtype (<see cref="DispatchOpenKeySub"/>), equal by its type and id.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public class DispatchOpenKey
+    {
+        public int Id;
+
+        public override bool Equals(object obj) =>
+            obj != null && obj.GetType() == GetType() && ((DispatchOpenKey)obj).Id == Id;
+
+        public override int GetHashCode() => Id;
+    }
+
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public sealed class DispatchOpenKeySub : DispatchOpenKey
+    {
+        public string Tag;
+    }
+
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public record DispatchRecordKey
+    {
+        public int Id { get; init; }
+        public string Name { get; init; }
+    }
+
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public record struct DispatchRecordStructKey
+    {
+        public int Id;
+        public string Name;
+    }
+
+    /// <summary>
+    /// The dispatch root's generated formatter, counting the calls Nino.Core makes to its pair loop: it has the loop as
+    /// the generated one has it, so NinoDictionary routes to <c>WritePairs</c> exactly as for the generated one.
+    /// </summary>
+    public struct RecordingRootFormatter : INinoFormatter<DispatchRoot>
+    {
+        [ThreadStatic] public static int PairCalls;
+
+        public void Serialize(DispatchRoot value, ref Writer writer) =>
+            default(RootFormatter).Serialize(value, ref writer);
+
+        public void Deserialize(ref Reader reader, ref DispatchRoot value) =>
+            default(RootFormatter).Deserialize(ref reader, ref value);
+
+        public bool HasPairLoop => true;
+
+        public void WritePairs<TKey, TKeyFormatter>(Dictionary<TKey, DispatchRoot> pairs, ref Writer writer)
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+        {
+            PairCalls++;
+            Generated<TKey, TKeyFormatter, RootFormatter>(pairs, ref writer);
+        }
+
+        // The generated loop is an explicit member: reached, as Nino.Core reaches it, through a constrained call.
+        private static void Generated<TKey, TKeyFormatter, TFormatter>(Dictionary<TKey, DispatchRoot> pairs,
+            ref Writer writer)
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+            where TFormatter : struct, INinoFormatter<DispatchRoot> =>
+            default(TFormatter).WritePairs<TKey, TKeyFormatter>(pairs, ref writer);
+    }
+
+    /// <summary>A dictionary of the dispatch root whose keys are written as UTF-8.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public sealed class DispatchUtf8Keys
+    {
+        [NinoUtf8] public Dictionary<string, DispatchRoot> Map;
     }
 
     [TestClass]
@@ -84,12 +216,23 @@ namespace Nino.UnitTests
                 dictionary.Add(i, values[i]);
             CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(dictionary));
 
-            // Every kind of key the generated pair loops take (HasPairLoop), and one they do not (short).
+            // Keys of every kind: the generated pair loop (HasPairLoop) takes them all.
             PairsMatch(values, i => "key" + i);
             PairsMatch(values, i => (long)i << 40);
             PairsMatch(values, i => (uint)i);
             PairsMatch(values, i => (DispatchKey)i);
             PairsMatch(values, i => (short)i);
+            PairsMatch(values, i => new Guid(i, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+            PairsMatch(values, i => new DispatchStructKey { A = i, B = "s" + i });
+            PairsMatch(values, i => new DispatchCustomKey(i));
+            PairsMatch(values, i => new DispatchVec2 { X = i, Y = -i });
+            PairsMatch(values, i => new DispatchPadded { A = (byte)i, B = i * 3 });
+            PairsMatch(values, i => (int?)i);
+            PairsMatch(values, i => new DispatchClassKey { Id = i });
+            PairsMatch(values,
+                i => i % 2 == 0 ? new DispatchOpenKey { Id = i } : new DispatchOpenKeySub { Id = i, Tag = "t" });
+            PairsMatch(values, i => new DispatchRecordKey { Id = i, Name = "r" + i });
+            PairsMatch(values, i => new DispatchRecordStructKey { Id = i, Name = "s" + i });
         }
 
         /// <summary>
@@ -122,6 +265,115 @@ namespace Nino.UnitTests
 
         public enum DispatchKey
         {
+        }
+
+        /// <summary>
+        /// Every key, with every key formatter, reaches the base's generated pair loop: the dispatch root's formatter
+        /// has it (HasPairLoop) and implements WritePairs itself, which NinoDictionary calls for any key (a constrained
+        /// call; no key type is named). Each writes what the shared loop writes (the count, then each key by its
+        /// formatter and each value by the root's Serialize), UTF-8 strings and a custom formatter too.
+        /// </summary>
+        [TestMethod]
+        public void PairLoopServesEveryKeyFormatter()
+        {
+            Assert.IsTrue(NinoLoops<RootFormatter>.Pairs);
+            var map = typeof(RootFormatter).GetInterfaceMap(typeof(INinoFormatter<DispatchRoot>));
+            Assert.IsTrue(map.TargetMethods.Any(m => m.Name.EndsWith("WritePairs") && m.DeclaringType == typeof(RootFormatter)));
+            DispatchRoot[] values =
+            {
+                new DispatchSibling { A = 1, D = 2.5 }, null, new DispatchLeaf { A = 3, B = "leaf", C = 4 },
+                new DispatchMid { A = 5, B = "mid" }, new DispatchHolder { A = 6, Kids = new List<DispatchRoot> { null } },
+            };
+            FormatterPairsMatch<int, UnmanagedFormatter<int>>(values, i => i);
+            FormatterPairsMatch<long, UnmanagedFormatter<long>>(values, i => (long)i << 40);
+            FormatterPairsMatch<short, UnmanagedFormatter<short>>(values, i => (short)i);
+            FormatterPairsMatch<Guid, UnmanagedFormatter<Guid>>(values, i => new Guid(i, 0, 0, new byte[8]));
+            FormatterPairsMatch<string, StringFormatter>(values, i => "k" + i);
+            FormatterPairsMatch<string, Utf8StringFormatter>(values, i => "\u00fc" + i);
+            FormatterPairsMatch<DispatchCustomKey, DispatchCustomKeyFormatter>(values, i => new DispatchCustomKey(i));
+            FormatterPairsMatch<DispatchKey, UnmanagedFormatter<DispatchKey>>(values, i => (DispatchKey)i);
+            FormatterPairsMatch<DispatchVec2, UnmanagedFormatter<DispatchVec2>>(values, i => new DispatchVec2 { X = i });
+            FormatterPairsMatch<DispatchPadded, UnmanagedFormatter<DispatchPadded>>(values,
+                i => new DispatchPadded { A = (byte)i, B = -i });
+            FormatterPairsMatch<int?, UnmanagedNullableFormatter<int>>(values, i => i);
+            FormatterPairsMatch<DispatchStructKey, NinoGen.Nino_UnitTests_DispatchStructKeyFormatter>(values,
+                i => new DispatchStructKey { A = i, B = "s" + i });
+            FormatterPairsMatch<DispatchClassKey, NinoGen.Nino_UnitTests_DispatchClassKeyFormatter>(values,
+                i => new DispatchClassKey { Id = i });
+            FormatterPairsMatch<DispatchOpenKey, NinoGen.Nino_UnitTests_DispatchOpenKeyFormatter>(values,
+                i => i % 2 == 0 ? new DispatchOpenKey { Id = i } : new DispatchOpenKeySub { Id = i, Tag = "t" });
+            FormatterPairsMatch<DispatchRecordKey, NinoGen.Nino_UnitTests_DispatchRecordKeyFormatter>(values,
+                i => new DispatchRecordKey { Id = i, Name = "r" });
+            FormatterPairsMatch<DispatchRecordStructKey, NinoGen.Nino_UnitTests_DispatchRecordStructKeyFormatter>(
+                values, i => new DispatchRecordStructKey { Id = i, Name = "s" });
+
+            var holder = new DispatchUtf8Keys
+            {
+                Map = new Dictionary<string, DispatchRoot> { { "\u00e4", values[0] }, { "b", null } },
+            };
+            var back = NinoDeserializer.Deserialize<DispatchUtf8Keys>(NinoSerializer.Serialize(holder));
+            Assert.AreEqual(2.5, ((DispatchSibling)back.Map["\u00e4"]).D);
+            Assert.IsNull(back.Map["b"]);
+        }
+
+        /// <summary>
+        /// A dictionary written through <see cref="RecordingRootFormatter"/> (the generated pair loop) writes what the
+        /// shared loop writes, whole and with an entry removed (no longer read in place), and takes the loop each time.
+        /// </summary>
+        private static void FormatterPairsMatch<TKey, TKeyFormatter>(DispatchRoot[] values, Func<int, TKey> key)
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+        {
+            var dictionary = new Dictionary<TKey, DispatchRoot>();
+            for (int i = 0; i < values.Length; i++)
+                dictionary.Add(key(i), values[i]);
+            for (int round = 0; round < 2; round++)
+            {
+                var expected = new NinoArrayBufferWriter();
+                var writer = new Writer(expected);
+                writer.WriteLength(dictionary.Count);
+                foreach (var pair in dictionary)
+                {
+                    default(TKeyFormatter).Serialize(pair.Key, ref writer);
+                    default(RootFormatter).Serialize(pair.Value, ref writer);
+                }
+
+                writer.Flush();
+                var actual = new NinoArrayBufferWriter();
+                writer = new Writer(actual);
+                int calls = RecordingRootFormatter.PairCalls;
+                NinoDictionary<TKey, DispatchRoot, TKeyFormatter, RecordingRootFormatter>.Write(dictionary, ref writer);
+                writer.Flush();
+                CollectionAssert.AreEqual(expected.WrittenSpan.ToArray(), actual.WrittenSpan.ToArray(),
+                    typeof(TKey).Name);
+                Assert.AreEqual(calls + 1, RecordingRootFormatter.PairCalls, typeof(TKey).Name);
+
+                dictionary.Add(key(values.Length + round), values[0]);
+                dictionary.Remove(key(round));
+            }
+        }
+
+        /// <summary>
+        /// Values that are no polymorphic base (a sealed class, a struct with a reference, an unmanaged struct) keep
+        /// the shared loop: each still writes what it writes alone, whatever the key, and reads back.
+        /// </summary>
+        [TestMethod]
+        public void OtherValuesWriteAsAlone()
+        {
+            var sealedValues = new[] { new DispatchSibling { A = 1, D = 2 }, null, new DispatchSibling { A = 3 } };
+            var structValues = new[] { new DispatchStructKey { A = 1, B = "x" }, default, new DispatchStructKey { A = 2 } };
+            var rawValues = new[] { new DispatchVec2 { X = 1 }, default, new DispatchVec2 { Y = 2 } };
+            PairsMatch(sealedValues, i => i);
+            PairsMatch(sealedValues, i => "k" + i);
+            PairsMatch(sealedValues, i => new DispatchClassKey { Id = i });
+            PairsMatch(structValues, i => i);
+            PairsMatch(structValues, i => new DispatchRecordStructKey { Id = i, Name = "n" });
+            PairsMatch(rawValues, i => (short)i);
+            PairsMatch(rawValues, i => new Guid(i, 0, 0, new byte[8]));
+
+            var map = new Dictionary<string, DispatchSibling> { { "a", sealedValues[0] }, { "b", null } };
+            var back = NinoDeserializer.Deserialize<Dictionary<string, DispatchSibling>>(NinoSerializer.Serialize(map));
+            Assert.AreEqual(2d, back["a"].D);
+            Assert.IsNull(back["b"]);
         }
 
         [TestMethod]

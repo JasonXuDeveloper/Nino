@@ -38,6 +38,15 @@ public struct HoldsDateTimes { public byte A; public DateTime B; public int C; }
 public struct HoldsTimeSpan { public int A; public TimeSpan B; }
 [NinoType]
 public struct StampedEvent { public int Id; public DateTime At; }
+
+// A polymorphic base: its generated element and pair loops (WriteElements, and WritePairs reached by a constrained call)
+// run on every runtime, Mono's netstandard2.1 build included.
+[NinoType]
+public abstract class RtShape { public int Id; public override string ToString() => GetType().Name + Id; }
+[NinoType]
+public sealed class RtCircle : RtShape { public float R; }
+[NinoType]
+public sealed class RtRect : RtShape { public int W; public string Name; }
 [NinoType]
 public class EventLog { public HoldsDateTime First; public List<HoldsDateTimes> Rest; public StampedEvent Last; }
 
@@ -353,6 +362,15 @@ public static class Program
         Case("Queue<int> wrapped", q);
         Case("HashSet<int>", new HashSet<int>(ints));
         Case("Dictionary<int,str>", ints.Distinct().ToDictionary(i => i, i => "v" + i));
+        RtShape Shape(int i) => i % 5 == 4 ? null
+            : i % 2 == 0 ? new RtCircle { Id = i, R = i * 0.5f } : new RtRect { Id = i, W = -i, Name = "r" + i };
+        Case("List<Shape>", Enumerable.Range(0, 50).Select(Shape).ToList());
+        Case("Dictionary<int,Shape>", Enumerable.Range(0, 50).ToDictionary(i => i * 3, Shape));
+        Case("Dictionary<str,Shape>", Enumerable.Range(0, 50).ToDictionary(i => "k" + i, Shape));
+        Case("Dictionary<Guid,Shape>", Enumerable.Range(0, 50).ToDictionary(i => new Guid(i, 1, 2, new byte[8]), Shape));
+        var withHole = Enumerable.Range(0, 50).ToDictionary(i => i, Shape);
+        withHole.Remove(7);
+        Case("Dictionary<int,Shape>-1", withHole);
         Case("SortedList<int,int>", new SortedList<int, int>(ints.Distinct().ToDictionary(i => i, i => i * 2)));
         Case("SortedList<str,int>", new SortedList<string, int>(strs.Where(s => s != null).Distinct().ToDictionary(s => s, s => s.Length), StringComparer.Ordinal));
         Case("SortedSet<int>", new SortedSet<int>(ints));

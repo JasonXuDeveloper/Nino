@@ -62,9 +62,11 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
                              a [NinoRaw] formatter of the user's bound at run time by the marks its registry
                              registers; logs this runtime's layouts), FunctionPointerTests (C# 9 delegate* fields in a
                              raw struct: 8 bytes zero-extended from the registry's registration, a pointer taken with &
-                             still callable after the round trip), RuntimeGenericTests (closed generic [NinoType]s
-                             made only with MakeGenericType, through the boxed API: IL2CPP runs them by full generic
-                             sharing), run in play mode and in the IL2CPP player
+                             still callable after the round trip), PolymorphicPairsTests (dictionaries of a
+                             polymorphic base through its generated pair loop, each kind of key written as alone),
+                             RuntimeGenericTests (closed generic [NinoType]s made only with MakeGenericType, through
+                             the boxed API: IL2CPP runs them by full generic sharing), run in play mode and in the
+                             IL2CPP player
   Runtime/Burst/             BurstKernelTests (the kernels against the scalar paths, byte for byte; asserts the pointer
                              calls, that every kernel passed the self-test, and that the self-test leaves out a wrong
                              kernel, and in the editor a throwing one), BurstBenchmark (only in the release

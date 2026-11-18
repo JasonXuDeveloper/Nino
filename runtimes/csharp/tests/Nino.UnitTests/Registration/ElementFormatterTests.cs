@@ -140,7 +140,7 @@ public struct NotePlainFormatter : INinoFormatter<Note>
 
 /// <summary>
 /// The bytes of <see cref="NotePlainFormatter"/>, with the members a generated formatter of a polymorphic base has:
-/// an element loop, pair loops (each counting its calls), and a body that opens no class body.
+/// an element loop, a pair loop (each counting its calls), and a body that opens no class body.
 /// </summary>
 public struct NoteLoopFormatter : INinoFormatter<Note>
 {
@@ -165,25 +165,14 @@ public struct NoteLoopFormatter : INinoFormatter<Note>
 
     public bool HasPairLoop => true;
 
-    public void WritePairs32(object dictionary, ref Writer writer) => WritePairs<int>(dictionary, ref writer);
-
-    public void WritePairs64(object dictionary, ref Writer writer) => WritePairs<long>(dictionary, ref writer);
-
-    public void WriteStringPairs(object dictionary, ref Writer writer) => WritePairs<string>(dictionary, ref writer);
-
-    // A dictionary whose keys are another word (uint, an enum) comes as one of int or long keys, as Nino.Core reads it.
-    private void WritePairs<TKey>(object dictionary, ref Writer writer)
+    public void WritePairs<TKey, TKeyFormatter>(Dictionary<TKey, Note> pairs, ref Writer writer)
+        where TKeyFormatter : struct, INinoFormatter<TKey>
     {
         PairLoops++;
-        foreach (var pair in Unsafe.As<Dictionary<TKey, Note>>(dictionary))
+        writer.WriteLength(pairs.Count);
+        foreach (var pair in pairs)
         {
-            switch (pair.Key)
-            {
-                case string text: writer.Write(text); break;
-                case int word: writer.Write(word); break;
-                case long word: writer.Write(word); break;
-            }
-
+            default(TKeyFormatter).Serialize(pair.Key, ref writer);
             Serialize(pair.Value, ref writer);
         }
     }
@@ -354,8 +343,8 @@ public class ElementFormatterTests
             CollectionFormatter<LinkedList<Note>, Note, NotePlainFormatter>>(new LinkedList<Note>(notes), x => x);
         Assert.IsTrue(NoteLoopFormatter.ElementLoops >= elements + 2, "arrays and lists write through the loop");
 
-        // Every kind of key the pair loops take, one they do not (short), and a dictionary with a removed entry (the
-        // formatter's loop decides how to walk it).
+        // Every key takes the pair loop (one generic member, whatever the key and its formatter), a dictionary with a
+        // removed entry too (the formatter's loop decides how to walk it).
         Check<Dictionary<int, Note>, DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NoteLoopFormatter>,
             DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NotePlainFormatter>>(
             notes.ToDictionary(x => x.Code), x => x.Values);
@@ -368,7 +357,6 @@ public class ElementFormatterTests
         Check<Dictionary<string, Note>, DictionaryFormatter<string, Note, StringFormatter, NoteLoopFormatter>,
             DictionaryFormatter<string, Note, StringFormatter, NotePlainFormatter>>(
             notes.ToDictionary(x => x.Text), x => x.Values);
-        Assert.AreEqual(pairs + 4, NoteLoopFormatter.PairLoops, "int, uint, long and string keys");
         Check<Dictionary<short, Note>, DictionaryFormatter<short, Note, UnmanagedFormatter<short>, NoteLoopFormatter>,
             DictionaryFormatter<short, Note, UnmanagedFormatter<short>, NotePlainFormatter>>(
             notes.ToDictionary(x => (short)x.Code), x => x.Values);
@@ -376,7 +364,7 @@ public class ElementFormatterTests
         removed.Remove(notes[3].Code);
         Check<Dictionary<int, Note>, DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NoteLoopFormatter>,
             DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NotePlainFormatter>>(removed, x => x.Values);
-        Assert.AreEqual(pairs + 5, NoteLoopFormatter.PairLoops, "short keys take the shared loop");
+        Assert.AreEqual(pairs + 6, NoteLoopFormatter.PairLoops, "int, uint, long, string and short keys, an entry removed");
 
         // The same bytes and values through both formatters, and read back.
         void Check<T, TLoop, TPlain>(T value, Func<T, IEnumerable<Note>> items)
