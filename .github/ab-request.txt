@@ -1247,15 +1247,15 @@ typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions, Node
 # failed before measurement (unreachable baseline, run 44333395182): go:internal/generated/shapes#12 81592edf 81592edf ^BenchmarkFixedCollections353$ # 353 floor
 
 # Block-copy probes with same-revision controls and the legacy glibc lower threshold.
-go:.#6 28073fbf 28073fbf ^BenchmarkBlockCopyProbe$/^(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ GOFLAGS=-tags=ninocopyprobe GOFLAGS=-tags=ninocopyprobe # 263 Go
-rust:copy 28073fbf 28073fbf block-copy/.*/(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ - GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy threshold
-rust:copy 28073fbf 28073fbf block-copy/.*/(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ # 263 Rust floor
-typescript 28073fbf 28073fbf BlockCopy - GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 TypeScript legacy threshold
-typescript 28073fbf 28073fbf BlockCopy # 263 TypeScript floor
+# done (run 44339615693): go:.#6 28073fbf 28073fbf ^BenchmarkBlockCopyProbe$/^(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ GOFLAGS=-tags=ninocopyprobe GOFLAGS=-tags=ninocopyprobe # 263 Go
+# done (run 44339615693): rust:copy 28073fbf 28073fbf block-copy/.*/(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ - GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy threshold
+# done (run 44339615693): rust:copy 28073fbf 28073fbf block-copy/.*/(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ # 263 Rust floor
+# done (run 44339615693): typescript 28073fbf 28073fbf BlockCopy - GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 TypeScript legacy threshold
+# done (run 44339615693): typescript 28073fbf 28073fbf BlockCopy # 263 TypeScript floor
 
 # Retry the Go fixed-collection comparison with both independent commits in this branch ancestry.
-go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 055886501892cf14c87fcd87b9e3be48dfeff553 ^BenchmarkFixedCollections353$ # 353 reachable refs
-go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 81592edfd9217b28fa1eb2ab24fbac8506752a99 ^BenchmarkFixedCollections353$ # 353 reachable refs floor
+# done (run 44339615693): go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 055886501892cf14c87fcd87b9e3be48dfeff553 ^BenchmarkFixedCollections353$ # 353 reachable refs
+# done (run 44339615693): go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 81592edfd9217b28fa1eb2ab24fbac8506752a99 ^BenchmarkFixedCollections353$ # 353 reachable refs floor
 
 # End-to-end Go byte-array deserialization with hot and rotating source buffers.
 go:.#12 c56669ec a5353306 ^BenchmarkFreshRawRead$ # 263 Go end to end
@@ -1265,3 +1265,7 @@ go:.#12 c56669ec c56669ec ^BenchmarkFreshRawRead$ # 263 Go end to end floor
 rust:bytes 617de844 a2f76de0 byte-copy GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy codec
 rust:bytes 617de844 a2f76de0 byte-copy # 263 Rust modern codec
 rust:bytes 617de844 617de844 byte-copy GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy codec floor
+
+# The fixed-collection controls that regressed in the first successful measurement.
+go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 f85434be23f697c77fe73a5bcd92263a7996c769 ^BenchmarkFixedCollections353$/^(GuidMap|GuidSet|IntKeys8|StringKeys1024)$ # 353 revised paths
+go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 81592edfd9217b28fa1eb2ab24fbac8506752a99 ^BenchmarkFixedCollections353$/^(GuidMap|GuidSet|IntKeys8|StringKeys1024)$ # 353 revised paths floor
