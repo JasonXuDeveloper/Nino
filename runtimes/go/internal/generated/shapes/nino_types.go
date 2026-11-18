@@ -5620,7 +5620,7 @@ func readintoV35(r *nino.Reader, p *[]*Box[int32]) {
 }
 
 func readV36(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
-	n := r.Length(1)
+	n := r.Length(9)
 	if n < 0 {
 		return nil
 	}
