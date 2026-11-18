@@ -13628,7 +13628,8 @@ func writeV55(w *nino.Writer, v []nino.Entry[int32, nino.NinoNullable[nino.Decim
 	if b == nil {
 		return
 	}
-	for _, e := range v {
+	for i := range v {
+		e := &v[i]
 		_ = b[35]
 		le.PutUint32(b, uint32(e.Key))
 		encodeV13(b[4:36], e.Value)
