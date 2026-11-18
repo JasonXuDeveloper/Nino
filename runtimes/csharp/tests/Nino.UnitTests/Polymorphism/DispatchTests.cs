@@ -149,6 +149,100 @@ namespace Nino.UnitTests
             }
         }
 
+        [TestMethod]
+        public void PolymorphicDictionariesOfStructKeysRoundTrip()
+        {
+            // Pairs read into a new dictionary's entries, its buckets built after them (HashTables.Link).
+            var byGuid = new Dictionary<Guid, DispatchRoot>();
+            for (int i = 0; i < 40; i++)
+                byGuid.Add(new Guid(i, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+                    i % 3 == 0 ? new DispatchSibling { A = i } : i % 3 == 1 ? null : new DispatchLeaf { A = i, C = i });
+            RoundTrips(byGuid);
+            var back = NinoDeserializer.Deserialize<Dictionary<Guid, DispatchRoot>>(NinoSerializer.Serialize(byGuid));
+            back.Add(Guid.Empty, new DispatchMid { B = "added" });
+            Assert.IsTrue(back.Remove(new Guid(3, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+            Assert.AreEqual(40, back.Count);
+            Assert.AreEqual("added", ((DispatchMid)back[Guid.Empty]).B);
+        }
+
+        [TestMethod]
+        public void PolymorphicDictionaryWithAKeyTwiceIsInvalidData()
+        {
+            // A dictionary's bytes are its count and its pairs, as a list of pairs writes them.
+            var pairs = new List<KeyValuePair<int, DispatchRoot>>
+            {
+                new(1, new DispatchSibling { A = 1 }), new(2, null), new(1, new DispatchLeaf { A = 2 }),
+            };
+            var bytes = NinoSerializer.Serialize(pairs);
+            var e = Assert.ThrowsExactly<NinoDataException>(() =>
+                NinoDeserializer.Deserialize<Dictionary<int, DispatchRoot>>(bytes));
+            StringAssert.Contains(e.Message, "twice");
+
+            // Into an existing empty dictionary: rejected, and left empty and usable.
+            var target = new Dictionary<int, DispatchRoot>();
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes, ref target));
+            Assert.AreEqual(0, target.Count);
+            Assert.IsFalse(target.ContainsKey(1));
+            target.Add(5, new DispatchMid { B = "five" });
+            Assert.AreEqual("five", ((DispatchMid)target[5]).B);
+        }
+
+        [TestMethod]
+        public void PolymorphicDictionaryCutShortLeavesNothingBehind()
+        {
+            var source = new Dictionary<int, DispatchRoot>();
+            for (int i = 0; i < 12; i++)
+                source.Add(i, new DispatchMid { A = i, B = "v" + i });
+            var bytes = NinoSerializer.Serialize(source);
+            foreach (int cut in new[] { 6, bytes.Length / 2, bytes.Length - 1 })
+            {
+                var data = bytes.AsSpan(0, cut).ToArray();
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    NinoDeserializer.Deserialize<Dictionary<int, DispatchRoot>>(data));
+                var target = new Dictionary<int, DispatchRoot>();
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(data, ref target));
+                Assert.AreEqual(0, target.Count);
+                // Its entries hold none of the values read before the data ran out.
+                foreach (var pair in target)
+                    Assert.Fail("an entry was left: " + pair.Key);
+                NinoDeserializer.Deserialize(bytes, ref target);
+                Assert.AreEqual(12, target.Count);
+                Assert.AreEqual("v7", ((DispatchMid)target[7]).B);
+            }
+        }
+
+        [TestMethod]
+        public void ElementLoopReadsIntoListsOfOtherSubtypes()
+        {
+            // The inline read takes null slots and slots of the same subtype; a slot of another type, a body that
+            // nests and an id it does not know go out of line.
+            DispatchRoot[] values =
+            {
+                new DispatchSibling { A = 1, D = 2 }, new DispatchLeaf { A = 3, C = 4 }, null,
+                new DispatchHolder { A = 5, Kids = new List<DispatchRoot> { new DispatchMid { B = "kid" } } },
+                new DispatchMid { A = 6, B = "m" },
+            };
+            var bytes = NinoSerializer.Serialize(values.ToList());
+            var sameSibling = new DispatchSibling { D = 9 };
+            var target = new List<DispatchRoot>
+            {
+                sameSibling, new DispatchSibling(), new DispatchMid(), new DispatchLeaf(), new DispatchHolder(),
+            };
+            NinoDeserializer.Deserialize(bytes, ref target);
+            Assert.AreSame(sameSibling, target[0]);
+            Assert.AreEqual(2d, ((DispatchSibling)target[0]).D);
+            Assert.AreEqual(4, ((DispatchLeaf)target[1]).C);
+            Assert.IsNull(target[2]);
+            Assert.AreEqual("kid", ((DispatchMid)((DispatchHolder)target[3]).Kids[0]).B);
+            Assert.AreEqual("m", ((DispatchMid)target[4]).B);
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(target));
+
+            // An id no subtype has.
+            var unknown = bytes.ToArray();
+            BitConverter.GetBytes(0x5EED1234).CopyTo(unknown, 4);
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<List<DispatchRoot>>(unknown));
+        }
+
         private static void RoundTrips<TKey>(Dictionary<TKey, DispatchRoot> dictionary)
         {
             var bytes = NinoSerializer.Serialize(dictionary);

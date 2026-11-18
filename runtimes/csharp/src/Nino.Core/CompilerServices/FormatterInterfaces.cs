@@ -45,6 +45,19 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
+    /// Generated subtype dispatch of a polymorphic base: the complete read of a value whose type id was read (every
+    /// subtype the dispatch knows, a slot holding another type, a body too deep, ids it does not know), which the
+    /// dispatch's inline switch leaves to <see cref="NinoObject.ReadSubtypeOutOfLine{T,TDispatch}"/>. Called through a
+    /// constrained call on the struct that implements it, never through the interface.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoSubtypeDispatch<T> where T : class
+    {
+        /// <summary>Reads the value of the type <paramref name="id"/> names (its id consumed) into the slot.</summary>
+        void ReadSubtype(int id, ref Reader reader, ref T value);
+    }
+
+    /// <summary>
     /// Generated formatters of polymorphic bases: the pairs of a <c>Dictionary&lt;TKey, T&gt;</c> (T the base, the
     /// dictionary not empty, its count already written) in one loop (the dispatch inline, the writer in a local), each
     /// value as <see cref="INinoFormatter{T}.Serialize"/> writes it. Neither the interface nor its methods are generic:
