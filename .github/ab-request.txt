@@ -1258,14 +1258,14 @@ typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions, Node
 # done (run 44339615693): go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 81592edfd9217b28fa1eb2ab24fbac8506752a99 ^BenchmarkFixedCollections353$ # 353 reachable refs floor
 
 # End-to-end Go byte-array deserialization with hot and rotating source buffers.
-go:.#12 c56669ec a5353306 ^BenchmarkFreshRawRead$ # 263 Go end to end
-go:.#12 c56669ec c56669ec ^BenchmarkFreshRawRead$ # 263 Go end to end floor
+# done (run 44347813411): go:.#12 c56669ec a5353306 ^BenchmarkFreshRawRead$ # 263 Go end to end
+# done (run 44347813411): go:.#12 c56669ec c56669ec ^BenchmarkFreshRawRead$ # 263 Go end to end floor
 
 # End-to-end Rust byte-array reads and writes, running both sides with the same libc setting.
-rust:bytes 617de844 a2f76de0 byte-copy GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy codec
-rust:bytes 617de844 a2f76de0 byte-copy # 263 Rust modern codec
-rust:bytes 617de844 617de844 byte-copy GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy codec floor
+# done (run 44347813411): rust:bytes 617de844 a2f76de0 byte-copy GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy codec
+# done (run 44347813411): rust:bytes 617de844 a2f76de0 byte-copy # 263 Rust modern codec
+# done (run 44347813411): rust:bytes 617de844 617de844 byte-copy GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy codec floor
 
 # The fixed-collection controls that regressed in the first successful measurement.
-go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 f85434be23f697c77fe73a5bcd92263a7996c769 ^BenchmarkFixedCollections353$/^(GuidMap|GuidSet|IntKeys8|StringKeys1024)$ # 353 revised paths
-go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 81592edfd9217b28fa1eb2ab24fbac8506752a99 ^BenchmarkFixedCollections353$/^(GuidMap|GuidSet|IntKeys8|StringKeys1024)$ # 353 revised paths floor
+# done (run 44347813411): go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 f85434be23f697c77fe73a5bcd92263a7996c769 ^BenchmarkFixedCollections353$/^(GuidMap|GuidSet|IntKeys8|StringKeys1024)$ # 353 revised paths
+# done (run 44347813411): go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 81592edfd9217b28fa1eb2ab24fbac8506752a99 ^BenchmarkFixedCollections353$/^(GuidMap|GuidSet|IntKeys8|StringKeys1024)$ # 353 revised paths floor
