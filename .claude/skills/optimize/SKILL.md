@@ -134,22 +134,28 @@ says which CPUs and cases moved.
   composed otherwise, two read branches and a set and a map formatter each (`claude/entry-elements` removed both). The
   storage element is the extension point of every storage that is not a plain array of the element: a `SortedList`'s
   two arrays, a `Queue`'s ring in two segments, the chunks of nodes `NinoGather` walks (one element and fields struct
-  each, no new loop). In code shared over a class, reach an entry's fields from the concrete entry type in the top
-  layer, never through the element's fields struct: an instance method of a generic struct over `__Canon` is not
-  inlined there (asm.py: `CollectionFields.Run<__Canon>` 247 to 378 bytes, `HashSet<string>` write 932 to 1,081 with
-  an indirect call per value in the cursor loop); a set of values with references moves its values at the entries'
-  stride instead (`CollectionFields.Values`, `NinoStorage.Items`: `HashSet<string>` write 932 to 843, read 2,322 to
-  670 bytes and 96 to 9 stack accesses), and the dictionary's out-of-line write computes the key and value offsets
-  from `MapEntry` and calls the by-value loops (`NinoRuns.WriteEach`/`WriteCursors`, writer by value and returned):
-  the shared `NinoRuns.WriteEntries` inlined its loop on that method's writer parameter, which then lived in memory
-  (`Dictionary<string, int>` WriteEntries 36 to 54 stack accesses; by value 36 to 30). Compute an in-use test from the
-  entry's own fields' distances (`CollectionFields.InUse`), never from a static of a generic class: one not
-  initialized when Tier1 compiles the caller is a helper call that spilled the set's write (`HashSet<int>` serialize
-  958 to 1,120 bytes, 40 to 57 stack accesses). Decide the cursor loop in the caller from the item formatters
-  (`NinoCursor.Own<T, TFormatter>()`, `CursorPairs`), never inside the shared loop from the element formatter
-  (`NinoCursor.Own<TEntry, ...>`: `HashSet<int>` 1,046 bytes and 66 stack accesses, `HashSet<int?>` 1,234 and 86;
-  reverted). In the read, a shared entry formatter's block test costs nothing more: `NinoKind.Of` is behind the
-  no-references guard; the `Dictionary<int, Base>` read shim grew 92 to 167 bytes (a reader copied into the
+  each, no new loop). In code shared over a class, call no method of a struct type parameter instantiated over a class
+  per element: each is an indirect call the JIT never inlines (a struct's method needs the exact type's context), and
+  a static of the generic struct a helper call; reach an entry's fields from the concrete entry type in the top layer.
+  A set of values with references moves its values at the entries' stride (`CollectionFields.Values`,
+  `NinoStorage.Items`: `HashSet<string>` write 932 to 843 bytes); a dictionary of entries with references takes its
+  own element formatter (`NinoDictionary.Entries`: `entry.Key`, `entry.Value` into `NinoCursor`'s pair overloads), as
+  the storage element's `MapFields` accessors cost two indirect calls per pair in each of `MaxSize` and `WriteAt`
+  (`Dictionary<string, string>` written 1.9 times as long, local) and offsets kept in its statics a
+  `CORINFO_HELP_GET_NONGCSTATIC_BASE` call each (still 1.2 times); the hash table is the cursor loop's store itself
+  (`INinoHashTable.Adding`), as a store wrapping it made two indirect calls per entry; and a set whose values neither
+  insert nor walk (`HashTables.Plan`: strings) adds them in an inline loop in `HashSetFormatter` (through
+  `NinoEntries` 1.2 to 1.3 times as long, local). The dictionary's out-of-line write computes the key and value
+  offsets from `MapEntry` and calls the by-value loops (`NinoRuns.WriteEach`/`WriteCursors`, writer by value and
+  returned): the shared `NinoRuns.WriteEntries` inlined its loop on that method's writer parameter, which then lived
+  in memory (`Dictionary<string, int>` WriteEntries 36 to 54 stack accesses; by value 36 to 30). Compute an in-use
+  test from the entry's own fields' distances (`CollectionFields.InUse`), never from a static of a generic class: one
+  not initialized when Tier1 compiles the caller is a helper call that spilled the set's write (`HashSet<int>`
+  serialize 958 to 1,120 bytes, 40 to 57 stack accesses). Decide the cursor loop in the caller from the item
+  formatters (`NinoCursor.Own<T, TFormatter>()`, `CursorPairs`), never inside the shared loop from the element
+  formatter (`NinoCursor.Own<TEntry, ...>`: `HashSet<int>` 1,046 bytes and 66 stack accesses, `HashSet<int?>` 1,234
+  and 86; reverted). In the read, a shared entry formatter's block test costs nothing more: `NinoKind.Of` is behind
+  the no-references guard; the `Dictionary<int, Base>` read shim grew 92 to 167 bytes (a reader copied into the
   out-of-line `NinoEntries.ReadEach`, plus the method's generic lookup) with one copy of the reader instead of two.
   The entries' write (`NinoDictionary.WriteEntries`: the run, then the loop) is out of line with the writer by value,
   one call per dictionary: inlined, its tests (`PairRuns`, the cursor pair test, the run) spent the budget of a
