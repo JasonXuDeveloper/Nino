@@ -110,7 +110,7 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   its constrained `WriteFixed` / `ReadBlock`) and build their maps with `NinoBlockMap.Item`, and `DateTimeOffset` is a
   block formatter (its `typeof` tests in `NinoKind` and `NinoElements` are gone). #355 PR 3 put every contiguous collection on
   one cursor (`NinoRun`) and one write loop per kind (`NinoRuns`): `WordKey`, `WriteElements` and the pair entry points
-  went for `WriteRun`, the set's and the dictionary's entries are one storage element (`NinoStorageFormatter`) with the items it moves, and
+  went for `WriteRun`, the set's and the dictionary's entries are one storage element (`NinoSetEntryFormatter`, `NinoMapEntryFormatter`) with the items it moves, and
   `ImmutableArray` writes its array. Left deciding for themselves, each for its step: the dedicated raw and nullable
   array and list formatters chosen by binding, `PriorityQueueHeap`'s int pair (the storage view), and Nino.Immutable's
   `Slots<T>.Possible`. What stays is not a
