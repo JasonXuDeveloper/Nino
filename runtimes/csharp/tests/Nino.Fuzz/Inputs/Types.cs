@@ -140,6 +140,10 @@ namespace Nino.Fuzz
         public string Ascii; public string Latin1; public string Utf16; [NinoUtf8] public string Utf8;
         public string[] Many; [NinoUtf8] public List<string> ManyUtf8; public Dictionary<string, string> Map;
         public char[] Chars; public List<char> CharList; public string Empty; public string Null;
+        // The string run kernels' pairs and sets: a string with a raw value on either side, UTF-8 sets and keys, and
+        // pairs in a row.
+        public Dictionary<string, int> Counts; public Dictionary<int, string> Names; [NinoUtf8] public HashSet<string> SetUtf8;
+        [NinoUtf8] public Dictionary<string, long> CountsUtf8; public KeyValuePair<string, int>[] Pairs;
     }
 
     [NinoType]
