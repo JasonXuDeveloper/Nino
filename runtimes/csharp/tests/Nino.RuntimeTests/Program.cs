@@ -512,10 +512,12 @@ public static class Program
                    list.Keys.SequenceEqual(list.Keys.OrderBy(k => k));
         });
 #if NET8_0_OR_GREATER
-        // Sized for its pairs, as a queue read is (Contents compares the capacity too).
+        // Sized for its pairs, as a queue read is (Contents compares the capacity too). The net472 build (Mono's) has
+        // no PriorityQueue, so the line starts with '#': CI's diff against .NET leaves it out, and a failure still
+        // counts (Built adds it to _failed).
         var heap = new PriorityQueue<string, long>(3000);
         heap.EnqueueRange(Enumerable.Range(0, 3000).Select(i => ("e" + i, (long)(i * 7919 % 3001))));
-        Built("PriorityQueue<str,long> built", heap, queue =>
+        Built("# PriorityQueue<str,long> built", heap, queue =>
         {
             queue.Enqueue("first", -1);
             long last = long.MinValue;
