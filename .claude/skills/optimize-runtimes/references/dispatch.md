@@ -94,3 +94,7 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   smaller blocks for cases with variable-size payloads. The earlier experiment with immutable value blocks and
   reflection cut the tagged probe's allocations from 581 to 54, but tagged reads took 19–27 % more time on the
   sampled x64 CPUs and 11 % more on Neoverse-N2.
+  With typed pointers in [44458051073](https://github.com/JasonXuDeveloper/Nino/actions/runs/44458051073), the
+  official `UnionArray` and `TaggedUnionArray` cases dropped from 808 to 77 and 582 to 43 allocations. Median reads
+  took 12–15 % and 9–20 % less time on the sampled x64 CPUs, and 22 % and 16 % less on Neoverse-N2. The linked
+  benchmark readers on both architectures lost the five `runtime.convT*` calls for those cases.
