@@ -118,7 +118,19 @@ says which CPUs and cases moved.
   `EntryBlock`, the gather of the writes the other way; others value by value), and `HashTables.Link` links them. A polymorphic base's values go
   through its generated `WriteRun`, whose body is Nino.Core's pieces with the base's compare chain inside (a step
   carried into a Core loop lost: dispatch.md). A composite carries `NinoBodyTraits.Dispatches` where an item's
-  formatter does (`NinoBlocks.Dispatches`: pairs, tuples, generated generic structs).
+  formatter does (`NinoBlocks.Dispatches`: pairs, tuples, generated generic structs). Strings, UTF-8 strings and pairs
+  holding them take one pair loop per direction (#347, #355 step 5: `NinoRuns.WriteCursors`/`ReadCursors` over each
+  value's cursor form, `NinoCursor`: `MaxSize`, `WriteAt`, `ReadAt` returning byte counts; the element loop is the pair
+  loop without keys), never a string loop of its own. Keep that loop's state in registers: give it only the free space
+  (a reference and the bytes left) or the data and its end, return what it took, and let the caller commit, grow and
+  go on; the stores it fills (`Entries`, `Adds`, `Merges`) are plain structs it dispatches on by `typeof`. Three
+  traps cost iterations there (`asm.py`, the listings in references/jit.md): a `static readonly` field of
+  `NinoKind<TFormatter>` read in code shared over a class element (`__Canon`) is a constant only when the class was
+  initialized before Tier1 compiled the method, and a path that returns before reading it (raw, block) leaves it a
+  helper call with the loop compiled in (`HashSet<NinoNullable<int>>` 811 to 1,174 bytes), so gate it behind the kind
+  first; in shared code `typeof(T) == typeof(string)` with `T` a class is no constant, `typeof(TFormatter)` is; an
+  instance method of a generic struct called from shared code is not inlined (an indirect `call r8` per pair), a
+  static generic method is.
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks
