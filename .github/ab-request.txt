@@ -1269,3 +1269,9 @@ typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions, Node
 # The fixed-collection controls that regressed in the first successful measurement.
 # done (run 44347813411): go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 f85434be23f697c77fe73a5bcd92263a7996c769 ^BenchmarkFixedCollections353$/^(GuidMap|GuidSet|IntKeys8|StringKeys1024)$ # 353 revised paths
 # done (run 44347813411): go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 81592edfd9217b28fa1eb2ab24fbac8506752a99 ^BenchmarkFixedCollections353$/^(GuidMap|GuidSet|IntKeys8|StringKeys1024)$ # 353 revised paths floor
+
+# #263 Rust counted byte writer on the merged runtime
+rust:bytes 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 fa73d61055295b498c7113ee542dc306fb32c942 ^byte-copy/(read-control/2048|write-reused/(2048|2113|4096))$ # write-only default
+rust:bytes 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 ^byte-copy/(read-control/2048|write-reused/(2048|2113|4096))$ # write-only default floor
+rust:bytes 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 fa73d61055295b498c7113ee542dc306fb32c942 ^byte-copy/(read-control/2048|write-reused/(2048|2113|4096))$ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # write-only historical threshold
+rust:bytes 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 ^byte-copy/(read-control/2048|write-reused/(2048|2113|4096))$ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # write-only historical threshold floor
