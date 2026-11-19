@@ -132,7 +132,7 @@ Collections/                the collection formatters, a folder per kind:
     ListFormatters.cs        general, unmanaged block and raw nullable lists
     InterfaceFormatters.cs   sequence and set interfaces
     CollectionFormatter.cs   ICollection<T> enumeration and refill
-    HashSetFormatter.cs      HashSet and derived sets: its entries as a run, written and filled then linked
+    HashSetFormatter.cs      HashSet and derived sets: its entries as a run, written, and read through NinoEntries
     QueueFormatter.cs        Queue and derived queues, with a checked backing ring
     StackFormatter.cs        Stack and derived stacks, bottom-to-top wire order
     PriorityQueueFormatter.cs PriorityQueue (net8.0 and net10.0 builds only)
@@ -205,11 +205,16 @@ NinoRecycler.cs              NinoRecycler<T> / NinoRecycler: where reuse deseria
 ### Internal/Collections/Storage/
 
 ```
-CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, MapEntry, LinkedNode); the runs
-                             of a set's values and a dictionary's pairs (Run: in use, or new ones a read fills), each a
-                             KeyValuePair where the entry holds it as one (PairLayout, PairMirror; proven per pair of
-                             types), else the entry composed by MapEntryFormatter; EntryBlock, the one block formatter
-                             of entries, written and read, with the items it moves (SetValue, SetValueBytes)
+CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, MapEntry, LinkedNode); a set's
+                             and a dictionary's entries as storage elements (SetFields, MapFields: the value, or the key
+                             and value, and the hash code and link), the in-use test of either (EntryLayout), their runs
+                             (Run: in use, or new ones a read fills), whether their entries are blocks on this runtime
+                             (EntryBlocks, the startup proof), where a KeyValuePair keeps its items (PairLayout, PairMirror)
+NinoStorageElement.cs        the storage element (#355): a struct of a collection's storage whose wire bytes are one or
+                             two items at measured offsets, the rest of its stride skipped (NinoStorageFormatter, its
+                             fields INinoStorageFields): a block where its items are, so the block kernels move a run of
+                             them; NinoMemoryItem, an item moved as its memory (a set's slots). The extension point of
+                             SortedList's arrays, Queue's ring and gathered nodes
 CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,
                              SortedDictionary per runtime (offsets, the first candidate that passes), as static fields;
                              how a set and a dictionary mark free entries (SetFree, MapFree)
@@ -245,10 +250,13 @@ NinoKind.cs                  the one element-kind decision every collection read
                              slot, block or per value, with Stride, MinWire, CopiedWhole, ReadOverwrites, Heavy,
                              HeavyHashed), NinoKind.Of / Stride (read behind the no-references guard)
 NinoRuns.cs                  the loops over a run (NinoRun), one per element kind and direction, over <T, TFormatter>
-                             only: values in a row (arrays, lists, spans, ring halves; Write, Read), a set's values and a
-                             dictionary's pairs in their entries (WriteSet, ReadSet into new entries the caller links);
-                             the cursor loop (WriteCursors, ReadCursors with a store); a polymorphic base's run loop and a
-                             pair's composed onto it (KeyOf, PairRuns, WritePairRun)
+                             only: values in a row (arrays, lists, spans, ring halves; Write, Read), and a set's or a
+                             dictionary's entries, each the element (WriteEntries); the cursor loop (WriteCursors,
+                             ReadCursors with a store); a polymorphic base's run loop and a pair's composed onto it
+                             (KeyOf, PairRuns, WritePairRun)
+NinoEntries.cs               the one read of a set's and a dictionary's entries (NinoEntries: a block scattered into new
+                             entries, the cursor loop or value by value, filled then linked, or each added), over the
+                             collection's own layer (INinoHashTable: SetTable, MapTable)
 NinoCursor.cs                the cursor form of a value's write and read (strings, UTF-8, raw values, blocks: MaxSize,
                              WriteAt, ReadAt; Has, decided by kind or by INinoFormatter.HasCursor), its composition for
                              pairs of items (the pair overloads, Pairs) and what the read loop does with each value
@@ -260,8 +268,9 @@ NinoNesting.cs               which types can hold themselves through collections
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the
                              out-of-line helper per run; Threshold and ReverseReadIsLocal of a formatter's PrefetchBytes
-NinoDictionary.cs            the dictionary's top layer: its entries reached, filled and linked, or pairs added and merged
-                             one at a time (Adds, the merge); at the bottom its pairs are elements of NinoRuns' loops
+NinoDictionary.cs            the dictionary's top layer: its entries reached and written, read through NinoEntries, or
+                             pairs merged one at a time into an existing one; at the bottom its entries are elements of
+                             NinoRuns' loops
 NinoNullables.cs             fixed-stride nullable encoding and the host layout probe
 BclCollections.cs            runtime-owned collections using their checked views, gathered: SortedSet's tree, LinkedList's
                              ring (Ring) and its nodes linked as read (Links)
