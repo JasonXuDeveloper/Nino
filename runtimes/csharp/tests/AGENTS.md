@@ -79,7 +79,8 @@ Collections/                 arrays, BCL and user collections, empty ones, Stack
                              one run across its chunks, SortedList and PriorityQueue read into their storage for any pair,
                              and rejected reads that leave them empty (GatherTests)
   FastPaths/                 the collection fast paths (arrays, blocks, dictionaries, linked lists, priority queues,
-                             sorted collections and lists; CollectionFastPathFixtures) and the HashTables fill
+                             sorted collections and lists; CollectionFastPathFixtures), the HashTables fill and the
+                             entries of sets and dictionaries as blocks, hostile ones among them (EntryBlockTests)
 Layout/                      raw structs, padding, the portable (canonical) layout, BCL structs inside raw structs
                              (BclStructLayoutTests: CoreCLR's auto layout of tuples, DateTimeOffset), block structs,
                              composites that compose their kind from raw and block items (CompositeBlockTests: tuples,

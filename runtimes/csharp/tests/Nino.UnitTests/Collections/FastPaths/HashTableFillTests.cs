@@ -99,7 +99,7 @@ public class HashTableFillTests
 
     /// <summary>
     /// Pairs of a key or value that is not raw are read into a new dictionary's entries and linked after the read from
-    /// four pairs on (NinoRuns.ReadSet over the pairs, HashTables.Link), one at a time below: the same contents either way,
+    /// four pairs on (NinoEntries over the entries, HashTables.Link), one at a time below: the same contents either way,
     /// a repeated or null key rejected, and a read that fails part way leaves the dictionary it filled empty.
     /// </summary>
     [TestMethod]
@@ -146,7 +146,7 @@ public class HashTableFillTests
     }
 
     /// <summary>
-    /// Sets of values that are not raw are read into a new set's entries and linked after (NinoRuns.ReadSet,
+    /// Sets of values that are not raw are read into a new set's entries and linked after (NinoEntries,
     /// HashTables.Link): values read one by one from HashTables.FillFrom on, blocks scattered by the block kernels at
     /// any count. The same contents and order as the public API gives, a repeated value rejected, and a read that
     /// fails part way leaves the set it filled empty.

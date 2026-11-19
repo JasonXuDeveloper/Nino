@@ -11,7 +11,7 @@ namespace Nino.Core.Internal
     /// <summary>
     /// Fills a new <see cref="HashSet{T}"/> or <see cref="Dictionary{TKey,TValue}"/> by writing its entries and buckets
     /// directly, as its Add would, without the checks Add repeats per element (the comparer, the free list, the
-    /// capacity, the version): a read fills the entries through their run (<see cref="NinoRuns.ReadSet{T,TFormatter}"/>,
+    /// capacity, the version): a read fills the entries through their run (<see cref="NinoEntries{TEntry,TFormatter,TTable}"/>,
     /// a set's values or a dictionary's pairs: raw values and blocks scattered by the block kernels, others value by
     /// value), then <see cref="Link{T}(HashSet{T}, int)"/> hashes them and links the buckets in one pass (#320, #355).
     /// The collection is created and sized through its public API first (its constructor or EnsureCapacity allocate the
@@ -120,7 +120,7 @@ namespace Nino.Core.Internal
         /// rather than inserting each: below it the two calls it adds (the read loop and the link) cost more than the
         /// inserts they save. Runners, dictionaries (#320, run 44243147222): one int-keyed pair 4 to 9 % slower than one
         /// insert on Xeon 6975P-C and Neoverse-N2, four on par, 12 and more up to 13 % faster. Values a set or a
-        /// dictionary takes as one block (<see cref="NinoRuns.ScattersSet{T,TFormatter}"/>) are filled from one on, as
+        /// dictionary takes as one block (<see cref="NinoEntries{TEntry,TFormatter,TTable}.Blocks"/>) are filled from one on, as
         /// the raw fill they generalize was.
         /// </summary>
         public const int FillFrom = 4;

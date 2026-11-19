@@ -172,7 +172,7 @@ public static class Program
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "SetFree"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "MapFree"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionFields+PairLayout", "Mirrors"),
-        (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionFields+PairLayout", "Entries"),
+        (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionFields+EntryBlocks", "Mapped"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.SortedSetNodes", "Layout"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.HashTables", "Set"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.HashTables", "Map"),

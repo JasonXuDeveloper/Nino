@@ -34,8 +34,8 @@ Rules in short:
   for nothing measurable. Evidence: the Arm64 listings kept their sizes, only the x64 set listing shrank (6 bytes), and
   the local A/B showed no repeatable throughput gain or allocation change.
 - Ask whether a hash set is filled directly in one helper that every read with the elements' bytes in hand calls
-  (now `HashSetFormatter.ReadGuarded`'s one test, `HashTables.CanInsert`, before `FillGuarded`: the entries filled
-  through their run by `NinoRuns.ReadSet`, then `HashTables.Link`, for new and cleared sets and every element kind;
+  (now `NinoEntries`' one test, `HashTables.CanInsert` through `INinoHashTable`, before the fill: the entries filled
+  through their run, then `HashTables.Link`, for new and cleared sets and dictionaries and every element kind;
   before #355 step 4 a raw-only `HashTables.TryFill`/`TryRefill`), never as a condition written again at each path.
   Why: the raw path gained the refill in 6adc0647 while the slot path
   (raw `T?` whose slots are memory) kept its own copy that knew only new sets, so a `HashSet<int?>` read into was added
@@ -183,8 +183,8 @@ Rules in short:
 ## New dictionaries of objects
 
 - Take the block of a set's or dictionary's fixed values (raw, blocks, memory slots) in the inlined read
-  (`NinoRuns.TakeSet`/`TakePairs`) and pass only the source to the out-of-line fill or add (`AddBlock`, then
-  `NinoRuns.ScatterSet`/`ScatterPairs` and `HashTables.Link`), never the reader. Why: with the fill behind a reader
+  (`NinoEntries.Read`: `reader.ReadElements`) and pass only the source to the out-of-line fill or add
+  (`NinoEntries.AddBlock`, then `NinoBlockCollections.ReadAll` and `HashTables.Link`), never the reader. Why: with the fill behind a reader
   copied into an out-of-line call, every read of a type holding a `Dictionary<int, int>` kept its reader in memory.
   Evidence: #355 step 4's first shape, `asm.py compare` against feat/storage-layer: `NinoDeserializeIntDictionary`
   260 -> 332 bytes and 3 -> 17 stack accesses, `SimpleClass.__ReadTop` 13 -> 69, `TolerantClass.__ReadBodyFreshInline`

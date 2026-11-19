@@ -119,6 +119,10 @@ public class UntrustedModeTests
     public void RawPairsAreCheckedWithinTheData() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedPairsAtTheEnd));
 
     [TestMethod]
+    public void EntriesOfSetsAndDictionariesAreChecked() =>
+        SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedEntries));
+
+    [TestMethod]
     public void TrailingBytesAreInvalid() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedTrailing));
 }
 
@@ -375,6 +379,39 @@ public static partial class SettingsProbes
 
             return what + ": invalid last value read";
         }
+    }
+
+    /// <summary>
+    /// The entries of sets and dictionaries in Untrusted mode, whose items it checks: the entry blocks are read one
+    /// entry at a time there (NinoBlockPlan.ReadSize), each item checked as its read checks it; an invalid value in
+    /// the first, a middle or the last entry is rejected, for every count the block kernels split.
+    /// </summary>
+    public static string UntrustedEntries(byte[] _)
+    {
+        NinoSettings.Untrusted = true;
+        var when = new DateTime(2024, 5, 6, 7, 8, 9, DateTimeKind.Utc);
+        var bad = BitConverter.GetBytes(BadTicks);
+        foreach (int n in new[] { 1, 2, 3, 4, 5, 8, 9, 16, 17, 33, 100 })
+        {
+            var map = NinoSerializer.Serialize(Enumerable.Range(0, n).ToDictionary(i => i, i => when.AddDays(i)));
+            var set = NinoSerializer.Serialize(new HashSet<DateTime>(Enumerable.Range(0, n).Select(i => when.AddDays(i))));
+            var bools = NinoSerializer.Serialize(Enumerable.Range(0, n).ToDictionary(i => (long)i, i => i % 2 == 0));
+            if (NinoDeserializer.Deserialize<Dictionary<int, DateTime>>(map).Count != n ||
+                NinoDeserializer.Deserialize<HashSet<DateTime>>(set).Count != n ||
+                NinoDeserializer.Deserialize<Dictionary<long, bool>>(bools).Count != n)
+                return n + ": valid entries";
+            foreach (int i in new[] { 0, n / 2, n - 1 })
+            {
+                if (Fails<Dictionary<int, DateTime>>(With(map, 4 + 12 * i + 4, bad), $"{n}: Dictionary<int, DateTime> {i}") is { } a)
+                    return a;
+                if (Fails<HashSet<DateTime>>(With(set, 4 + 8 * i, bad), $"{n}: HashSet<DateTime> {i}") is { } b)
+                    return b;
+                if (Fails<Dictionary<long, bool>>(With(bools, 4 + 9 * i + 8, 3), $"{n}: Dictionary<long, bool> {i}") is { } c)
+                    return c;
+            }
+        }
+
+        return "ok";
     }
 
     [StructLayout(LayoutKind.Sequential, Size = 1024)]

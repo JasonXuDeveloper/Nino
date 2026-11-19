@@ -269,11 +269,12 @@ namespace Nino.UnitTests
             // generated loop over the values with their keys.
             Assert.IsTrue(CollectionFields.Run(dictionary, dictionary.Count, out var run));
             if (typeof(TKey) == typeof(string))
-                WriteRun<CollectionFields.MapEntryFormatter<string, DispatchRoot, StringFormatter, RootFormatter>>(run,
-                    ref writer);
+                WriteRun<NinoStorageFormatter<CollectionFields.MapEntry<string, DispatchRoot>, string, DispatchRoot,
+                    StringFormatter, RootFormatter, CollectionFields.MapFields<string, DispatchRoot>>>(run, ref writer);
             else
-                WriteRun<CollectionFields.MapEntryFormatter<int, DispatchRoot, UnmanagedFormatter<int>,
-                    RootFormatter>>(run, ref writer);
+                WriteRun<NinoStorageFormatter<CollectionFields.MapEntry<int, DispatchRoot>, int, DispatchRoot,
+                    UnmanagedFormatter<int>, RootFormatter, CollectionFields.MapFields<int, DispatchRoot>>>(run,
+                    ref writer);
             writer.Flush();
             return buffer.WrittenSpan.ToArray();
         }
@@ -408,24 +409,29 @@ namespace Nino.UnitTests
             Assert.IsTrue(NinoCursor.Own<KeyValuePair<string, string>,
                 KeyValuePairFormatter<string, string, StringFormatter, StringFormatter>>());
             Assert.IsTrue(NinoCursor.Own<CollectionFields.MapEntry<string, string>,
-                CollectionFields.MapEntryFormatter<string, string, StringFormatter, StringFormatter>>());
+                NinoStorageFormatter<CollectionFields.MapEntry<string, string>, string, string, StringFormatter,
+                    StringFormatter, CollectionFields.MapFields<string, string>>>());
             var texts = Enumerable.Range(0, 40).Select(i => new KeyValuePair<string, string>("k" + i, "v" + i)).ToArray();
             CollectionAssert.AreEqual(NinoSerializer.Serialize(texts.ToDictionary(p => p.Key, p => p.Value)),
                 NinoSerializer.Serialize(texts));
 
-            // Raw pairs: a block, the same element in a list and in a dictionary's entries where this runtime lays
-            // the entry out as a set's entry of the pair.
+            // Raw pairs: a block in a list, and the entry a block in a dictionary (its key and value mapped at their
+            // offsets in it, the hash code and link skipped): the same bytes.
             Assert.AreEqual(NinoElementKind.Block, NinoKind.Of<KeyValuePair<int, int>,
                 KeyValuePairFormatter<int, int, UnmanagedFormatter<int>, UnmanagedFormatter<int>>>());
-            Assert.IsTrue(CollectionFields.PairLayout.Entries);
-            Assert.IsTrue(CollectionFields.PairLayout<int, int>.InEntries);
+            Assert.IsTrue(CollectionFields.EntryBlocks.Mapped);
+            Assert.AreEqual(NinoElementKind.Block, NinoKind.Of<CollectionFields.MapEntry<int, int>,
+                NinoStorageFormatter<CollectionFields.MapEntry<int, int>, int, int, UnmanagedFormatter<int>,
+                    UnmanagedFormatter<int>, CollectionFields.MapFields<int, int>>>());
             var ints = Enumerable.Range(0, 100).Select(i => new KeyValuePair<int, int>(i * 7, -i)).ToList();
             var map = ints.ToDictionary(p => p.Key, p => p.Value);
             CollectionAssert.AreEqual(NinoSerializer.Serialize(ints), NinoSerializer.Serialize(map));
             CollectionAssert.AreEqual(ints, NinoDeserializer.Deserialize<Dictionary<int, int>>(
                 NinoSerializer.Serialize(ints)).ToList());
-            // Pairs with references: the entry is the element (CoreCLR moves references first in it).
-            Assert.IsFalse(CollectionFields.PairLayout<string, int>.InEntries);
+            // Pairs with references: the entry is the element too, value by value (CoreCLR moves references first).
+            Assert.AreEqual(NinoElementKind.PerValue, NinoKind.Of<CollectionFields.MapEntry<string, int>,
+                NinoStorageFormatter<CollectionFields.MapEntry<string, int>, string, int, StringFormatter,
+                    UnmanagedFormatter<int>, CollectionFields.MapFields<string, int>>>());
         }
 
         private static byte[] Write<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
