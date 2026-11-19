@@ -161,26 +161,35 @@ func writeFixed[T any](w *Writer, v []T, size int, encode func(b []byte, e T)) {
 // an element, whose bytes must be 0 or 1; and decode, for the hosts where the block is not the memory (big-endian
 // ones) and asIs false (a 32-bit host that aligns an int64 to 4 bytes). Never pass asIs true for a T with pointers.
 func ReadRaw[T any](r *Reader, size int, asIs bool, bools []int, decode func(r *Reader, b []byte) T) []T {
+	if v, ok := TryReadRaw[T](r, size, asIs, bools); ok {
+		return v
+	}
+	return readFixed(r, size, decode)
+}
+
+// TryReadRaw is the raw-memory path of [ReadRaw]. When ok is false it leaves the reader untouched so a
+// generated caller can decode each element directly on hosts where Go memory does not match the wire.
+func TryReadRaw[T any](r *Reader, size int, asIs bool, bools []int) (v []T, ok bool) {
 	var zero T
-	if !asIs || !littleEndian || int(unsafe.Sizeof(zero)) != size {
-		return readFixed(r, size, decode)
+	if !asIs || !littleEndian || size <= 0 || int(unsafe.Sizeof(zero)) != size {
+		return nil, false
 	}
 	n := r.Length(size)
 	if n < 0 {
-		return nil
+		return nil, true
 	}
 	b := r.Take(n * size)
 	if len(b) != n*size {
-		return nil
+		return nil, true
 	}
 	if len(bools) != 0 && !rawBools(b, size, bools) {
 		r.Fail(CodeInvalidData, "invalid bool")
-		return nil
+		return nil, true
 	}
 	// As many bytes of memory as of data: no more than readFixed's bound.
-	v := make([]T, n)
+	v = make([]T, n)
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), n*size), b)
-	return v
+	return v, true
 }
 
 // rawBools reports whether the bytes at each offset of bools in each element (size bytes) of b are 0 or 1: ORed into
@@ -221,19 +230,26 @@ func rawBools(b []byte, size int, bools []int) bool {
 // (padding), which [writeFixed] writes as zeros and so does the block once copied. A bool whose byte is not 0 or 1
 // (set through unsafe) is written as 1.
 func WriteRaw[T any](w *Writer, v []T, size int, asIs bool, bools, pads []int, encode func(b []byte, e T)) {
-	var zero T
-	if !asIs || !littleEndian || int(unsafe.Sizeof(zero)) != size {
+	if !TryWriteRaw(w, v, size, asIs, bools, pads) {
 		writeFixed(w, v, size, encode)
-		return
+	}
+}
+
+// TryWriteRaw is the raw-memory path of [WriteRaw]. When it returns false it leaves the writer untouched
+// so a generated caller can encode each element directly on hosts where Go memory does not match the wire.
+func TryWriteRaw[T any](w *Writer, v []T, size int, asIs bool, bools, pads []int) bool {
+	var zero T
+	if !asIs || !littleEndian || size <= 0 || int(unsafe.Sizeof(zero)) != size {
+		return false
 	}
 	if v == nil {
 		w.NullLength()
-		return
+		return true
 	}
 	w.Length(len(v))
-	b := w.Extend(len(v) * size)
-	if len(b) != len(v)*size {
-		return
+	b := w.ExtendFixed(len(v), size, false)
+	if b == nil {
+		return true
 	}
 	copy(b, unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), len(v)*size))
 	if len(pads) != 0 {
@@ -242,6 +258,7 @@ func WriteRaw[T any](w *Writer, v []T, size int, asIs bool, bools, pads []int, e
 	if len(bools) != 0 && !rawBools(b, size, bools) {
 		normalizeRawBools(b, size, bools)
 	}
+	return true
 }
 
 // clearPads sets the bytes at the offsets pads in each element (size bytes) of b to 0. Elements of up to 32 bytes
@@ -361,16 +378,21 @@ func (w *Writer) WriteShape(dims ...int) {
 
 // CheckUniqueValues returns v, the elements of a set read in the order of the data, unless two of them are equal: then
 // it fails r with CodeDuplicateKey (as .NET's HashSet and SortedSet do when filled from empty) and returns nil. It
-// returns nil for nil and after r failed. Generated code reads the elements with direct calls, then checks them
-// once here, as [CheckUniqueKeys] does for a dictionary's keys. Numbers and strings are compared as .NET compares them
+// returns nil for nil and after r failed. Numbers and strings are compared as .NET compares them
 // (a NaN equals every NaN), without a map, and so is a [NullableSlot] of a number, a set of T? (two nulls are equal);
 // other values as Go compares them (unique.go).
 func CheckUniqueValues[T comparable](r *Reader, v []T) []T {
+	return (*KeyCheck[T])(nil).Values(r, v)
+}
+
+// Values checks the elements of a set with c and returns them in their original order.
+// It has the same result and error behavior as [CheckUniqueValues]. A nil check discovers the key kind.
+func (c *KeyCheck[T]) Values(r *Reader, v []T) []T {
 	if v == nil || r.err != nil {
 		return nil
 	}
 	var e T
-	if repeated[T](unsafe.Pointer(unsafe.SliceData(v)), len(v), int(unsafe.Sizeof(e)), &r.keys) {
+	if c.repeated(unsafe.Pointer(unsafe.SliceData(v)), len(v), int(unsafe.Sizeof(e)), &r.keys) {
 		r.Fail(CodeDuplicateKey, "")
 		return nil
 	}
@@ -398,14 +420,18 @@ func readUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func
 
 // CheckUniqueKeys returns e, the pairs of a dictionary read in the order of the data, unless two of its keys are equal:
 // then it fails r with CodeDuplicateKey (as .NET's dictionaries do when filled from empty) and returns nil. It
-// returns nil for nil and after r failed. Generated code reads the pairs with direct calls, then checks them once
-// here. Keys are compared as [CheckUniqueValues] compares elements.
+// returns nil for nil and after r failed. Keys are compared as [CheckUniqueValues] compares elements.
 func CheckUniqueKeys[K comparable, V any](r *Reader, e []Entry[K, V]) []Entry[K, V] {
+	return CheckUniqueKeysWith[K, V](r, e, nil)
+}
+
+// CheckUniqueKeysWith is [CheckUniqueKeys] with key metadata prepared before decoding. A nil check discovers the key kind.
+func CheckUniqueKeysWith[K comparable, V any](r *Reader, e []Entry[K, V], c *KeyCheck[K]) []Entry[K, V] {
 	if e == nil || r.err != nil {
 		return nil
 	}
 	var pair Entry[K, V]
-	if repeated[K](unsafe.Pointer(unsafe.SliceData(e)), len(e), int(unsafe.Sizeof(pair)), &r.keys) {
+	if c.repeated(unsafe.Pointer(unsafe.SliceData(e)), len(e), int(unsafe.Sizeof(pair)), &r.keys) {
 		r.Fail(CodeDuplicateKey, "")
 		return nil
 	}

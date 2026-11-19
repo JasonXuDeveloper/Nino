@@ -9048,19 +9048,13 @@ impl UnionTagged {
 }
 impl NinoRead for UnionTagged {
     const MIN_SIZE: usize = 4;
+    #[inline]
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        let mut v = Self::Empty;
-        v.read_into(r)?;
-        Ok(v)
-    }
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            *self = Self::Empty;
-            return Ok(());
+            return Ok(Self::Empty);
         }
-        *self = Self::read_case(r, id)?;
-        Ok(())
+        Self::read_case(r, id)
     }
 }
 impl NinoWrite for UnionTagged {
@@ -9132,10 +9126,12 @@ impl UnionValue {
             }
             791437675 => Self::UnionPoint(r.read()?),
             635318394 => {
+                let mark = r.defer_mark();
                 let value: Option<Box<UnionItem>> = r.read()?;
                 if value.is_none() {
                     return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
                 }
+                r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<UnionValue>()?.case_value()));
                 Self::UnionItem(value)
             }
             _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
@@ -9145,25 +9141,17 @@ impl UnionValue {
 impl NinoRead for UnionValue {
     const MAY_DEFER: bool = true;
     const MIN_SIZE: usize = 4;
+    #[inline]
     fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
-        let mut v = Self::Empty;
-        v.read_into(r)?;
-        Ok(v)
-    }
-    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let id = r.i32()?;
         if id == 0 {
-            *self = Self::Empty;
-            return Ok(());
+            return Ok(Self::Empty);
         }
         // A case can hold the union again: each level counts toward the depth limit.
         r.enter_struct()?;
-        let mark = r.defer_mark();
         let value = Self::read_case(r, id);
         r.exit_struct();
-        *self = value?;
-        r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<UnionValue>()?.case_value()));
-        Ok(())
+        value
     }
 }
 impl NinoWrite for UnionValue {

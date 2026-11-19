@@ -263,14 +263,25 @@ func union_rs(t)
   end
   $o = $o + "    fn read_case(r: &mut nino::Reader<'_>, id: i32) -> nino::Result<Self> {\n        Ok(match id {\n"
   for $k in t.cases
+    $defer = t.model.union_nests && !$k.model.leaf
+    if !$k.model.nullable && !$defer
+      $o = $o + "            " + $k.model.type_id + " => Self::" + $k.name + "(r.read()?),\n"
+      continue
+    end
+    $o = $o + "            " + $k.model.type_id + " => {\n"
+    if $defer
+      # A primitive, raw value or string cannot introduce a deferred class body.
+      $o = $o + "                let mark = r.defer_mark();\n"
+    end
+    $o = $o + "                let value: " + rtype($k.shape) + " = r.read()?;\n"
     if $k.model.nullable
       # A case read as None is invalid: .NET writes the empty union for a case given null.
-      $o = $o + "            " + $k.model.type_id + " => {\n                let value: " + rtype($k.shape) + " = r.read()?;\n"
       $o = $o + "                if value.is_none() {\n                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));\n                }\n"
-      $o = $o + "                Self::" + $k.name + "(value)\n            }\n"
-    else
-      $o = $o + "            " + $k.model.type_id + " => Self::" + $k.name + "(r.read()?),\n"
     end
+    if $defer
+      $o = $o + "                r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<" + $n + ">()?.case_value()));\n"
+    end
+    $o = $o + "                Self::" + $k.name + "(value)\n            }\n"
   end
   $o = $o + "            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),\n        })\n    }\n}\n"
   $o = $o + "impl NinoRead for " + $n + " {\n"
@@ -278,17 +289,15 @@ func union_rs(t)
     $o = $o + "    const MAY_DEFER: bool = true;\n"
   end
   $o = $o + "    const MIN_SIZE: usize = 4;\n"
-  $o = $o + "    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {\n        let mut v = Self::Empty;\n        v.read_into(r)?;\n        Ok(v)\n    }\n"
-  $o = $o + "    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {\n        let id = r.i32()?;\n"
-  $o = $o + "        if id == 0 {\n            *self = Self::Empty;\n            return Ok(());\n        }\n"
+  $o = $o + "    #[inline]\n    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {\n        let id = r.i32()?;\n"
+  $o = $o + "        if id == 0 {\n            return Ok(Self::Empty);\n        }\n"
   if t.model.union_nests
     $o = $o + "        // A case can hold the union again: each level counts toward the depth limit.\n        r.enter_struct()?;\n"
-    $o = $o + "        let mark = r.defer_mark();\n        let value = Self::read_case(r, id);\n        r.exit_struct();\n        *self = value?;\n"
-    $o = $o + "        r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<" + $n + ">()?.case_value()));\n"
+    $o = $o + "        let value = Self::read_case(r, id);\n        r.exit_struct();\n        value\n"
   else
-    $o = $o + "        *self = Self::read_case(r, id)?;\n"
+    $o = $o + "        Self::read_case(r, id)\n"
   end
-  $o = $o + "        Ok(())\n    }\n}\n"
+  $o = $o + "    }\n}\n"
   $o = $o + "impl NinoWrite for " + $n + " {\n    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {\n        match self {\n"
   for $k in t.cases
     $o = $o + "            Self::" + $k.name + "(v)" + ($k.model.nullable ? " if v.is_some()" : "") + " => {\n"

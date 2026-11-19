@@ -27,6 +27,7 @@ namespace Nino.Codegen.Targets
         private readonly List<GoNamed> _namedCollections = new();
         private readonly Dictionary<string, GoHelper> _helperByKey = new(StringComparer.Ordinal);
         private readonly List<GoHelper> _helpers = new();
+        private readonly Dictionary<string, int> _keyChecks = new(StringComparer.Ordinal);
         private readonly HashSet<int> _tuples = new();
         private readonly Dictionary<TypeModel, GoGeneric> _generics = new();
         private readonly Dictionary<string, GoClosed> _closedByKey = new(StringComparer.Ordinal);
@@ -110,6 +111,9 @@ namespace Nino.Codegen.Targets
             renderer.Set("generic_slots", _slots.ToList());
             renderer.Set("uses_elements", types.Any(t => t.Elements != null));
             renderer.Function("helper", new Func<GoShape, string, string>(Helper));
+            renderer.Function("key_check", new Func<string, string>(KeyCheck));
+            renderer.Function("key_check_types", new Func<string[]>(() =>
+                _keyChecks.OrderBy(p => p.Value).Select(p => p.Key).ToArray()));
             renderer.Function("helper_count", new Func<int>(() => _helpers.Count));
             renderer.Function("helper_at", new Func<int, GoHelper>(i => _helpers[i]));
             renderer.Function("tag_name", new Func<string, string>(TagName));
@@ -156,12 +160,16 @@ namespace Nino.Codegen.Targets
         protected override void DeclareRaw(TypeModel type) => Raw(type.RawValue!);
 
         /// <summary>A closed generic type in a slot: the shapes of its arguments, its codec built in <c>init</c>.</summary>
-        private GoShape ClosedShape(ClosedTypeModel closed) => new("generic")
+        private GoShape ClosedShape(ClosedTypeModel closed)
         {
-            Type = closed.Definition, Items = closed.Value.Arguments.Select(a => Shape(a, false)).ToList(),
-            Slots = closed.Value.SlotArguments.Select(a => Shape(a, false)).ToList(),
-            MinSize = closed.IsValueType ? 0 : 1,
-        };
+            var shape = new GoShape("generic")
+            {
+                Type = closed.Definition, Items = closed.Value.Arguments.Select(a => Shape(a, false)).ToList(),
+                Slots = closed.Value.SlotArguments.Select(a => Shape(a, false)).ToList(),
+            };
+            SetGenericMinimum(shape);
+            return shape;
+        }
 
         /// <summary>The slots of closed generic types and the types and closed types each allows.</summary>
         internal List<GoType> SlotAllowed(GoSlot slot) => slot.Model.Assignable.Where(_supported.Contains)
@@ -186,6 +194,7 @@ namespace Nino.Codegen.Targets
             _namedCollections.Clear();
             _helperByKey.Clear();
             _helpers.Clear();
+            _keyChecks.Clear();
             _tuples.Clear();
             _generics.Clear();
             _closedByKey.Clear();
@@ -309,22 +318,6 @@ namespace Nino.Codegen.Targets
         }
 
         /// <summary>
-        /// The non-raw structs a value holds without a class body between: itself, or (behind a type id, in an
-        /// <c>object</c> or interface slot) any struct the slot allows.
-        /// </summary>
-        internal IEnumerable<TypeModel> StructsIn(ValueModel value)
-        {
-            var candidates = value.Kind switch
-            {
-                ValueKind.Type when value.Type!.Header == HeaderKind.TypeId => Allowed(value.Type),
-                ValueKind.Type => new List<TypeModel> { value.Type! },
-                ValueKind.Object => ObjectTypes().ToList(),
-                _ => new List<TypeModel>(),
-            };
-            return candidates.Where(t => t.IsValueType && !t.Raw && _supported.Contains(t));
-        }
-
-        /// <summary>
         /// The cases of a union in Go. A case whose value is a generated struct or class that is not generic (its Go
         /// type <c>X</c> or <c>*X</c>) is that type, marked with the union's method: the value is not wrapped again,
         /// and one type can be a case of several unions (a method each). Two cases of one union cannot share a named
@@ -414,6 +407,16 @@ namespace Nino.Codegen.Targets
             }
 
             return sb.Append('"').ToString();
+        }
+
+        private string KeyCheck(string type)
+        {
+            if (!_keyChecks.TryGetValue(type, out var index))
+            {
+                index = _keyChecks.Count;
+                _keyChecks.Add(type, index);
+            }
+            return "keyCheck" + index.ToString(CultureInfo.InvariantCulture);
         }
 
         // ---------------------------------------------------------------- helpers

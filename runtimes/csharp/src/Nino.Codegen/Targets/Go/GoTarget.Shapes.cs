@@ -51,8 +51,8 @@ namespace Nino.Codegen.Targets
                     {
                         Type = definition, Items = value.Arguments.Select(a => Shape(a, false)).ToList(),
                         Slots = value.SlotArguments.Select(a => Shape(a, false)).ToList(),
-                        MinSize = definition.IsValueType ? 0 : 1,
                     };
+                    SetGenericMinimum(shape);
                     if (_context != null && value.IsSelf(_context.Type))
                     {
                         shape.Field = "c.self";
@@ -88,15 +88,15 @@ namespace Nino.Codegen.Targets
                     bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
                                CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
                     string mode =
-                        element.Kind == "prim" && element.Primitive == "U8" ? "bytes"
-                        : set && Comparable(element) ? "unique"
+                        set && Comparable(element) ? "unique"
+                        : element.Kind == "prim" && element.Primitive == "U8" ? "bytes"
                         : set && element.Kind is "string" or "utf8" ? "stringset"
                         : element.Kind == "prim" && element.Primitive == "Bool" ? "bools"
                         : element.Block ? "block"
-                        : element.Kind == "prim" && BlockValues.Contains(element.Primitive!) ? "values"
+                        : element.BlockValue ? "values"
                         : element is { Kind: "rawnullable", Clean: true, Inner.Block: true } ? "ninonullables"
                         : element is { Kind: "rawnullable", SlotElement: true, Inner.Block: true } ? "nullableslots"
-                        : element.Kind is "rawstruct" or "rawnullable" or "rawtuple" ? "fixed"
+                        : element.Size > 0 && element.Kind != "emptystruct" ? "fixed"
                         : "slice";
                     return Open(value, new GoShape("seq")
                     {
@@ -106,11 +106,13 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Map:
                 {
                     var (k, v) = (Shape(value.Key!, true), Shape(value.Value!, false));
+                    bool unique = Comparable(k) || k.Kind is "keystring" or "keyutf8";
                     return Open(value, new GoShape("map")
                     {
-                        Key = k, Value = v,
+                        Key = k, Value = v, UniqueKeys = unique,
                         Mode = k.Block && v.Block ? "block"
-                            : Comparable(k) || k.Kind is "keystring" or "keyutf8" ? "unique" : "entries",
+                            : k.Size > 0 && v.Size > 0 ? "fixed"
+                            : unique ? "unique" : "entries",
                         MinSize = 4,
                     }, false);
                 }
@@ -133,7 +135,7 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Version:
                     return new GoShape("version") { MinSize = 4 };
                 case ValueKind.DateTimeOffset:
-                    return new GoShape("datetimeoffset") { MinSize = 10 };
+                    return new GoShape("datetimeoffset") { MinSize = 10, Size = 10, CheckedWrite = true };
                 case ValueKind.Unsupported:
                     throw new UnsupportedException(value.Problem!.Replace("{lang}", "Go"));
                 default:
@@ -243,7 +245,7 @@ namespace Nino.Codegen.Targets
                 return Raw(type.RawValue!);
             return type.Header switch
             {
-                HeaderKind.None => new GoShape("struct") { Type = type, MinSize = StructMinSize(type) },
+                HeaderKind.None => new GoShape("struct") { Type = type, MinSize = MinimumBody(type, Array.Empty<WireMinimum>()).Bytes },
                 HeaderKind.Presence => new GoShape("class") { Type = type, MinSize = type.TrackReferences ? 4 : 1 },
                 _ => new GoShape("slot") { Type = type, MinSize = 4 },
             };
@@ -251,25 +253,72 @@ namespace Nino.Codegen.Targets
 
         private readonly HashSet<TypeModel> _sizing = new();
 
-        /// <summary>The fewest bytes a struct's body takes (a collection's elements are checked against it).</summary>
-        private int StructMinSize(TypeModel type)
+        /// <summary>The least size of a generic struct, in terms of the codecs it was given.</summary>
+        internal string GenericBodyMinimum(TypeModel type) => MinimumBody(type, type.TypeParameters
+            .Select((_, i) => new WireMinimum(0, "c.p" + i.ToString(CultureInfo.InvariantCulture) + ".MinSize"))
+            .ToArray()).Text;
+
+        private void SetGenericMinimum(GoShape shape)
+        {
+            var minimum = MinimumType(shape.Type!,
+                shape.Items.Select(s => new WireMinimum(s.MinSize, s.MinExpression)).ToArray());
+            shape.MinSize = minimum.Bytes;
+            shape.MinExpression = minimum.Expression == null ? null : minimum.Text;
+        }
+
+        /// <summary>
+        /// The fewest bytes the body can take. Size its members without creating codecs. In particular, a collection
+        /// of a recursive generic struct takes a length, so this never needs the half-built codec of the struct.
+        /// </summary>
+        private WireMinimum MinimumBody(TypeModel type, IReadOnlyList<WireMinimum> arguments)
         {
             // A union: its case's type id at least.
             if (type.Format != BodyFormat.Positional || type.IsUnion)
-                return 4;
-            // A generic struct's members are sized by its arguments: none is counted on.
-            if (type.IsGenericDefinition)
-                return 0;
+                return new WireMinimum(4);
             if (!_sizing.Add(type))
-                return 0;
+                return default;
             try
             {
-                return type.Members.Sum(m => Shape(m.Value, false).MinSize);
+                return CodegenModel.OwnValues(type).Aggregate(default(WireMinimum),
+                    (size, v) => size.Add(MinimumValue(v, arguments)));
             }
             finally
             {
                 _sizing.Remove(type);
             }
+        }
+
+        private WireMinimum MinimumType(TypeModel type, IReadOnlyList<WireMinimum> arguments) => type.Raw
+            ? new WireMinimum(Math.Max(type.RawValue!.Size, 1))
+            : type.Header switch
+            {
+                HeaderKind.TypeId => new WireMinimum(4),
+                HeaderKind.Presence => new WireMinimum(type.TrackReferences ? 4 : 1),
+                _ => MinimumBody(type, arguments),
+            };
+
+        private WireMinimum MinimumValue(ValueModel value, IReadOnlyList<WireMinimum> arguments) => value.Kind switch
+        {
+            ValueKind.Parameter => arguments[value.Parameter],
+            ValueKind.Type => MinimumType(value.Type!, Array.Empty<WireMinimum>()),
+            ValueKind.Generic => MinimumType(value.Type!, value.Arguments.Select(v => MinimumValue(v, arguments)).ToArray()),
+            ValueKind.Tuple => value.Items.Aggregate(default(WireMinimum), (size, v) => size.Add(MinimumValue(v, arguments))),
+            ValueKind.String or ValueKind.Utf8 or ValueKind.Nullable => new WireMinimum(1),
+            ValueKind.Sequence or ValueKind.Map or ValueKind.Grid or ValueKind.Named or ValueKind.Object
+                or ValueKind.BigInteger or ValueKind.Version => new WireMinimum(4),
+            ValueKind.DateTimeOffset => new WireMinimum(10),
+            ValueKind.RawStruct => new WireMinimum(Math.Max(value.Struct!.Size, 1)),
+            _ => new WireMinimum(Math.Max(value.Size, 0)),
+        };
+
+        private readonly record struct WireMinimum(int Bytes, string? Expression = null)
+        {
+            private string Constant => Bytes.ToString(CultureInfo.InvariantCulture);
+
+            internal string Text => Expression == null ? Constant : Bytes == 0 ? Expression : Constant + " + " + Expression;
+
+            internal WireMinimum Add(WireMinimum size) => new(Bytes + size.Bytes,
+                Expression == null ? size.Expression : size.Expression == null ? Expression : Expression + " + " + size.Expression);
         }
 
         private static readonly Dictionary<PrimitiveKind, (string Name, bool Block, bool Validated)> Primitives = new()
@@ -316,6 +365,7 @@ namespace Nino.Codegen.Targets
                         return new GoShape("prim")
                         {
                             Primitive = p.Name, Size = value.Size, MinSize = value.Size, Block = p.Block,
+                            BlockValue = BlockValues.Contains(p.Name), CheckedWrite = p.Validated && p.Name != "Bool",
                             // Read in a run of fixed-size members: any bit pattern is valid.
                             Runnable = !p.Validated,
                         };

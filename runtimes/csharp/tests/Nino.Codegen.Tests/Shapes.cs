@@ -111,6 +111,17 @@ namespace Shapes
         public short Code;
     }
 
+    /// <summary>Fixed-width collections whose Go element memory is not necessarily the wire layout.</summary>
+    [NinoType]
+    public sealed class FixedCollections
+    {
+        public Dictionary<System.Guid, Marked> Ids;
+        public HashSet<System.Guid> UniqueIds;
+        public byte[,] Grid;
+        public Dictionary<int, long> Pairs;
+        public System.DateTimeOffset[] Offsets;
+    }
+
     /// <summary>Keys Rust cannot hash: Rust leaves the type out, with a warning; Go and TypeScript keep it.</summary>
     [NinoType]
     public sealed class FloatKeys
@@ -167,7 +178,7 @@ namespace Shapes
         public List<(int, int?)> Tuples;
     }
 
-    /// <summary>Raw nullables as the elements of arrays of two and three dimensions: slots too (TypeScript has no grids).</summary>
+    /// <summary>Raw nullables as the elements of arrays of two and three dimensions: slots too.</summary>
     [NinoType]
     public sealed class NullableGrids
     {

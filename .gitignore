@@ -16,6 +16,16 @@ TestResults/
 runtimes/csharp/tests/Nino.UnitTests/*.rsp
 **/BenchmarkDotNet.Artifacts
 
+# Local output from before the .NET projects moved under runtimes/csharp.
+/benchmarks/results/
+/benchmarks/members/results/
+/src/Nino.Unity/[Ll]ibrary/
+/src/Nino.Unity/[Ll]ogs/
+/src/Nino.Unity/[Uu]ser[Ss]ettings/
+/src/Nino.Unity/*.csproj
+/src/Nino.Unity/*.sln
+/tests/Nino.Fuzz/findings/
+
 # Python bytecode (the scripts under runtimes/csharp/benchmarks/ and .github/scripts/)
 __pycache__/
 
