@@ -274,7 +274,7 @@ namespace Nino.Codegen.Targets
                 return Shape(type.RawValue!);
             bool body = type.IsClassBody;
             var reaches = body ? new List<TypeModel>() : new List<TypeModel> { type };
-            // A union: its cases' values, or null for the empty union (TypeScriptTarget.UnionForm).
+            // A union: its cases' values, or null for the empty union (TypeScriptTarget.UnionCases).
             if (type.IsUnion)
                 return new TsShape("type") { Type = type, Header = "union", Reaches = reaches };
             return type.Header switch
