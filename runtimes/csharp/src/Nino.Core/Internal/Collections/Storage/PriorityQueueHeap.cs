@@ -1,9 +1,6 @@
 #if NET10_0_OR_GREATER
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.Arm;
-using System.Runtime.Intrinsics.X86;
 using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
@@ -12,116 +9,78 @@ namespace Nino.Core.Internal
     {
         internal static readonly bool Usable = ObjectTypes.Passes(Check);
 
+        /// <summary>
+        /// Writes the count and the queue's heap, its nodes as one run of pairs through the run loops (raw pairs and
+        /// blocks as one block, others pair by pair through the pair's formatter <typeparamref name="TFormatter"/>),
+        /// whatever the element and the priority are (#350). The writer by value and returned.
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static bool TryWrite<TElement, TPriority, TFormatter>(PriorityQueue<TElement, TPriority> queue,
-            int count, ref Writer writer) where TFormatter : struct, INinoFormatter<(TElement, TPriority)>
+        internal static Writer Write<TElement, TPriority, TFormatter>(PriorityQueue<TElement, TPriority> queue,
+            Writer writer) where TFormatter : struct, INinoFormatter<(TElement, TPriority)>
         {
-            if (!Usable)
-                return false;
-
             int version = Fields<TElement, TPriority>.Version(queue);
             var nodes = Fields<TElement, TPriority>.Nodes(queue);
-            if (nodes.Length < count || Fields<TElement, TPriority>.Size(queue) != count)
+            int count = Fields<TElement, TPriority>.Size(queue);
+            if ((uint)count > (uint)nodes.Length)
                 NinoThrow.ModifiedDuringWrite();
-            // The startup probe already established the layout of the common int pair.
-            bool intPair = typeof(TElement) == typeof(int) && typeof(TPriority) == typeof(int);
-            int size = intPair ? 8 : NinoBlockPlan<(TElement, TPriority), TFormatter>.Size;
-            ref byte target = ref writer.ReserveCounted(count, size);
-            ref var source = ref NinoUnsafe.GetArrayDataReference(nodes);
-            if (intPair || NinoBlockPlan<(TElement, TPriority), TFormatter>.IsMemory)
-                NinoUnsafe.CopyToNew(ref target, ref Unsafe.As<(TElement, TPriority), byte>(ref source),
-                    (uint)(count * size));
-            else
-            {
-                // A constrained call keeps padded tuples allocation-free even before tier promotion.
-                for (int i = 0; i < count; i++)
-                {
-                    default(TFormatter).WriteFixed(in Unsafe.Add(ref source, i), ref target);
-                    target = ref Unsafe.Add(ref target, size);
-                }
-            }
+            NinoCollections.WriteSpan<(TElement, TPriority), TFormatter>(
+                new System.ReadOnlySpan<(TElement, TPriority)>(nodes, 0, count), ref writer);
             if (Fields<TElement, TPriority>.Version(queue) != version)
                 NinoThrow.ModifiedDuringWrite();
-            return true;
+            return writer;
         }
 
+        /// <summary>
+        /// Reads <paramref name="count"/> pairs straight into the empty queue's heap through the run's read loop, then
+        /// publishes them when they are in heap order under its comparer (each priority at least its parent's, as a
+        /// heap Nino wrote is): enqueued in that order, the queue would hold the same heap. Out of order under this
+        /// comparer, they are enqueued one by one. Nothing is read (<paramref name="adopted"/> false) where the queue
+        /// is not empty or its heap has no room for them. The queue stays empty until published: a read rejected half
+        /// way leaves it empty.
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static bool TryAdopt(PriorityQueue<int, int> queue, int count, ref Reader reader)
+        internal static Reader Adopt<TElement, TPriority, TFormatter>(PriorityQueue<TElement, TPriority> queue,
+            int count, Reader reader, out bool adopted) where TFormatter : struct, INinoFormatter<(TElement, TPriority)>
         {
-            if (!Usable || !ReferenceEquals(queue.Comparer, Comparer<int>.Default))
-                return false;
-            var nodes = Fields<int, int>.Nodes(queue);
-            if (nodes.Length < count || (ulong)(uint)count * 8 > (uint)reader.Remaining)
-                return false;
-            // The default comparer leaves a node in place when its priority equals its parent.
-            ref byte source = ref reader.Peek();
-            ref byte target = ref Unsafe.As<(int, int), byte>(ref NinoUnsafe.GetArrayDataReference(nodes));
-            int i = 1;
-            int copied = 0;
-            if (AdvSimd.Arm64.IsSupported || Sse2.IsSupported)
+            var nodes = Fields<TElement, TPriority>.Nodes(queue);
+            adopted = queue.Count == 0 && nodes.Length >= count;
+            if (!adopted)
+                return reader;
+            var heap = new System.Span<(TElement, TPriority)>(nodes, 0, count);
+            if (!NinoElements.ReadOverwrites<(TElement, TPriority), TFormatter>())
+                heap.Clear();
+            NinoRuns.Read<(TElement, TPriority), TFormatter>(heap, ref reader);
+            if (InHeapOrder(heap, queue.Comparer))
             {
-                // Until Size is published, a rejected group leaves an empty queue for the enqueue fallback.
-                NinoUnsafe.Write(ref target, NinoUnsafe.Read<long>(ref source));
-                ref byte children = ref Unsafe.Add(ref source, 8);
-                ref byte destination = ref Unsafe.Add(ref target, 8);
-                ref byte parentPriority = ref Unsafe.Add(ref source, 4);
-                // Share the horizontal reduction across two parents on NEON.
-                if (AdvSimd.Arm64.IsSupported && count >= 33)
-                {
-                    for (; i <= count - 8; i += 8)
-                    {
-                        var a = Vector128.LoadUnsafe(ref children);
-                        var b = Vector128.LoadUnsafe(ref children, 16);
-                        var c = Vector128.LoadUnsafe(ref children, 32);
-                        var d = Vector128.LoadUnsafe(ref children, 48);
-                        var first = Vector128.GreaterThan(Vector128.Create(NinoUnsafe.Read<int>(ref parentPriority)),
-                            NinoSimd.OddInt32(a.AsInt32(), b.AsInt32()));
-                        var second = Vector128.GreaterThan(
-                            Vector128.Create(NinoUnsafe.Read<int>(ref Unsafe.Add(ref parentPriority, 8))),
-                            NinoSimd.OddInt32(c.AsInt32(), d.AsInt32()));
-                        if ((first | second) != Vector128<int>.Zero)
-                            return false;
-                        a.StoreUnsafe(ref destination);
-                        b.StoreUnsafe(ref destination, 16);
-                        c.StoreUnsafe(ref destination, 32);
-                        d.StoreUnsafe(ref destination, 48);
-                        children = ref Unsafe.Add(ref children, 64);
-                        destination = ref Unsafe.Add(ref destination, 64);
-                        parentPriority = ref Unsafe.Add(ref parentPriority, 16);
-                    }
-                }
+                Fields<TElement, TPriority>.Size(queue) = count;
+                Fields<TElement, TPriority>.Version(queue) += count;
+                return reader;
+            }
 
-                for (; i <= count - 4; i += 4)
-                {
-                    var a = Vector128.LoadUnsafe(ref children).AsInt32();
-                    var b = Vector128.LoadUnsafe(ref children, 16).AsInt32();
-                    int parent = NinoUnsafe.Read<int>(ref parentPriority);
-                    if (Vector128.GreaterThanAny(Vector128.Create(parent), NinoSimd.OddInt32(a, b)))
+            // Not a heap under this comparer: enqueued one by one from a copy.
+            var pairs = heap.ToArray();
+            heap.Clear();
+            foreach (var (element, priority) in pairs)
+                queue.Enqueue(element, priority);
+            return reader;
+        }
+
+        /// <summary>Whether every priority is at least its parent's (a 4-ary heap: the parent of i is (i - 1) / 4).</summary>
+        private static bool InHeapOrder<TElement, TPriority>(System.ReadOnlySpan<(TElement, TPriority)> heap,
+            IComparer<TPriority> comparer)
+        {
+            if (typeof(TPriority).IsValueType && ReferenceEquals(comparer, Comparer<TPriority>.Default))
+            {
+                // Comparer<TPriority>.Default devirtualized and inlined for value types.
+                for (int i = 1; i < heap.Length; i++)
+                    if (Comparer<TPriority>.Default.Compare(heap[i].Item2, heap[(i - 1) >> 2].Item2) < 0)
                         return false;
-                    a.AsByte().StoreUnsafe(ref destination);
-                    b.AsByte().StoreUnsafe(ref destination, 16);
-                    children = ref Unsafe.Add(ref children, 32);
-                    destination = ref Unsafe.Add(ref destination, 32);
-                    parentPriority = ref Unsafe.Add(ref parentPriority, 8);
-                }
-
-                copied = i;
+                return true;
             }
 
-            for (; i < count; i++)
-            {
-                ref byte child = ref Unsafe.Add(ref source, i * 8);
-                if (NinoUnsafe.Read<int>(ref Unsafe.Add(ref child, 4)) <
-                    NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, ((i - 1) >> 2) * 8 + 4)))
+            for (int i = 1; i < heap.Length; i++)
+                if (comparer.Compare(heap[i].Item2, heap[(i - 1) >> 2].Item2) < 0)
                     return false;
-            }
-
-            if (copied != count)
-                NinoUnsafe.CopyToNew(ref Unsafe.Add(ref target, copied * 8), ref Unsafe.Add(ref source, copied * 8),
-                    (uint)((count - copied) * 8));
-            Fields<int, int>.Size(queue) = count;
-            Fields<int, int>.Version(queue) += count;
-            reader.Advance(count * 8);
             return true;
         }
 

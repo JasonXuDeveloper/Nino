@@ -85,6 +85,24 @@ slot and block kernels or value by value, and the entries of a new `HashSet<T>` 
 values and blocks read as one block and scattered into the entries by the block kernels (the entry block formatter's
 read), others value by value into their places, then linked (below).
 
+A collection that is not one contiguous run (a `SortedSet<T>` or `SortedDictionary<TKey, TValue>` tree, a
+`LinkedList<T>` ring, a concurrent dictionary or queue, any other `ICollection<T>` or `IEnumerable<T>`) is gathered: its
+elements are walked into a chunk of Nino's own per-thread buffer (`NinoGather`, 16 KB a chunk, pinned and 64-byte
+aligned for values without references on .NET 8+, a few kept per element type for nesting, cleared of references when
+given back), and each chunk is written by the same loop per element kind as an array of them. The walk goes through the
+collection's fields where `CollectionViews` checked them (the tree's nodes on a stack of its own, the ring's nodes), else
+through its own struct enumerator; a collection that fits one chunk is copied in by its `CopyTo`. A known count of
+values whose memory is their wire form is walked straight into the writer's buffer. The walk checks the count and the
+collection's version against what it found, so a collection changed during the write throws. Reads fill a chunk through
+the read loop and hand it over: a `LinkedList<T>` links each chunk's nodes and sets its fields once at the end, a
+`SortedList<TKey, TValue>` splits each chunk into its two arrays and publishes its size once the keys are found in order
+under its comparer, a `PriorityQueue<TElement, TPriority>` (.NET 10) reads into its heap and publishes it once every
+priority is at least its parent's, for any element and priority (#350); a collection that takes elements one at a time
+(`Add`, `TryAdd`, `Push`, `Enqueue`) gets each chunk's, where the read loop moves several at once (raw values, slots,
+blocks, strings), else one at a time. Until published, a collection holds none of what a rejected read filled. The
+trees (`SortedSet<T>`, `SortedDictionary<TKey, TValue>`) and the concurrent stack, queue and bag, which are built in
+one go, still read the whole count into a rented array first.
+
 Strings (the default encoding and UTF-8), raw values, blocks and pairs of them have a cursor form of their write and
 read (`NinoCursor`, #347): a value written at a reference into free space once its longest form fits (`MaxSize`,
 `WriteAt`), read from a reference and the bytes left (`ReadAt`), each returning the bytes it took. Raw values and
@@ -97,7 +115,7 @@ dictionary's adds one pair at a time, `Merges`: its merge into the pairs there; 
 by type, so nothing is called per pair). The element loop is the pair loop without keys
 (`NinoCursor.None`). So strings in a row, a set's strings, and every pairing of strings, UTF-8 strings, raw values and
 blocks in a dictionary (`Dictionary<string, int>` among them), and the pairs of a sorted or concurrent dictionary (a
-rented array of pairs), go through the same two loops, with the per-pair checks of the per-value ones: a null or
+chunk of the gather above, or a rented array of a tree's pairs), go through the same two loops, with the per-pair checks of the per-value ones: a null or
 repeated key, hash flooding through `HashTables`, every length checked before allocating.
 
 A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members

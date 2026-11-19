@@ -64,19 +64,8 @@ namespace Nino.Core
             if (BclCollections<T, TFormatter>.TryRead(collection, length, ref reader))
                 return;
 
-            // Slots (raw T?): read as one run, as an array of them is, then added.
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-            {
-                NinoCollections.AddSlots<TCollection, T, TFormatter, Adder>(collection, length, ref reader);
-                return;
-            }
-
-            for (int i = 0; i < length; i++)
-            {
-                T item = default;
-                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
-                collection.Add(item);
-            }
+            // A chunk at a time where the run's read loop moves several, then added.
+            reader = NinoCollections.AddAll<TCollection, T, TFormatter, Adder>(collection, length, reader);
         }
 
         /// <summary>

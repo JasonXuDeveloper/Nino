@@ -73,7 +73,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteCollection(TKey key, ICollection<TElement> collection, Writer writer)
         {
-            var elements = NinoCollections.RentCopied(collection, null, out int count);
+            var elements = NinoCollections.RentCopied(collection, out int count);
             try
             {
                 return WriteElements(key, new ReadOnlySpan<TElement>(elements, 0, count), writer);

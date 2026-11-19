@@ -112,7 +112,7 @@ namespace Nino.Core
             // Slots (raw T?): read as one run, as an array of them is, then added.
             if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
             {
-                NinoCollections.AddSlots<TQueue, T, TFormatter, Adder>(queue, length, ref reader);
+                reader = NinoCollections.AddAll<TQueue, T, TFormatter, Adder>(queue, length, reader);
                 return;
             }
 

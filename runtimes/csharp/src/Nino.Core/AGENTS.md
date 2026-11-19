@@ -215,8 +215,10 @@ CollectionViews.Mirrors.cs   the candidates: mirror classes per runtime, the fie
 CollectionViews.Checks.cs    the startup checks of each candidate against an instance with known contents
 ConcurrentStackNodes.cs      read-only CoreLib ConcurrentStack node snapshots for raw writes, startup-checked
 ListAccess.cs                a List<T>'s elements as a span (CollectionsMarshal, its fields, or copies)
-PriorityQueueHeap.cs         checked .NET 10 integer heap copies to and from raw pairs, preserving heap order
-SortedSetNodes.cs            SortedSet<T> red-black trees built in one pass (SortedSetTrees, node layouts)
+PriorityQueueHeap.cs         a .NET 10 PriorityQueue's heap as one run of pairs, written and read in place for any
+                             element and priority (Write, Adopt: published once in heap order)
+SortedSetNodes.cs            SortedSet<T> red-black trees built in one pass (SortedSetTrees, node layouts), and walked in
+                             order a chunk at a time for the gather (Walk)
 NinoCollectionViews.cs       reads into the backing storage shared by Queue and Stack formatters
 ```
 
@@ -233,7 +235,7 @@ HashTables.Checks.cs         its startup checks (the hashing of each implementat
 ### Internal/Collections/Traversal/
 
 ```
-NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
+NinoCollections.cs           shared collection helpers (rented reads, enumerable writes through the gather, AddAll)
 NinoKind.cs                  the one element-kind decision every collection reads: NinoKind<TFormatter> (what a formatter
                              says of every value, read once: Traits, IsString, Cursor, the run loop, prefetch,
                              the sized and external top-level writes), NinoKind<T, TFormatter> (NinoElementKind: raw,
@@ -258,8 +260,10 @@ NinoPrefetch.cs              software prefetch for long top-level collections of
                              out-of-line helper per run; Threshold and ReverseReadIsLocal of a formatter's PrefetchBytes
 NinoDictionary.cs            shared dictionary reads and reuse; its write and its fill build the entries' run (NinoRuns)
 NinoNullables.cs             fixed-stride nullable encoding and the host layout probe
-BclCollections.cs            runtime-owned collections using their checked views; linked-list ring
-BclDictionaries.cs           runtime-owned concurrent and sorted dictionaries
+BclCollections.cs            runtime-owned collections using their checked views, gathered: SortedSet's tree, LinkedList's
+                             ring (Ring) and its nodes linked as read (Links)
+BclDictionaries.cs           runtime-owned concurrent and sorted dictionaries, gathered; SortedList read into its two
+                             arrays (Split) and published once in order
 ```
 
 ### Internal/Blocks/
@@ -336,6 +340,11 @@ NinoStreams.cs               the I/O of every Stream overload: writes from the s
                              already in memory in place: a MemoryStream's exposed buffer, an UnmanagedMemoryStream, a
                              memory-mapped view); INinoStreamReader
 NinoThreadCache.cs           helpers for the per-thread caches
+NinoGather.cs                the gather of collections that are not one run (trees, linked lists, enumerators): their
+                             elements walked into a chunk of Nino's own per-thread buffer (NinoGather<T>: 16 KB chunks,
+                             pinned and 64-byte aligned without references, kept for nesting), each chunk written by the
+                             run loops (Write, WriteCopied); reads fill a chunk through the read loop and hand it to the
+                             collection (Read, ReadAll); INinoGatherSource / INinoGatherTarget, Enumerated, Adds
 ```
 
 ### Internal/Metadata/

@@ -45,6 +45,14 @@ the fallback (the enumerator) out of line.
 
 ## Building a runtime's objects without its public API
 
+- **Fill the storage, then publish** (#350, #355 step 6): read a chunk at a time straight into the collection's own
+  arrays (`SortedList`'s keys and values, a .NET 10 `PriorityQueue`'s heap, a `LinkedList`'s new nodes), check what
+  its comparer requires (keys strictly ascending, each priority at least its parent's), and only then set its size,
+  head and version; out of order, add them through the public API. Until then the collection is empty, so a read
+  rejected half way leaves nothing in it. Grow an existing queue's heap the way enqueuing would
+  (`EnsureCapacity(capacity + 1)` until it fits), not to the count: `PriorityQueueReadsRawHeapWithoutChangingInsertionOrder`
+  pins the capacity a refill leaves.
+
 `Nino.Immutable/HashTrees.cs` (an `ImmutableDictionary` or `ImmutableHashSet` built as its tree, instead of one
 builder `Add` at a time); `SortedSetNodes` in Nino.Core (a `SortedSet<T>`'s red-black tree); `ReadLinked` (a
 `LinkedList<T>`'s ring of nodes); `ConcurrentTables.Builder` (a `ConcurrentDictionary`'s bucket chains). One way for
@@ -88,4 +96,7 @@ What works everywhere so far:
 - CI's "Runtime internals" job runs `runtimes/csharp/tests/Nino.RuntimeTests` on .NET (x64, Arm64, Arm32 under qemu, Windows x64 and
   x86) and Mono (x64, Arm64; the netstandard2.1 builds): give a new path a case there with known contents, and
   its startup flag a row in its `FastPaths`, so a runtime that falls back to the public API fails. Each runtime must
-  write .NET x64's bytes; locally, diff the outputs (.github/CONTRIBUTING.md).
+  write .NET x64's bytes; locally, diff the outputs (.github/CONTRIBUTING.md). CI diffs every line that does not start with `#`, so a case
+  only one build has (a .NET-only type such as `PriorityQueue` or `Int128`, absent from the net472 build Mono runs)
+  prints its name with a leading `# `, and its result still counts toward `ALL OK`: #421's `PriorityQueue` case failed
+  the Mono jobs on its first CI run because its line was missing from Mono's output.

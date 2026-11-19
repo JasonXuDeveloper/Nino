@@ -74,7 +74,9 @@ Collections/                 arrays, BCL and user collections, empty ones, Stack
                              (CursorTests: every string, UTF-8, raw and block pairing, [NinoUtf8] members, sorted and
                              concurrent dictionaries, merges and hostile pairs), the prefetch of long top-level arrays
                              and lists of scattered objects and the
-                             interceptors that route them there (PrefetchTests)
+                             interceptors that route them there (PrefetchTests), the gather of collections that are not
+                             one run across its chunks, SortedList and PriorityQueue read into their storage for any pair,
+                             and rejected reads that leave them empty (GatherTests)
   FastPaths/                 the collection fast paths (arrays, blocks, dictionaries, linked lists, priority queues,
                              sorted collections and lists; CollectionFastPathFixtures) and the HashTables fill
 Layout/                      raw structs, padding, the portable (canonical) layout, BCL structs inside raw structs

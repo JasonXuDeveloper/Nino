@@ -393,6 +393,14 @@ public static class Program
         Case("LinkedList<int>", new LinkedList<int>(ints));
         Case("LinkedList<Padded>", new LinkedList<Padded>(padded));
         Case("LinkedList<string>", new LinkedList<string>(strs));
+        // Past a gather's chunk (NinoGather: 16 KB), so the walks and reads resume across chunks.
+        var chunked = Enumerable.Range(0, 5000).ToArray();
+        Case("LinkedList<long> chunks", new LinkedList<long>(chunked.Select(i => (long)i << 30)));
+        Case("LinkedList<int?> chunks", new LinkedList<int?>(chunked.Select(i => i % 3 == 0 ? null : (int?)i)));
+        Case("SortedSet<long> chunks", new SortedSet<long>(chunked.Select(i => (long)i * 7)));
+        Case("SortedDict<int,str> chunks", new SortedDictionary<int, string>(chunked.ToDictionary(i => i, i => "v" + i)));
+        Case("SortedList<long,double> chunks", new SortedList<long, double>(chunked.ToDictionary(i => (long)i << 20, i => i * 0.5)));
+        Case("SortedList<int,str> chunks", new SortedList<int, string>(chunked.ToDictionary(i => i, i => "s" + i)));
         // One entry: the order of more depends on the dictionary's capacity, which reading may change.
         Case("ConcurrentDict", new ConcurrentDictionary<int, int>(new Dictionary<int, int> { [42] = 7 }));
         Case("ConcurrentQueue", new ConcurrentQueue<int>(ints));
@@ -496,6 +504,32 @@ public static class Program
                    list.Last.Previous.Value == "n999" && list.First.Next.Value == "n0" && list.Find("n500") == null &&
                    list.Reverse().Count() == 1001;
         });
+        Built("SortedList<long,str> built", new SortedList<long, string>(Enumerable.Range(0, 3000).ToDictionary(i => (long)i * 3, i => "v" + i)), list =>
+        {
+            bool removed = list.Remove(3);
+            list.Add(4, "x");
+            return removed && list.Count == 3000 && list.IndexOfKey(4) == 1 && list[8997] == "v2999" &&
+                   list.Keys.SequenceEqual(list.Keys.OrderBy(k => k));
+        });
+#if NET8_0_OR_GREATER
+        // Sized for its pairs, as a queue read is (Contents compares the capacity too). The net472 build (Mono's) has
+        // no PriorityQueue, so the line starts with '#': CI's diff against .NET leaves it out, and a failure still
+        // counts (Built adds it to _failed).
+        var heap = new PriorityQueue<string, long>(3000);
+        heap.EnqueueRange(Enumerable.Range(0, 3000).Select(i => ("e" + i, (long)(i * 7919 % 3001))));
+        Built("# PriorityQueue<str,long> built", heap, queue =>
+        {
+            queue.Enqueue("first", -1);
+            long last = long.MinValue;
+            bool ordered = queue.Peek() == "first" && queue.Count == 3001;
+            while (queue.TryDequeue(out _, out long priority))
+            {
+                ordered &= priority >= last;
+                last = priority;
+            }
+            return ordered;
+        });
+#endif
         Built("HashSet<str> built", new HashSet<string>(Enumerable.Range(0, 3000).Select(i => "h" + i)), set =>
             set.Remove("h3") && set.Add("x") && !set.Add("h4") && set.Count == 3000 && set.Contains("h2999") &&
             !set.Contains("h3"));

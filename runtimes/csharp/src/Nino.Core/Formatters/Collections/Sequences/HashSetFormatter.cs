@@ -38,23 +38,13 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// The count and the elements through the enumerator, where the set's fields are not known: out of line, the
-        /// writer by value and returned.
+        /// The count and the elements through the set's enumerator, gathered a chunk at a time, where the set's fields
+        /// are not known: out of line, the writer by value and returned.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteEnumerated(TSet value, int count, Writer writer)
-        {
-            writer.WriteLength(count);
-            int written = 0;
-            foreach (var item in value)
-            {
-                if (++written > count)
-                    NinoThrow.ModifiedDuringWrite();
-                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
-            }
-
-            return writer;
-        }
+        private static Writer WriteEnumerated(TSet value, int count, Writer writer) =>
+            NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, HashSet<T>.Enumerator>>(
+                new(((HashSet<T>)value).GetEnumerator()), count, writer);
 
         public void Deserialize(ref Reader reader, ref TSet value)
         {
@@ -81,7 +71,8 @@ namespace Nino.Core
             // Slots that are not their memory: read as one run into a rented array, then added, out of line.
             if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot && !default(TFormatter).SlotsAreMemory)
             {
-                AddSlots(set, length, ref reader);
+                var adds = new Adds(set, length);
+                reader = NinoGather.ReadAll<T, TFormatter, Adds>(ref adds, length, reader);
                 return;
             }
 
@@ -230,24 +221,26 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Reads <paramref name="length"/> slots (raw <c>T?</c>) that are not their memory as one run into a rented
-        /// array, checked and converted by the run's kernels, then adds each: one element at a time through the reader
-        /// took two and a half times as long (1,000 <c>int?</c>: 12,174 ns against 4,842 before slots, local).
+        /// Slots (raw <c>T?</c>) that are not their memory, read a chunk at a time by the run's kernels (checked and
+        /// converted), then added: one element at a time through the reader took two and a half times as long (1,000
+        /// <c>int?</c>: 12,174 ns against 4,842 before slots, local).
         /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void AddSlots(TSet set, int length, ref Reader reader)
+        private readonly struct Adds : INinoGatherTarget<T>
         {
-            var rented = NinoCollections.ReadRented<T, TFormatter>(length, ref reader);
-            try
+            private readonly TSet _set;
+            private readonly bool _insert, _walk;
+
+            public Adds(TSet set, int length)
             {
-                bool insert = HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length);
-                bool walk = HashTables.Plan<T>.Walks;
-                for (int i = 0; i < length; i++)
-                    Add(set, rented[i], insert, walk);
+                _set = set;
+                _insert = HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length);
+                _walk = HashTables.Plan<T>.Walks;
             }
-            finally
+
+            public void Add(Span<T> chunk)
             {
-                NinoCollections.ReturnRented(rented);
+                foreach (var item in chunk)
+                    HashSetFormatter<TSet, T, TFormatter>.Add(_set, item, _insert, _walk);
             }
         }
     }
