@@ -12,8 +12,8 @@ namespace Nino.Core.Internal
     /// Fills a new <see cref="HashSet{T}"/> or <see cref="Dictionary{TKey,TValue}"/> by writing its entries and buckets
     /// directly, as its Add would, without the checks Add repeats per element (the comparer, the free list, the
     /// capacity, the version): a read fills the entries through their run (<see cref="NinoRuns.ReadSet{T,TFormatter}"/>,
-    /// <see cref="NinoRuns.ReadPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>: raw values and blocks scattered by
-    /// the block kernels, others value by value), then <see cref="Link{T}(HashSet{T}, int)"/> hashes them and links the
+    /// a set's values or a dictionary's pairs: raw values and blocks scattered by the block kernels, others value by
+    /// value), then <see cref="Link{T}(HashSet{T}, int)"/> hashes them and links the
     /// buckets in one pass (#320, #355). The collection is created and sized through its public API first (its
     /// constructor or EnsureCapacity allocate the buckets and entries and set the fast-mod multiplier); only the
     /// entries, the buckets and the count are written here, at the offsets <see cref="CollectionViews"/> found. The

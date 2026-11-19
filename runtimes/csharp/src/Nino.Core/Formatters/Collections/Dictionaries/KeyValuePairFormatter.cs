@@ -79,28 +79,18 @@ namespace Nino.Core
             value = new KeyValuePair<TKey, TValue>(key, item);
         }
 
-        // The cursor form where both items have it (strings, raw values, blocks): a pair in a row of pairs (a sorted
-        // or concurrent dictionary's, through a rented array) is then read and written by the element loop, its
-        // items as a dictionary's entries are (NinoCursor).
-        bool INinoFormatter.HasCursor =>
-            NinoCursor.Has<TKey, TKeyFormatter>() && NinoCursor.Has<TValue, TValueFormatter>();
+        // The cursor form where both items have it (strings, raw values, blocks): a pair in a run of pairs (a list's,
+        // a dictionary's entries, a sorted or concurrent dictionary's gathered) is then read and written by the cursor
+        // loop, its items composed here (NinoCursor's pair helpers, as a dictionary's entry composes them).
+        bool INinoFormatter.HasCursor => NinoCursor.Has<TKey, TValue, TKeyFormatter, TValueFormatter>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<KeyValuePair<TKey, TValue>>.MaxSize(KeyValuePair<TKey, TValue> value)
-        {
-            int key = NinoCursor.MaxSize<TKey, TKeyFormatter>(value.Key);
-            int item = NinoCursor.MaxSize<TValue, TValueFormatter>(value.Value);
-            // Past an int: negative, which the writer rejects.
-            return (uint)key + (uint)item > int.MaxValue ? -1 : key + item;
-        }
+        int INinoFormatter<KeyValuePair<TKey, TValue>>.MaxSize(KeyValuePair<TKey, TValue> value) =>
+            NinoCursor.MaxSize<TKey, TValue, TKeyFormatter, TValueFormatter>(value.Key, value.Value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<KeyValuePair<TKey, TValue>>.WriteAt(ref byte destination, KeyValuePair<TKey, TValue> value)
-        {
-            int size = NinoCursor.WriteAt<TKey, TKeyFormatter>(ref destination, value.Key);
-            return size + NinoCursor.WriteAt<TValue, TValueFormatter>(ref Unsafe.Add(ref destination, (nint)(uint)size),
-                value.Value);
-        }
+        int INinoFormatter<KeyValuePair<TKey, TValue>>.WriteAt(ref byte destination, KeyValuePair<TKey, TValue> value) =>
+            NinoCursor.WriteAt<TKey, TValue, TKeyFormatter, TValueFormatter>(ref destination, value.Key, value.Value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int INinoFormatter<KeyValuePair<TKey, TValue>>.ReadAt(ref byte source, int available,
@@ -108,12 +98,24 @@ namespace Nino.Core
         {
             TKey key = value.Key;
             TValue item = value.Value;
-            int size = NinoCursor.ReadAt<TKey, TKeyFormatter>(ref source, available, ref key);
-            size += NinoCursor.ReadAt<TValue, TValueFormatter>(ref Unsafe.Add(ref source, (nint)(uint)size),
-                available - size, ref item);
+            int size = NinoCursor.ReadAt<TKey, TValue, TKeyFormatter, TValueFormatter>(ref source, available, ref key,
+                ref item);
             value = new KeyValuePair<TKey, TValue>(key, item);
             return size;
         }
+
+        // A pair of a polymorphic value composes onto its value's run loop (the keys written by it, NinoRuns.KeyOf),
+        // where this runtime's pair is known (CollectionFields.PairLayout): a list's or an array's pairs, and a
+        // dictionary's entries holding them as pairs, then write each value inline after its key.
+        bool INinoFormatter.HasRunLoop => NinoRuns.PairRuns<TKey, TValue, TKeyFormatter, TValueFormatter>() &&
+                                          CollectionFields.PairLayout<TKey, TValue>.Value >= 0 &&
+                                          CollectionFields.PairLayout<TKey, TValue>.Key >= 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter.WriteRun(NinoRun run, ref Writer writer) =>
+            NinoRuns.WritePairRun<TKey, TValue, TKeyFormatter, TValueFormatter>(run,
+                CollectionFields.PairLayout<TKey, TValue>.Value, CollectionFields.PairLayout<TKey, TValue>.Key,
+                ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(KeyValuePair<TKey, TValue> value, ref Writer writer)

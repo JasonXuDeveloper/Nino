@@ -9,8 +9,10 @@ namespace Nino.Core.CompilerServices
     /// A run of a collection's storage: <see cref="Count"/> entries <see cref="Stride"/> bytes apart, starting at the
     /// value of the first (<see cref="First"/>). One cursor for every contiguous storage (#355): an array, a list or a
     /// span (each entry its value), each half of a ring, the entries of a set (each value inside its entry) and of a
-    /// dictionary, whose element is the pair (the key at <see cref="Key"/>'s offset from the value). Entries a set or
-    /// a dictionary freed are skipped by the in-use test <see cref="InUse"/> describes. Not generic: generated code
+    /// dictionary (each element its pair, a <c>KeyValuePair</c> or the entry itself, composed by the pair's formatter
+    /// from its key and value). Entries a set or a dictionary freed are skipped by the in-use test <see cref="InUse"/>
+    /// describes. A pair's formatter hands a polymorphic value's generated loop the run of its values, each with its
+    /// key at <see cref="Key"/>'s offset (<see cref="Values"/>): the one place a key is written apart from its value. Not generic: generated code
     /// takes it (<see cref="INinoFormatter.WriteRun"/>), so one member of a polymorphic base serves every collection of
     /// it, whatever holds the values, without a generic member IL2CPP 2022.3 cannot build (#405).
     /// </summary>
@@ -154,6 +156,24 @@ namespace Nino.Core.CompilerServices
         /// <paramref name="size"/> bytes (from 1 to 254), or a string where <paramref name="size"/> is -1.
         /// </summary>
         internal static int KeyAt(int offset, int size) => (offset << 8) | (size < 0 ? StringKey : size);
+
+        /// <summary>
+        /// The run of the values of this run's pairs (a run without keys): each value at <paramref name="value"/>
+        /// bytes from its pair, its key at <paramref name="key"/> bytes, written as <paramref name="keyForm"/> says (a
+        /// <see cref="Key"/> without its offset, not <see cref="NoKey"/>). What a pair's formatter hands its value's
+        /// generated loop (<see cref="INinoFormatter.WriteRun"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal NinoRun Values(int value, int key, int keyForm) =>
+            new(ref Unsafe.Add(ref First, value), Count, Stride, keyForm + ((key - value) << 8), Rebase(InUse, value));
+
+        /// <summary>
+        /// The <see cref="InUse"/> of <paramref name="inUse"/> for a run whose values start <paramref name="shift"/>
+        /// bytes further into each entry.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static int Rebase(int inUse, int shift) =>
+            inUse == AllInUse ? inUse : (((inUse >> 1) - shift) << 1) | (inUse & 1);
 
         /// <summary>
         /// The <see cref="InUse"/> of entries whose <c>int</c> at <paramref name="offset"/> from the value is at least

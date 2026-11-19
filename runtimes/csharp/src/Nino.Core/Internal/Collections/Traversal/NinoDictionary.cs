@@ -10,14 +10,32 @@ using Nino.Core.Internal;
 namespace Nino.Core
 {
     /// <summary>
-    /// Pair loops of <c>Dictionary&lt;TKey, TValue&gt;</c>, generic over the key and value types only: with value-type
+    /// The top layer of <c>Dictionary&lt;TKey, TValue&gt;</c>, generic over the key and value types only: with value-type
     /// keys and values this is fully specialized code, whereas a dictionary type parameter (a reference type)
-    /// would make every call shared generic code with run-time lookups.
+    /// would make every call shared generic code with run-time lookups. It reaches the entries, then fills them and
+    /// links them (<see cref="HashTables"/>), or adds and merges pairs one at a time, the only code that reads a pair's
+    /// key and value apart; at the bottom its pairs are the elements of <see cref="NinoRuns"/>' loops over
+    /// <c>&lt;T, TFormatter&gt;</c> (#355): a run of <see cref="KeyValuePair{TKey,TValue}"/>s with the entry's stride
+    /// where the entries hold them so (<see cref="CollectionFields.PairLayout{TKey,TValue}.InEntries"/>), else of the
+    /// entries, each the pair composed by <see cref="CollectionFields.MapEntryFormatter{TKey,TValue,TKeyFormatter,
+    /// TValueFormatter}"/>.
     /// </summary>
     internal static class NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
+        /// <summary>
+        /// Whether a run of the entries is a run of <see cref="KeyValuePair{TKey,TValue}"/>s
+        /// (<see cref="CollectionFields.PairLayout{TKey,TValue}.InEntries"/>), else of the entries themselves: a JIT-time
+        /// constant (pairs with references never are, without a lookup in code shared over a class).
+        /// </summary>
+        private static bool InEntries
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>() &&
+                   CollectionFields.PairLayout<TKey, TValue>.InEntries;
+        }
+
         /// <summary>The kind of the keys (<see cref="NinoKind"/>): a JIT-time constant.</summary>
         private static NinoElementKind KeyKind
         {
@@ -33,18 +51,13 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Writes the count and the pairs of a dictionary (not null): its entries as a run
-        /// (<see cref="NinoRuns.WritePairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>), or through its enumerator
-        /// where this runtime's layout of them is not known.
+        /// Writes the count and the pairs of a dictionary (not null): its entries as a run of pairs
+        /// (<see cref="NinoRuns.WriteSet{T,TFormatter}"/>), or through its enumerator where this runtime's layout of
+        /// them is not known.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write(Dictionary<TKey, TValue> value, ref Writer writer)
         {
-            // Asked first, so NinoKind is initialized when Tier1 compiles this: a polymorphic value's generated loop
-            // writes the run with its keys where Nino.Core says how (NinoRuns.KeyOf).
-            int key = !typeof(TValue).IsValueType && NinoKind<TValueFormatter>.Runs
-                ? NinoRuns.KeyOf<TKey, TKeyFormatter>()
-                : NinoRun.NoKey;
             int count = value.Count;
             // An empty dictionary skips the run and the copies of the writer in and out (as NinoRuns.Read).
             if (count == 0)
@@ -53,10 +66,43 @@ namespace Nino.Core
                 return;
             }
 
-            if (CollectionFields.Run(value, count, key, out var run))
-                NinoRuns.WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(run, count, ref writer);
-            else
+            if (!CollectionFields.Run(value, count, out var run))
                 writer = WriteEnumerated(value, count, writer);
+            else if (InEntries)
+                NinoRuns.WriteSet<KeyValuePair<TKey, TValue>,
+                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run, count, ref writer);
+            else
+                WriteEntries(run, count, ref writer);
+        }
+
+        /// <summary>
+        /// Writes the count and the pairs of a run of entries (each the element, <see cref="InEntries"/> false: pairs
+        /// with references): the loop <see cref="NinoRuns.WriteSet{T,TFormatter}"/> takes for them, chosen here from
+        /// what the key and value formatters say. The entry formatter answers the same from them, but in code shared
+        /// over a class each of its answers is a lookup, which compiled every loop into each dictionary's write (asm.py:
+        /// a <c>Dictionary&lt;string, int&gt;</c>'s 889 to 1,670 bytes, 23 to 54 stack accesses) and called a polymorphic
+        /// value's run loop through the entry formatter's, an indirect call.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteEntries(NinoRun run, int count, ref Writer writer)
+        {
+            if (NinoRuns.PairRuns<TKey, TValue, TKeyFormatter, TValueFormatter>())
+            {
+                // The value's run loop, through a copy of the writer (NinoRuns.WriteSet).
+                writer.WriteLength(count);
+                Writer copy = default;
+                writer.CopyTo(ref copy);
+                NinoRuns.WritePairRun<TKey, TValue, TKeyFormatter, TValueFormatter>(run, CollectionFields.MapLayout<TKey,
+                    TValue>.Value, CollectionFields.MapLayout<TKey, TValue>.Key, ref copy);
+                copy.CopyTo(ref writer);
+            }
+            else if (CursorPairs)
+            {
+                writer.WriteLength(count);
+                writer = NinoRuns.WriteCursors<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run, writer);
+            }
+            else
+                writer = NinoRuns.WriteEach<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run, count, writer);
         }
 
         /// <summary>The count and the pairs through the enumerator, out of line, the writer by value and
@@ -70,8 +116,7 @@ namespace Nino.Core
             {
                 if (++written > count)
                     NinoThrow.ModifiedDuringWrite();
-                default(TKeyFormatter).Serialize(pair.Key, ref writer);
-                default(TValueFormatter).Serialize(pair.Value, ref writer);
+                default(KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>).Serialize(pair, ref writer);
             }
 
             return writer;
@@ -148,7 +193,7 @@ namespace Nino.Core
                 int matched = 0;
                 if (CursorPairs)
                 {
-                    // The pair loop, each key kept in seen and each value read over the one it maps to.
+                    // The merge in the cursor form, each key kept in seen and each value read over the one it maps to.
                     ulong read = MergeCursors(dictionary, seen, length, ref reader.Peek(), reader.Remaining);
                     reader.UnsafeAdvance((int)read);
                     matched = (int)(read >> 32);
@@ -367,12 +412,12 @@ namespace Nino.Core
 
         /// <summary>
         /// Whether the pairs are read as one block and scattered into the entries
-        /// (<see cref="NinoRuns.ScattersItems{T,TFormatter}"/> for the keys and the values): a JIT-time constant.
+        /// (<see cref="NinoRuns.ScattersItems{T,TFormatter}"/> of the pairs): a JIT-time constant.
         /// </summary>
         private static bool ScattersPairs
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => NinoRuns.ScattersItems<TKey, TKeyFormatter>() && NinoRuns.ScattersItems<TValue, TValueFormatter>();
+            get => NinoRuns.ScattersItems<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>();
         }
 
         /// <summary>Reads <paramref name="length"/> pairs into <paramref name="dictionary"/>.</summary>
@@ -384,7 +429,7 @@ namespace Nino.Core
                 // Pairs read as one block (no key can be null): the block is taken here and the pairs filled or added
                 // out of line, so the reader's address never leaves the caller, which stays small enough for the JIT
                 // to inline the rest of its path.
-                ref byte src = ref NinoRuns.TakePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(ref reader, length);
+                ref byte src = ref NinoRuns.TakeSet<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(ref reader, length);
                 if (length != 0)
                     AddBlock(dictionary, ref src, length);
                 return;
@@ -395,8 +440,8 @@ namespace Nino.Core
                 return;
             if (CursorPairs)
             {
-                // Keys and values with the cursor form (strings among them): the pair loop, the data and the bytes
-                // left to the call, not the reader, which stays in the caller's registers.
+                // Pairs with the cursor form (strings among them): the cursor loop, the data and the bytes left to the
+                // call, not the reader, which stays in the caller's registers.
                 reader.UnsafeAdvance(ReadCursors(dictionary, length, ref reader.Peek(), reader.Remaining));
                 return;
             }
@@ -411,23 +456,22 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Whether the pairs take the pair loop (<see cref="NinoRuns.CursorPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>,
-        /// <see cref="NinoRuns.ReadCursors{TKey,TValue,TKeyFormatter,TValueFormatter,TStore}"/>): strings in either
-        /// encoding with strings, raw values or blocks. A JIT-time constant.
+        /// Whether the pairs take the cursor loop (<see cref="NinoCursor.Pairs{TA,TB,TFormatterA,TFormatterB}"/>):
+        /// strings in either encoding with strings, raw values or blocks. A JIT-time constant.
         /// </summary>
         private static bool CursorPairs
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => NinoRuns.CursorPairs<TKey, TValue, TKeyFormatter, TValueFormatter>();
+            get => NinoCursor.Pairs<TKey, TValue, TKeyFormatter, TValueFormatter>();
         }
 
         /// <summary>
-        /// Reads <paramref name="length"/> pairs (not 0) through the pair loop from the data at <paramref name="data"/>
+        /// Reads <paramref name="length"/> pairs (not 0) through the cursor loop from the data at <paramref name="data"/>
         /// (<paramref name="end"/> bytes): into the entries of a dictionary
         /// <see cref="HashTables.CanInsert{TKey,TValue}"/> accepts, then linked (from <see cref="HashTables.FillFrom"/>
         /// pairs on), the dictionary left empty if the data is rejected part way (as
-        /// <see cref="FillGuarded(Dictionary{TKey,TValue}, int, Reader)"/>); else each added (<see cref="NinoCursor.Adds"/>).
-        /// Returns the bytes read.
+        /// <see cref="FillGuarded(Dictionary{TKey,TValue}, int, Reader)"/>); else each read into one pair and added
+        /// (<see cref="Adds"/>). Returns the bytes read.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int ReadCursors(Dictionary<TKey, TValue> dictionary, int length, ref byte data, int end)
@@ -436,51 +480,110 @@ namespace Nino.Core
             if (insert && length >= HashTables.FillFrom)
                 return FillCursors(dictionary, length, ref data, end);
 
-            // Each pair read into one pair of locals, then added.
-            NinoCursor.Pair<TKey, TValue> pair = default;
-            var adds = new NinoCursor.Adds
-            {
-                Key = NinoCursor.Pair<TKey, TValue>.KeyOf(ref pair), Dictionary = dictionary, Insert = insert,
-                Walk = HashTables.Plan<TKey, TValue>.Walks,
-            };
-            return (int)NinoRuns.ReadCursors<TKey, TValue, TKeyFormatter, TValueFormatter, NinoCursor.Adds>(
-                NinoCursor.Pair<TKey, TValue>.Run(ref pair, length), ref data, end, adds);
+            // Each pair read into one pair of locals (a run of it with no stride), then added.
+            KeyValuePair<TKey, TValue> pair = default;
+            return NinoRuns.ReadCursors<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, Adds>(
+                new NinoRun(ref Unsafe.As<KeyValuePair<TKey, TValue>, byte>(ref pair), length, 0, NinoRun.NoKey, NinoRun.AllInUse), ref data,
+                end, new Adds(dictionary, insert, HashTables.Plan<TKey, TValue>.Walks));
         }
 
         /// <summary>
-        /// <see cref="Refill"/>'s pair loop: <paramref name="length"/> pairs (not 0) from the data at
+        /// The pairs a dictionary takes one at a time (<see cref="NinoCursor.IStore{T}"/>): each inserted where the
+        /// dictionary is as expected (<see cref="HashTables.Insert{TKey,TValue}"/>), else added by it and its key's
+        /// bucket walked after (<see cref="HashTables.Walk{TKey,TValue}"/>: hash flooding); a null or repeated key is
+        /// invalid data. The dictionary's own layer: the one place its key and value are read apart.
+        /// </summary>
+        private readonly struct Adds : NinoCursor.IStore<KeyValuePair<TKey, TValue>>
+        {
+            private readonly Dictionary<TKey, TValue> _dictionary;
+            private readonly bool _insert, _walk;
+
+            public Adds(Dictionary<TKey, TValue> dictionary, bool insert, bool walk)
+            {
+                _dictionary = dictionary;
+                _insert = insert;
+                _walk = walk;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Stored(ref KeyValuePair<TKey, TValue> pair)
+            {
+                if (_insert)
+                    HashTables.Insert(_dictionary, pair.Key, pair.Value);
+                else
+                {
+                    if (pair.Key == null)
+                        NinoThrow.NullKey(_dictionary);
+                    NinoCollections.AddUnique(_dictionary, pair.Key, pair.Value);
+                    if (_walk)
+                        HashTables.Walk(_dictionary, pair.Key);
+                }
+
+                // The next pair is read into empty places, not compared with this one's strings.
+                pair = default;
+            }
+        }
+
+        /// <summary>
+        /// <see cref="Refill"/>'s merge in the cursor form: <paramref name="length"/> pairs (not 0) from the data at
         /// <paramref name="data"/> (<paramref name="end"/> bytes), each key kept in <paramref name="seen"/> and each
-        /// value read over the one it maps to (<see cref="NinoCursor.Merges"/>). Returns the bytes read (low half) and
-        /// the keys already there (high half). Out of line, so the pair of locals the loop reads into stays out of the
-        /// caller's frame.
+        /// value read over the one it maps to (kept when the data holds the same, a string's chars), a key not there
+        /// before added with its bucket walked. Its key is read before its value's place is known, so the merge reads
+        /// the two items itself (<see cref="NinoCursor.ReadAt{T,TFormatter}"/>), the dictionary's own layer. Returns
+        /// the bytes read (low half) and the keys already there (high half).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ulong MergeCursors(Dictionary<TKey, TValue> dictionary, TKey[] seen, int length, ref byte data,
             int end)
         {
-            NinoCursor.Pair<TKey, TValue> pair = default;
-            var merge = new NinoCursor.Merges
+            int pos = 0, matched = 0;
+            ref TKey keys = ref NinoUnsafe.GetArrayDataReference(seen);
+            for (int i = 0; i < length; i++)
             {
-                Key = NinoCursor.Pair<TKey, TValue>.KeyOf(ref pair), Dictionary = dictionary, Seen = seen,
-            };
-            return NinoRuns.ReadCursors<TKey, TValue, TKeyFormatter, TValueFormatter, NinoCursor.Merges>(
-                NinoCursor.Pair<TKey, TValue>.Run(ref pair, length), ref data, end, merge);
+                TKey key = default;
+                pos += NinoCursor.ReadAt<TKey, TKeyFormatter>(ref Unsafe.Add(ref data, (nint)(uint)pos), end - pos,
+                    ref key);
+                if (key == null)
+                    NinoThrow.NullKey(dictionary);
+                Unsafe.Add(ref keys, i) = key;
+#if NET8_0_OR_GREATER
+                // Reading the value never touches this dictionary, so the reference stays valid.
+                ref TValue slot = ref CollectionsMarshal.GetValueRefOrAddDefault(dictionary, key, out bool exists);
+                if (exists)
+                    matched++;
+                else
+                    Walked(dictionary, key);
+                pos += NinoCursor.ReadAt<TValue, TValueFormatter>(ref Unsafe.Add(ref data, (nint)(uint)pos), end - pos,
+                    ref slot);
+#else
+                bool exists = dictionary.TryGetValue(key, out TValue item);
+                if (exists)
+                    matched++;
+                pos += NinoCursor.ReadAt<TValue, TValueFormatter>(ref Unsafe.Add(ref data, (nint)(uint)pos), end - pos,
+                    ref item);
+                dictionary[key] = item;
+                if (!exists)
+                    Walked(dictionary, key);
+#endif
+            }
+
+            return ((ulong)(uint)matched << 32) | (uint)pos;
         }
 
         /// <summary>
-        /// <see cref="ReadCursors"/>' fill: the pairs read into the entries
-        /// (<see cref="NinoCursor.Entries{TKey,TValue}"/>), then linked (null and repeated keys, hash flooding), the
-        /// dictionary left empty, holding no reference the read stored, if the data is rejected part way. A method of
-        /// its own, as <see cref="FillGuarded(Dictionary{TKey,TValue}, int, Reader)"/>.
+        /// <see cref="ReadCursors"/>' fill: the pairs read into the entries in place, then linked (null and repeated
+        /// keys, hash flooding), the dictionary left empty, holding no reference the read stored, if the data is
+        /// rejected part way. A method of its own, as <see cref="FillGuarded(Dictionary{TKey,TValue}, int, Reader)"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int FillCursors(Dictionary<TKey, TValue> dictionary, int length, ref byte data, int end)
         {
             try
             {
-                var entries = new NinoCursor.Entries { Key = NinoRuns.MapKey<TKey, TValue>() };
-                int read = (int)NinoRuns.ReadCursors<TKey, TValue, TKeyFormatter, TValueFormatter, NinoCursor.Entries>(
-                    CollectionFields.Run(HashTables.Entries(dictionary), length), ref data, end, entries);
+                var run = CollectionFields.Run(HashTables.Entries(dictionary), length);
+                int read = InEntries
+                    ? NinoRuns.ReadCursors<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, NinoCursor.InPlace<KeyValuePair<TKey, TValue>>>(run, ref data, end, default)
+                    : NinoRuns.ReadCursors<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, NinoCursor.InPlace<CollectionFields.MapEntry<TKey, TValue>>>(run, ref data, end, default);
                 HashTables.Link(dictionary, length);
                 return read;
             }
@@ -525,11 +628,9 @@ namespace Nino.Core
             Reader reader = source;
             for (int i = 0; i < length; i++)
             {
-                TKey key = default;
-                TValue item = default;
-                default(TKeyFormatter).Deserialize(ref reader, ref key);
-                default(TValueFormatter).Deserialize(ref reader, ref item);
-                NinoCollections.AddUnique(dictionary, key, item);
+                KeyValuePair<TKey, TValue> pair = default;
+                default(KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>).Deserialize(ref reader, ref pair);
+                NinoCollections.AddUnique(dictionary, pair.Key, pair.Value);
             }
 
             source = reader;
@@ -558,19 +659,17 @@ namespace Nino.Core
             // copy of the loop, which kept more of its state on the stack.
             for (int i = 0; i < length; i++)
             {
-                TKey key = default;
-                TValue item = default;
-                default(TKeyFormatter).Deserialize(ref reader, ref key);
-                default(TValueFormatter).Deserialize(ref reader, ref item);
+                KeyValuePair<TKey, TValue> pair = default;
+                default(KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>).Deserialize(ref reader, ref pair);
                 if (insert)
                 {
-                    HashTables.Insert(dictionary, key, item);
+                    HashTables.Insert(dictionary, pair.Key, pair.Value);
                 }
                 else
                 {
-                    NinoCollections.AddUnique(dictionary, key, item);
+                    NinoCollections.AddUnique(dictionary, pair.Key, pair.Value);
                     if (walk)
-                        HashTables.Walk(dictionary, key);
+                        HashTables.Walk(dictionary, pair.Key);
                 }
             }
 
@@ -579,44 +678,41 @@ namespace Nino.Core
 
         /// <summary>
         /// The <paramref name="length"/> pairs of the block at <paramref name="src"/>
-        /// (<see cref="NinoRuns.TakePairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>): scattered into the entries of
-        /// a dictionary <see cref="HashTables.CanInsert{TKey,TValue}"/> accepts and linked, else each read from the
-        /// block, added by the dictionary and its bucket walked after (HashTables.Plan).
+        /// (<see cref="NinoRuns.TakeSet{T,TFormatter}"/>): scattered into the entries of a dictionary
+        /// <see cref="HashTables.CanInsert{TKey,TValue}"/> accepts and linked, else each read from the block, added by
+        /// the dictionary and its bucket walked after (HashTables.Plan).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void AddBlock(Dictionary<TKey, TValue> dictionary, ref byte src, int length)
         {
-            if (HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length))
+            if (InEntries && HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length))
             {
                 FillGuarded(dictionary, ref src, length);
                 return;
             }
 
             bool walk = HashTables.Plan<TKey, TValue>.Walks;
-            int keySize = NinoKind.Stride<TKey, TKeyFormatter>();
-            int pairSize = keySize + NinoKind.Stride<TValue, TValueFormatter>();
-            for (int i = 0; i < length; i++, src = ref Unsafe.Add(ref src, pairSize))
+            int size = NinoKind.Stride<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>();
+            for (int i = 0; i < length; i++, src = ref Unsafe.Add(ref src, size))
             {
-                TKey key = NinoRuns.ReadItem<TKey, TKeyFormatter>(ref src);
-                NinoCollections.AddUnique(dictionary, key,
-                    NinoRuns.ReadItem<TValue, TValueFormatter>(ref Unsafe.Add(ref src, keySize)));
+                var pair = NinoRuns.ReadItem<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(ref src);
+                NinoCollections.AddUnique(dictionary, pair.Key, pair.Value);
                 if (walk)
-                    HashTables.Walk(dictionary, key);
+                    HashTables.Walk(dictionary, pair.Key);
             }
         }
 
         /// <summary>
-        /// <see cref="AddBlock"/>'s fill: the block scattered into the entries
-        /// (<see cref="NinoRuns.ScatterPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>), then linked, the dictionary
-        /// left empty if the data is rejected part way (<see cref="HashTables.Unlink{TKey,TValue}"/>).
+        /// <see cref="AddBlock"/>'s fill: the block scattered into the entries, each a <see cref="CollectionFields.SetEntry{T}"/> of its
+        /// pair (<see cref="NinoRuns.ScatterSet{T,TFormatter}"/>), then linked, the dictionary left empty if the data
+        /// is rejected part way (<see cref="HashTables.Unlink{TKey,TValue}"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void FillGuarded(Dictionary<TKey, TValue> dictionary, ref byte src, int length)
         {
             try
             {
-                NinoRuns.ScatterPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(
-                    CollectionFields.Run(HashTables.Entries(dictionary), length), ref src);
+                NinoRuns.ScatterSet<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(CollectionFields.Run(HashTables.Entries(dictionary), length), ref src);
                 HashTables.Link(dictionary, length);
             }
             catch
@@ -648,16 +744,21 @@ namespace Nino.Core
 
         /// <summary>
         /// Reads <paramref name="length"/> pairs straight into the entries of a dictionary
-        /// <see cref="HashTables.CanInsert{TKey,TValue}"/> accepted, through their run
-        /// (<see cref="NinoRuns.ReadPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>), then builds the buckets in
-        /// one pass (<see cref="HashTables.Link{TKey,TValue}(Dictionary{TKey,TValue}, int)"/>: null and repeated keys,
-        /// hash flooding).
+        /// <see cref="HashTables.CanInsert{TKey,TValue}"/> accepted, through the run of its pairs
+        /// (<see cref="NinoRuns.ReadSet{T,TFormatter}"/>), then builds the buckets in one pass
+        /// (<see cref="HashTables.Link{TKey,TValue}(Dictionary{TKey,TValue}, int)"/>: null and repeated keys, hash
+        /// flooding).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Reader Fill(Dictionary<TKey, TValue> dictionary, int length, Reader reader)
         {
-            NinoRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(
-                CollectionFields.Run(HashTables.Entries(dictionary), length), ref reader);
+            var run = CollectionFields.Run(HashTables.Entries(dictionary), length);
+            // Pairs with references (each its entry), not in the cursor form: value by value (what ReadSet does for
+            // them, without its lookups in shared code, as WriteEntries).
+            if (InEntries)
+                NinoRuns.ReadSet<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run, ref reader);
+            else
+                reader = NinoRuns.ReadSetEach<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run, reader);
             HashTables.Link(dictionary, length);
             return reader;
         }

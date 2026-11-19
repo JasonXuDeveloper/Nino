@@ -221,7 +221,7 @@ namespace Nino.Core.Internal
             if (ObjectFields.At<int>(dictionary, at.Bound) != 4 || entries[1].Key != 14 || entries[1].Value != 5 ||
                 dictionary.Count != 4)
                 return false;
-            // Entries holding references (laid out by the runtime, as the mirror's are): the pair loops read them too.
+            // Entries holding references (laid out by the runtime, as the mirror's are): the runs of their pairs read them too.
             var named = new Dictionary<string, long> { { "a", 1 }, { "b", 2 } };
             return ObjectFields.At<object>(named, at.Entries) is Array { Length: >= 2 } namedArray &&
                    Unsafe.As<CollectionFields.MapEntry<string, long>[]>(namedArray) is { } namedEntries &&
