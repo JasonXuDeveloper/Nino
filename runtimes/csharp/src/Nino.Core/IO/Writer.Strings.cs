@@ -37,14 +37,40 @@ namespace Nino.Core
                 return;
             }
 
-            // Short strings reserve the worst case (3 bytes per char) and encode in one pass; long ones count their
-            // bytes first, so the buffer does not grow to three times the string (or overflow the count).
-            int maxBytes = value.Length <= Utf8WorstCaseMaxChars
-                ? value.Length * 3
-                : Utf8ByteCount(value);
+            int maxBytes = Utf8Capacity(value);
             // Room for the worst case; only the bytes written (counts included) are kept.
             ref byte dst = ref Ensure(2 * NinoStrings.MaxHeaderSize + maxBytes);
             Skip(EncodeUtf8(value, ref dst, maxBytes));
+        }
+
+        /// <summary>
+        /// The bytes <see cref="EncodeUtf8"/> may write for the chars of <paramref name="value"/> (not null): short
+        /// strings the worst case (3 bytes per char), encoded in one pass; long ones their count, so the buffer does
+        /// not grow to three times the string (or overflow the count).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Utf8Capacity(string value) =>
+            value.Length <= Utf8WorstCaseMaxChars ? value.Length * 3 : Utf8ByteCount(value);
+
+        /// <summary>The most bytes <see cref="WriteUtf8At"/> writes for <paramref name="value"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static int Utf8MaxSize(string value) =>
+            value == null ? 1 : 2 * NinoStrings.MaxHeaderSize + Utf8Capacity(value);
+
+        /// <summary>
+        /// The bytes of <see cref="WriteUtf8"/> at <paramref name="destination"/>, which has room for
+        /// <see cref="Utf8MaxSize"/> bytes (the cursor form of <c>Utf8StringFormatter</c>). Returns the bytes written.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static int WriteUtf8At(ref byte destination, string value)
+        {
+            if (value == null)
+            {
+                destination = NinoStrings.NullHeader;
+                return 1;
+            }
+
+            return EncodeUtf8(value, ref destination, Utf8Capacity(value));
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]

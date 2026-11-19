@@ -79,6 +79,42 @@ namespace Nino.Core
             value = new KeyValuePair<TKey, TValue>(key, item);
         }
 
+        // The cursor form where both items have it (strings, raw values, blocks): a pair in a row of pairs (a sorted
+        // or concurrent dictionary's, through a rented array) is then read and written by the element loop, its
+        // items as a dictionary's entries are (NinoCursor).
+        bool INinoFormatter.HasCursor =>
+            NinoCursor.Has<TKey, TKeyFormatter>() && NinoCursor.Has<TValue, TValueFormatter>();
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int INinoFormatter<KeyValuePair<TKey, TValue>>.MaxSize(KeyValuePair<TKey, TValue> value)
+        {
+            int key = NinoCursor.MaxSize<TKey, TKeyFormatter>(value.Key);
+            int item = NinoCursor.MaxSize<TValue, TValueFormatter>(value.Value);
+            // Past an int: negative, which the writer rejects.
+            return (uint)key + (uint)item > int.MaxValue ? -1 : key + item;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int INinoFormatter<KeyValuePair<TKey, TValue>>.WriteAt(ref byte destination, KeyValuePair<TKey, TValue> value)
+        {
+            int size = NinoCursor.WriteAt<TKey, TKeyFormatter>(ref destination, value.Key);
+            return size + NinoCursor.WriteAt<TValue, TValueFormatter>(ref Unsafe.Add(ref destination, (nint)(uint)size),
+                value.Value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int INinoFormatter<KeyValuePair<TKey, TValue>>.ReadAt(ref byte source, int available,
+            ref KeyValuePair<TKey, TValue> value)
+        {
+            TKey key = value.Key;
+            TValue item = value.Value;
+            int size = NinoCursor.ReadAt<TKey, TKeyFormatter>(ref source, available, ref key);
+            size += NinoCursor.ReadAt<TValue, TValueFormatter>(ref Unsafe.Add(ref source, (nint)(uint)size),
+                available - size, ref item);
+            value = new KeyValuePair<TKey, TValue>(key, item);
+            return size;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(KeyValuePair<TKey, TValue> value, ref Writer writer)
         {
