@@ -207,8 +207,9 @@ NinoRecycler.cs              NinoRecycler<T> / NinoRecycler: where reuse deseria
 ```
 CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, MapEntry, LinkedNode); a set's
                              and a dictionary's entries as storage elements (SetFields, MapFields: the value, or the key
-                             and value, and the hash code and link), the in-use test of either (EntryLayout), their runs
-                             (Run: in use, or new ones a read fills), whether their entries are blocks on this runtime
+                             and value, and the hash code and link), the in-use test of either (InUse), their runs
+                             (Run: in use, or new ones a read fills; Values: a set's values at the entries' stride, for
+                             values with references), whether their entries are blocks on this runtime
                              (EntryBlocks, the startup proof), where a KeyValuePair keeps its items (PairLayout, PairMirror)
 NinoStorageElement.cs        the storage element (#355): a struct of a collection's storage whose wire bytes are one or
                              two items at measured offsets, the rest of its stride skipped (NinoStorageFormatter, its

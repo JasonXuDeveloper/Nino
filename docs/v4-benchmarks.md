@@ -463,8 +463,9 @@ the result objects.
   dictionary type parameter, which also shortens generated code. Raw `HashSet<T>` and `Dictionary<TKey, TValue>` are written from their
   entries array (the layouts of .NET 64-bit and 32-bit and of .NET Framework and Mono, and how each marks a removed
   entry, are checked at startup), without the enumerator's version check and field reloads on every element: as
-  blocks of the entry (`EntryBlock`, the items of its element at their offsets in it), so the vector permutes that pack
-  padded structs move several entries at a time, each key and value taken out of its entry (the netstandard builds:
+  blocks of the entry (the entry is the element, a storage element whose items are the value, or the key and value, at
+  their offsets in it, the hash code and link skipped), so the vector permutes that pack padded structs move several
+  entries at a time, each key and value taken out of its entry (the netstandard builds:
   the registered kernels, else one at a time); with removed entries, value by value over the entries, skipping the
   free ones; with no layout recognized, through the enumerator, out of line. A new one that a read creates (default
   comparer) is filled the other way round: its entries read through the same view (raw values and blocks scattered

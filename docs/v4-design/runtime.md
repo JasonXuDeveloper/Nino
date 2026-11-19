@@ -74,23 +74,35 @@ Every contiguous collection (arrays, lists, spans, `Memory<T>`, `ArraySegment<T>
 a `Queue<T>`'s ring, `Stack<T>`, and the entries of `HashSet<T>` and `Dictionary<TKey, TValue>`) writes its elements as
 a run (`NinoRun`): the first value, the count, the stride between entries and how a free entry is told apart (a set and
 a dictionary that removed elements; the rule is found at startup). One loop per element kind writes a run
-(`NinoRuns`), over `<T, TFormatter>` only: raw elements and blocks as one block (gathered out of the entries by the
-block kernels through one entry block formatter), slots through the slot kernels, values with the cursor form through
-the cursor loop, others value by value; a polymorphic base's values through its generated `WriteRun`, the compare chain
-of its subtypes inline in a loop whose steps, in-use test, key write and deep path are Nino.Core's. A pair (a
-`KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes its items (block, cursor form,
-dispatch bit), never a loop of its own. A dictionary is special only at the top: it reaches its entries, then fills and
-links them; at the bottom they are a run of `KeyValuePair<TKey, TValue>` with the entry's stride where a startup check
-per pair of types proves the entry holds key and value as the pair does (a `HashSet`'s entry of the pair: pairs of
-values on CoreCLR), else a run of the entries themselves, each the pair composed at the entry's offsets (pairs with
-references, which CoreCLR moves first in the entry). A pair of a polymorphic value composes onto its value's
-`WriteRun`: the run of its values, each key at an offset from its value (`NinoRun.Key`) and written by the loop, the one
-place a key is written apart from its value. The member is not generic, so one serves every collection and every key
-written as its bytes or a string; any other key goes value by value (#355). Reads fill the same runs, one loop per element kind: a run of values in a row (an array,
-the backing array of a list, whose count is set once it is filled, a ring from its start, a span) through the copy,
-slot and block kernels or value by value, and the entries of a new `HashSet<T>` or `Dictionary<TKey, TValue>`: raw
-values and blocks read as one block and scattered into the entries by the block kernels (the entry block formatter's
-read), others value by value into their places, then linked (below).
+(`NinoRuns`), over `<T, TFormatter>` only: raw elements and blocks as one block, slots through the slot kernels, values
+with the cursor form through the cursor loop, others value by value; a polymorphic base's values through its generated
+`WriteRun`, the compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep path are
+Nino.Core's. A pair (a `KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes its
+items (block, cursor form, dispatch bit), never a loop of its own. A pair of a polymorphic value composes onto its
+value's `WriteRun`: the run of its values, each key at an offset from its value (`NinoRun.Key`) and written by the loop,
+the one place a key is written apart from its value. The member is not generic, so one serves every collection and
+every key written as its bytes or a string; any other key goes value by value (#355).
+
+A collection's storage element is the element of its run, whatever else it holds. A `HashSet<T>`'s and a
+`Dictionary<TKey, TValue>`'s entries are a run of the entries themselves, the stride the entry's size, each written by a
+storage element formatter (`NinoStorageFormatter`): the entry's wire bytes are one item (a set's value) or two (a
+dictionary's key and value) at offsets measured on this runtime (CoreCLR moves references first: a
+`Dictionary<string, int>`'s entry has its key at 0, the hash code at 8, the link at 12, the value at 16), and every other
+byte (the hash code, the link, padding) is skipped. The formatter composes its items as a value tuple does, so where they
+are raw or blocks the entry is a block whose map (`NinoBlockMap`) names only the items' bytes, and the existing block
+kernels (`NinoBlockPlan`: AVX-512 groups, 16-byte lanes, 64-byte permutes, the netstandard2.1 build's registered
+kernels) pack a run of entries into the wire's bytes and scatter the data back into new entries, with no code of their
+own for entries; otherwise it is the items' cursor form, run loop or formatter, through the entry. The piece is written
+once and generic over the element and the fields that reach its items, so a collection's own code is only its top
+layer: reaching the storage, the startup check that measures where the fields are, and what it does after a fill (a
+table links its entries). The same piece is the extension point for storage not yet on it: a `SortedList`'s two arrays,
+a `Queue`'s ring in two segments, the chunks of nodes the gather walks, and later user collections through a storage
+contract. Reads fill the same runs, one loop per element kind: a run of values in a row (an array, the backing array of
+a list, whose count is set once it is filled, a ring from its start, a span) through the copy, slot and block kernels or
+value by value; and the entries of a new `HashSet<T>` or `Dictionary<TKey, TValue>` through one read for both
+(`NinoEntries`): a block scattered into the entries by the block kernels (every byte written, the hash code and link 0),
+the cursor loop or value by value into their places, then linked (below); into a collection that is not new, each entry
+read apart and added.
 
 A collection that is not one contiguous run (a `SortedSet<T>` or `SortedDictionary<TKey, TValue>` tree, a
 `LinkedList<T>` ring, a concurrent dictionary or queue, any other `ICollection<T>` or `IEnumerable<T>`) is gathered: its
