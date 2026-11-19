@@ -65,7 +65,10 @@ namespace Nino.Core
 
         /// <summary>
         /// Writes the count and the pairs of a run of entries holding references: the loop chosen here from what the
-        /// key and value formatters say, and the offsets of the key and value read from the entry itself. The entry
+        /// key and value formatters say, and the offsets of the key and value read from the entry itself; pairs holding
+        /// strings through the string run kernels (<see cref="NinoStringRuns.WritePairs{TA,TB,TFormatterA,
+        /// TFormatterB}"/>), one call not generic over the pair, where through an element formatter each pair was
+        /// indirect calls in code shared over a class. The entry
         /// formatter answers the same from them, but in code shared over a class each of its answers is a lookup and
         /// each call of its field accessors a call, which compiled every loop into each dictionary's write (asm.py: a
         /// <c>Dictionary&lt;string, int&gt;</c>'s 889 to 1,670 bytes, 23 to 54 stack accesses). The loops take the
@@ -100,7 +103,8 @@ namespace Nino.Core
             if (!CursorPairs)
                 return NinoRuns.WriteEach<CollectionFields.MapEntry<TKey, TValue>, Entries>(run, count, writer);
             writer.WriteLength(count);
-            return NinoRuns.WriteCursors<CollectionFields.MapEntry<TKey, TValue>, Entries>(run, writer);
+            return NinoStringRuns.WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyOffset, ValueOffset,
+                writer);
         }
 
         /// <summary>The count and the pairs through the enumerator, out of line, the writer by value and
@@ -416,45 +420,116 @@ namespace Nino.Core
         public static void Read(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
             if (RuntimeHelpers.IsReferenceOrContainsReferences<CollectionFields.MapEntry<TKey, TValue>>())
+            {
+                // Pairs holding strings: the string run kernels, the data and the bytes left to the call.
+                if (CursorPairs)
+                {
+                    if (length != 0)
+                        reader.UnsafeAdvance(ReadStrings(dictionary, length, ref reader.Peek(), reader.Remaining));
+                    return;
+                }
+
                 NinoEntries<CollectionFields.MapEntry<TKey, TValue>, Entries, MapTable<TKey, TValue>>.Read(
-                    new MapTable<TKey, TValue>(dictionary), length, ref reader, CursorPairs);
+                    new MapTable<TKey, TValue>(dictionary), length, ref reader);
+            }
             else
                 NinoEntries<CollectionFields.MapEntry<TKey, TValue>, NinoStorageFormatter<CollectionFields.MapEntry<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter, CollectionFields.MapFields<TKey, TValue>>, MapTable<TKey, TValue>>.Read(
-                    new MapTable<TKey, TValue>(dictionary), length, ref reader, CursorPairs);
+                    new MapTable<TKey, TValue>(dictionary), length, ref reader);
         }
 
         /// <summary>
-        /// The element formatter of entries holding references: the key and value composed as the storage element
-        /// composes them (<see cref="NinoCursor"/>'s pair overloads, each item's formatter), reached as the entry's own
-        /// fields. Such entries are compiled once for every class they hold, and there each call of the storage
-        /// element's fields struct is an indirect call, two per pair in each of MaxSize and WriteAt, and offsets kept
-        /// in its statics a helper call each (asm.py; a Dictionary&lt;string, string&gt; written 1.9 times, then 1.2
-        /// times as long, local); a field of the entry is at an offset the JIT knows in shared code too. Entries
-        /// without references are blocks or values of their own instantiation and take the storage element.
+        /// Reads <paramref name="length"/> pairs holding strings (not 0, <see cref="CursorPairs"/>) into
+        /// <paramref name="dictionary"/>, new or emptied, from the data at <paramref name="data"/>
+        /// (<paramref name="end"/> bytes), the steps of <see cref="NinoEntries{TEntry,TFormatter,TTable}"/> through the
+        /// string run kernels (<see cref="NinoStringRuns.ReadPairs{TA,TB,TFormatterA,TFormatterB,TStore}"/>): into its
+        /// entries and linked where it takes them (from <see cref="HashTables.FillFrom"/> on), else each read into one
+        /// entry and added by a store generic over the side that is not a string (<see
+        /// cref="NinoStringRuns.KeyAdds{TValue}"/>), so that no call per pair is indirect. Returns the bytes read.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int ReadStrings(Dictionary<TKey, TValue> dictionary, int length, ref byte data, int end)
+        {
+            bool insert = HashTables.CanInsert(dictionary, length);
+            if (insert && length >= HashTables.FillFrom)
+                return FillStrings(dictionary, length, ref data, end);
+
+            CollectionFields.MapEntry<TKey, TValue> entry = default;
+            var run = new NinoRun(ref Unsafe.As<CollectionFields.MapEntry<TKey, TValue>, byte>(ref entry), length, 0,
+                NinoRun.NoKey, NinoRun.AllInUse);
+            bool walk = HashTables.Plan<TKey, TValue>.Walks;
+            // Told by the formatters' types: typeof(TKey) of a class is no constant in code shared over it.
+            if (NinoKind<TKeyFormatter>.Strings && NinoKind<TValueFormatter>.Strings)
+                return NinoStringRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter, NinoStringRuns.PairAdds>(
+                    run, KeyOffset, ValueOffset, ref data, end,
+                    new NinoStringRuns.PairAdds(Unsafe.As<Dictionary<string, string>>(dictionary), insert, walk));
+            if (NinoKind<TKeyFormatter>.Strings)
+                return NinoStringRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter,
+                    NinoStringRuns.KeyAdds<TValue>>(run, KeyOffset, ValueOffset, ref data, end,
+                    new NinoStringRuns.KeyAdds<TValue>(Unsafe.As<Dictionary<string, TValue>>(dictionary), insert, walk));
+            return NinoStringRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter,
+                NinoStringRuns.ValueAdds<TKey>>(run, KeyOffset, ValueOffset, ref data, end,
+                new NinoStringRuns.ValueAdds<TKey>(Unsafe.As<Dictionary<TKey, string>>(dictionary), insert, walk));
+        }
+
+        /// <summary><see cref="ReadStrings"/>' fill, the dictionary left empty if the data is rejected part way: an
+        /// exception region in a method of its own (NinoEntries' FillEach).</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int FillStrings(Dictionary<TKey, TValue> dictionary, int length, ref byte data, int end)
+        {
+            try
+            {
+                int read = NinoStringRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter,
+                    NinoStringRuns.InPlace>(CollectionFields.Run(HashTables.Entries(dictionary), length), KeyOffset,
+                    ValueOffset, ref data, end, default);
+                HashTables.Link(dictionary, length);
+                return read;
+            }
+            catch
+            {
+                HashTables.Unlink(dictionary);
+                throw;
+            }
+        }
+
+        /// <summary>Where an entry keeps its key, in bytes from its start: a JIT-time constant, also in code shared
+        /// over a class (its fields' offsets are known there).</summary>
+        private static int KeyOffset
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                CollectionFields.MapEntry<TKey, TValue> entry = default;
+                return NinoStorage.Distance(ref Unsafe.As<CollectionFields.MapEntry<TKey, TValue>, byte>(ref entry),
+                    ref Unsafe.As<TKey, byte>(ref entry.Key));
+            }
+        }
+
+        /// <summary>As <see cref="KeyOffset"/>, the value.</summary>
+        private static int ValueOffset
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                CollectionFields.MapEntry<TKey, TValue> entry = default;
+                return NinoStorage.Distance(ref Unsafe.As<CollectionFields.MapEntry<TKey, TValue>, byte>(ref entry),
+                    ref Unsafe.As<TValue, byte>(ref entry.Value));
+            }
+        }
+
+        /// <summary>
+        /// The element formatter of entries holding references that the string run kernels do not move (a class among
+        /// the key and value): the key and value composed as the storage element composes them, each item's
+        /// formatter, reached as the entry's own fields. Such entries are compiled once for every class they hold,
+        /// and there each call of the storage element's fields struct is an indirect call, and offsets kept in its
+        /// statics a helper call each (asm.py; a Dictionary&lt;string, string&gt; written 1.9 times, then 1.2 times as
+        /// long, local, before the string run kernels took it); a field of the entry is at an offset the JIT knows in
+        /// shared code too. Entries without references are blocks or values of their own instantiation and take the
+        /// storage element.
         /// </summary>
         private struct Entries : INinoFormatter<CollectionFields.MapEntry<TKey, TValue>>
         {
             int INinoFormatter.BodyTraits =>
                 NinoBodyTraits.Nests | NinoBlocks.Dispatches<TKeyFormatter>() | NinoBlocks.Dispatches<TValueFormatter>();
-
-            bool INinoFormatter.HasCursor => NinoCursor.Has<TKey, TValue, TKeyFormatter, TValueFormatter>();
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            int INinoFormatter<CollectionFields.MapEntry<TKey, TValue>>.MaxSize(
-                CollectionFields.MapEntry<TKey, TValue> value) =>
-                NinoCursor.MaxSize<TKey, TValue, TKeyFormatter, TValueFormatter>(in value.Key, in value.Value);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            int INinoFormatter<CollectionFields.MapEntry<TKey, TValue>>.WriteAt(ref byte destination,
-                CollectionFields.MapEntry<TKey, TValue> value) =>
-                NinoCursor.WriteAt<TKey, TValue, TKeyFormatter, TValueFormatter>(ref destination, in value.Key,
-                    in value.Value);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            int INinoFormatter<CollectionFields.MapEntry<TKey, TValue>>.ReadAt(ref byte source, int available,
-                ref CollectionFields.MapEntry<TKey, TValue> value) =>
-                NinoCursor.ReadAt<TKey, TValue, TKeyFormatter, TValueFormatter>(ref source, available, ref value.Key,
-                    ref value.Value);
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Serialize(CollectionFields.MapEntry<TKey, TValue> value, ref Writer writer)
@@ -472,8 +547,8 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Whether the pairs take the cursor loop (<see cref="NinoCursor.Pairs{TA,TB,TFormatterA,TFormatterB}"/>):
-        /// strings in either encoding with strings, raw values or blocks. A JIT-time constant.
+        /// Whether the pairs are moved by the string run kernels (<see cref="NinoCursor.Pairs{TA,TB,TFormatterA,
+        /// TFormatterB}"/>): strings in either encoding with strings, raw values or blocks. A JIT-time constant.
         /// </summary>
         private static bool CursorPairs
         {

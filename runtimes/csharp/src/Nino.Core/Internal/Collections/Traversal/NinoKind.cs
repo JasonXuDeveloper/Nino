@@ -78,8 +78,8 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Whether the formatter writes strings in the default encoding (<see cref="StringFormatter"/>): the keys a
         /// polymorphic value's generated loop writes itself (<see cref="NinoRun.WriteKey"/>). A <c>typeof</c>, a
-        /// constant on every runtime (NativeAOT and IL2CPP too). Collections move strings through their
-        /// <see cref="Cursor"/>.
+        /// constant on every runtime (NativeAOT and IL2CPP too). Collections move strings through the string run
+        /// kernels (<see cref="Strings"/>).
         /// </summary>
         public static bool IsString
         {
@@ -88,8 +88,20 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// <see cref="INinoFormatter.HasCursor"/>: values written and read in the cursor form (strings, UTF-8 strings,
-        /// pairs of items that have it), which the loops over a run take (<see cref="NinoCursor.Has{T,TFormatter}"/>).
+        /// Whether the formatter writes strings, in the default encoding or UTF-8
+        /// (<see cref="Utf8StringFormatter"/>): a run of them is moved by the string run kernels
+        /// (<see cref="NinoStringRuns"/>), one call not generic over the element. A <c>typeof</c>, as
+        /// <see cref="IsString"/>: a constant in code shared over a class too, where a field of this class is not.
+        /// </summary>
+        public static bool Strings
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => typeof(TFormatter) == typeof(StringFormatter) || typeof(TFormatter) == typeof(Utf8StringFormatter);
+        }
+
+        /// <summary>
+        /// <see cref="INinoFormatter.HasCursor"/>: pairs whose runs the string run kernels move
+        /// (<see cref="NinoCursor.Own{T,TFormatter}"/>).
         /// </summary>
         public static readonly bool Cursor = default(TFormatter).HasCursor;
 

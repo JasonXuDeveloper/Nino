@@ -91,14 +91,37 @@ namespace Nino.Core
         internal bool HasExternalWrite => false;
 
         /// <summary>
-        /// Whether the formatter has the cursor form of its write and read (false, the default):
-        /// <see cref="INinoFormatter{T}.MaxSize"/>, <see cref="INinoFormatter{T}.WriteAt"/> and
-        /// <see cref="INinoFormatter{T}.ReadAt"/>, which take the data and the bytes left rather than the writer or the
-        /// reader, so a loop over many values keeps its data, position and end in registers (<see cref="NinoCursor"/>,
-        /// #347). Strings (the default encoding and UTF-8) and pairs of items that have it. Raw and block values have
-        /// it through their kind, without a member. Nino.Core's alone. Called once.
+        /// Whether the formatter's values are pairs of items the string run kernels move (false, the default):
+        /// <see cref="WriteStrings"/> and <see cref="ReadStrings"/> (<see cref="NinoStringRuns"/>, #355), which take the
+        /// data and the bytes left rather than the writer or the reader, so their loops keep the data, position and end
+        /// in registers. Strings themselves are told by their formatters' types, raw and block values by their kind.
+        /// Nino.Core's alone (<see cref="KeyValuePairFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/>). Called
+        /// once.
         /// </summary>
         internal bool HasCursor => false;
+
+        /// <summary>
+        /// Writes the values of <paramref name="run"/> (not empty; the count is the caller's) through the string run
+        /// kernels (<see cref="NinoStringRuns.WritePairs{TA,TB,TFormatterA,TFormatterB}"/>): one call per run, so in
+        /// code shared over a class only the call is indirect, never a value. The writer by value and returned. Called
+        /// only where <see cref="HasCursor"/> is true.
+        /// </summary>
+        internal Writer WriteStrings(scoped NinoRun run, Writer writer)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(WriteStrings));
+            return writer;
+        }
+
+        /// <summary>
+        /// Reads the values of <paramref name="run"/> (not empty, every one in use) in place from the data at
+        /// <paramref name="data"/> (<paramref name="end"/> bytes) through the string run kernels; returns the bytes
+        /// read. Called only where <see cref="HasCursor"/> is true.
+        /// </summary>
+        internal int ReadStrings(scoped NinoRun run, ref byte data, int end)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(ReadStrings));
+            return 0;
+        }
     }
 
     /// <summary>
@@ -116,7 +139,7 @@ namespace Nino.Core
     /// polymorphic bases (<see cref="INinoFormatter.HasRunLoop"/>) and the
     /// prefetch of long collections of classes (<see cref="INinoFormatter.PrefetchBytes"/>), implemented by generated
     /// formatters and Nino.Core's own where they apply; Nino.Core's formatters also have internal ones (slots, sized
-    /// and external top-level writes, the cursor form of strings and pairs).
+    /// and external top-level writes, the string run kernels of pairs).
     /// </para>
     /// <para>
     /// The rule that keeps the defaults free: a call to a default a struct does not override boxes the struct
@@ -241,38 +264,6 @@ namespace Nino.Core
         {
             NinoThrow.MissingCapability(GetType(), nameof(TryWriteExternal));
             return false;
-        }
-
-        /// <summary>
-        /// The most bytes <see cref="WriteAt"/> writes for <paramref name="value"/> (negative: more than an
-        /// <c>int</c> holds, which the writer rejects). Called only where <see cref="INinoFormatter.HasCursor"/> is
-        /// true.
-        /// </summary>
-        internal int MaxSize(T value)
-        {
-            NinoThrow.MissingCapability(GetType(), nameof(MaxSize));
-            return -1;
-        }
-
-        /// <summary>
-        /// Writes <paramref name="value"/> at <paramref name="destination"/>, which has room for <see cref="MaxSize"/>
-        /// bytes: the bytes of <see cref="Serialize"/>. Returns the bytes written.
-        /// </summary>
-        internal int WriteAt(ref byte destination, T value)
-        {
-            NinoThrow.MissingCapability(GetType(), nameof(WriteAt));
-            return 0;
-        }
-
-        /// <summary>
-        /// Reads into <paramref name="value"/> the value at <paramref name="source"/> (<paramref name="available"/>
-        /// bytes, which it checks), as <see cref="Deserialize"/> reads it (an existing value reused where it can be).
-        /// Returns the bytes read.
-        /// </summary>
-        internal int ReadAt(ref byte source, int available, ref T value)
-        {
-            NinoThrow.MissingCapability(GetType(), nameof(ReadAt));
-            return 0;
         }
     }
 

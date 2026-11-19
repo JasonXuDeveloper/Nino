@@ -8,11 +8,11 @@ namespace Nino.Core.Internal
     /// What a hashed collection (a <see cref="HashSet{T}"/>, a <see cref="Dictionary{TKey,TValue}"/>) does of its own
     /// when <see cref="NinoEntries{TEntry,TFormatter,TTable}"/> reads into it: whether its new entries are filled then
     /// linked (<see cref="HashTables"/>), and how it takes one entry read apart (inserted, or added and its bucket
-    /// walked). The collection's thin layer; its key is the one thing it reads out of an entry. It is the store of
-    /// the cursor loop that adds (<see cref="Adding"/>): in code shared over a class each call of a struct of it is an
-    /// indirect call, so a store wrapping it made two per entry.
+    /// walked). The collection's thin layer; its key is the one thing it reads out of an entry. Entries holding
+    /// strings are read by the string run kernels instead (<see cref="NinoStringRuns"/>), whose stores are not generic
+    /// over a class: in code shared over a class each call of a struct of this is an indirect call.
     /// </summary>
-    internal interface INinoHashTable<TEntry, TTable> : NinoCursor.IStore<TEntry>
+    internal interface INinoHashTable<TEntry, TTable>
         where TTable : struct, INinoHashTable<TEntry, TTable>
     {
         /// <summary>Whether its entries take <paramref name="count"/> new ones, filled in place then linked, or each
@@ -38,10 +38,6 @@ namespace Nino.Core.Internal
         /// <summary>Takes one entry read apart: inserted where <paramref name="insert"/>, else added by the collection
         /// (a null or repeated key is invalid data) and its bucket walked where <paramref name="walk"/>.</summary>
         void Add(ref TEntry entry, bool insert, bool walk);
-
-        /// <summary>Itself as the store of entries read apart (<see cref="NinoCursor.IStore{T}.Stored"/>: each
-        /// added as <see cref="Add"/> does, then cleared, so the next is read into empty places).</summary>
-        TTable Adding(bool insert, bool walk);
     }
 
     /// <summary>
@@ -51,7 +47,9 @@ namespace Nino.Core.Internal
     /// it does with them. Into a new collection sized for them, the entries are filled through
     /// <see cref="NinoRuns"/>' loops and the block kernels and linked after (<see cref="HashTables.Link{T}"/>, the
     /// collection left empty when the data is rejected part way); else each is read apart and added. Blocks from one
-    /// entry on, the others from <see cref="HashTables.FillFrom"/> on.
+    /// entry on, the others from <see cref="HashTables.FillFrom"/> on. Strings and pairs holding them take the same
+    /// steps through the string run kernels (<see cref="NinoStringRuns.ReadSet"/>, NinoDictionary's
+    /// <c>ReadStrings</c>).
     /// </summary>
     internal static class NinoEntries<TEntry, TFormatter, TTable>
         where TFormatter : struct, INinoFormatter<TEntry>
@@ -67,12 +65,10 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Reads <paramref name="length"/> entries into <paramref name="table"/>: as one block (taken here, so the
-        /// reader's address never leaves the caller), through the cursor loop where <paramref name="cursor"/> (which
-        /// the caller asks of the items: in code shared over a class the element formatter's own answer is a lookup),
-        /// else value by value, each out of line.
+        /// reader's address never leaves the caller), else value by value, out of line.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read(TTable table, int length, ref Reader reader, bool cursor)
+        public static void Read(TTable table, int length, ref Reader reader)
         {
             if (Blocks)
             {
@@ -82,16 +78,9 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            // Out of line, the data and the bytes left or a copy of the reader to the call; an empty collection skips
-            // both.
+            // Out of line, a copy of the reader to the call; an empty collection skips it.
             if (length == 0)
                 return;
-            if (cursor)
-            {
-                reader.UnsafeAdvance(ReadCursors(table, length, ref reader.Peek(), reader.Remaining));
-                return;
-            }
-
             reader = ReadEach(table, length, reader);
         }
 
@@ -134,44 +123,6 @@ namespace Nino.Core.Internal
                     ref Unsafe.As<byte, TEntry>(ref table.Run(length).First), length,
                     NinoKind.Stride<TEntry, TFormatter>());
                 table.Link(length);
-            }
-            catch
-            {
-                table.Unlink();
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Reads <paramref name="length"/> entries (not 0) through the cursor loop from the data at
-        /// <paramref name="data"/> (<paramref name="end"/> bytes): in place into the entries of a collection that takes
-        /// them and linked (from <see cref="HashTables.FillFrom"/> on), else each read into one entry (a run of it with
-        /// no stride) and added (the table the store, <see cref="INinoHashTable{TEntry,TTable}.Adding"/>). Returns the bytes read.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int ReadCursors(TTable table, int length, ref byte data, int end)
-        {
-            bool insert = table.CanInsert(length);
-            if (insert && length >= HashTables.FillFrom)
-                return FillCursors(table, length, ref data, end);
-
-            TEntry entry = default;
-            return NinoRuns.ReadCursors<TEntry, TFormatter, TTable>(
-                new NinoRun(ref Unsafe.As<TEntry, byte>(ref entry), length, 0, NinoRun.NoKey, NinoRun.AllInUse),
-                ref data, end, table.Adding(insert, table.Walks));
-        }
-
-        /// <summary><see cref="ReadCursors"/>' fill, the collection left empty if the data is rejected part
-        /// way.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int FillCursors(TTable table, int length, ref byte data, int end)
-        {
-            try
-            {
-                int read = NinoRuns.ReadCursors<TEntry, TFormatter, NinoCursor.InPlace<TEntry>>(
-                    table.Run(length), ref data, end, default);
-                table.Link(length);
-                return read;
             }
             catch
             {
@@ -246,40 +197,15 @@ namespace Nino.Core.Internal
     /// entry's value, and a null value is one. Two views of its entries: the entries themselves (values without
     /// references: the storage element, a block where the value is), or the values at their offset in them, a run with
     /// the entry's stride (values with references: in code shared over a class the element's accessor was an indirect
-    /// call per value in the cursor loops, asm.py: <c>HashSet&lt;string&gt;</c>'s write loop 382 to 812 bytes).
+    /// call per value, asm.py: <c>HashSet&lt;string&gt;</c>'s write loop 382 to 812 bytes; strings are read through
+    /// the string run kernels, <see cref="NinoStringRuns.ReadSet"/>).
     /// </summary>
     internal readonly struct SetTable<T> : INinoHashTable<CollectionFields.SetEntry<T>, SetTable<T>>,
         INinoHashTable<T, SetTable<T>>
     {
         private readonly HashSet<T> _set;
-        private readonly bool _insert, _walk;
 
-        public SetTable(HashSet<T> set) : this(set, false, false)
-        {
-        }
-
-        private SetTable(HashSet<T> set, bool insert, bool walk)
-        {
-            _set = set;
-            _insert = insert;
-            _walk = walk;
-        }
-
-        public SetTable<T> Adding(bool insert, bool walk) => new(_set, insert, walk);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Stored(ref CollectionFields.SetEntry<T> entry)
-        {
-            Add(_set, entry.Value, _insert, _walk);
-            entry = default;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Stored(ref T value)
-        {
-            Add(_set, value, _insert, _walk);
-            value = default;
-        }
+        public SetTable(HashSet<T> set) => _set = set;
 
         public bool CanInsert(int count) => HashTables.CanInsert(_set, count);
 
@@ -330,27 +256,8 @@ namespace Nino.Core.Internal
         : INinoHashTable<CollectionFields.MapEntry<TKey, TValue>, MapTable<TKey, TValue>>
     {
         private readonly Dictionary<TKey, TValue> _dictionary;
-        private readonly bool _insert, _walk;
 
-        public MapTable(Dictionary<TKey, TValue> dictionary) : this(dictionary, false, false)
-        {
-        }
-
-        private MapTable(Dictionary<TKey, TValue> dictionary, bool insert, bool walk)
-        {
-            _dictionary = dictionary;
-            _insert = insert;
-            _walk = walk;
-        }
-
-        public MapTable<TKey, TValue> Adding(bool insert, bool walk) => new(_dictionary, insert, walk);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Stored(ref CollectionFields.MapEntry<TKey, TValue> entry)
-        {
-            Add(ref entry, _insert, _walk);
-            entry = default;
-        }
+        public MapTable(Dictionary<TKey, TValue> dictionary) => _dictionary = dictionary;
 
         public bool CanInsert(int count) => HashTables.CanInsert(_dictionary, count);
 
@@ -368,19 +275,24 @@ namespace Nino.Core.Internal
         public void Unlink() => HashTables.Unlink(_dictionary);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Add(ref CollectionFields.MapEntry<TKey, TValue> entry, bool insert, bool walk)
+        public void Add(ref CollectionFields.MapEntry<TKey, TValue> entry, bool insert, bool walk) =>
+            Add(_dictionary, entry.Key, entry.Value, insert, walk);
+
+        /// <summary>Adds a pair as <see cref="INinoHashTable{TEntry,TTable}.Add"/> does.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Add(Dictionary<TKey, TValue> dictionary, TKey key, TValue value, bool insert, bool walk)
         {
             if (insert)
             {
-                HashTables.Insert(_dictionary, entry.Key, entry.Value);
+                HashTables.Insert(dictionary, key, value);
                 return;
             }
 
-            if (entry.Key == null)
-                NinoThrow.NullKey(_dictionary);
-            NinoCollections.AddUnique(_dictionary, entry.Key, entry.Value);
+            if (key == null)
+                NinoThrow.NullKey(dictionary);
+            NinoCollections.AddUnique(dictionary, key, value);
             if (walk)
-                HashTables.Walk(_dictionary, entry.Key);
+                HashTables.Walk(dictionary, key);
         }
     }
 }

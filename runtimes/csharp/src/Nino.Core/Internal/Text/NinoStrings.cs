@@ -338,6 +338,42 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
+        /// The bytes the string at <paramref name="source"/> (<paramref name="available"/> bytes) takes, its header
+        /// checked as <see cref="Read"/> checks it and its chars against the data, without allocating: the first pass
+        /// of a run's read (<see cref="NinoStringRuns"/>). A header out of range, not minimal, or whose chars the data
+        /// does not hold is invalid data.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Measure(ref byte source, int available)
+        {
+            if (available <= 0)
+                NinoThrow.EndOfData();
+            uint header = source;
+            if (header < 0x80)
+            {
+                // Odd (Latin-1): header >> 1 chars of a byte; even (UTF-16, null): header bytes; 1 the empty string.
+                uint size = 1 + (header >> (int)(header & 1));
+                if (size > (uint)available)
+                    NinoThrow.EndOfData();
+                return (int)size;
+            }
+
+            return MeasureLong(ref source, available);
+        }
+
+        /// <summary><see cref="Measure"/> of a header of three or five bytes.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int MeasureLong(ref byte source, int available)
+        {
+            ulong read = ReadLongHeader(ref source, available);
+            uint header = (uint)read;
+            ulong size = (read >> 32) + (header >> (int)(header & 1));
+            if (size > (uint)available)
+                NinoThrow.EndOfData();
+            return (int)size;
+        }
+
+        /// <summary>
         /// Reads the string at <paramref name="source"/> (<paramref name="available"/> bytes), setting
         /// <paramref name="size"/> to the bytes it takes. Returns <paramref name="current"/> when it holds the same
         /// chars, so reading into an existing object keeps an unchanged string instead of allocating a copy.

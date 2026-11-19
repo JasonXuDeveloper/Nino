@@ -53,7 +53,8 @@ namespace Nino.Core
             }
 
             // Values with references are moved as the values at their offset in the entries (SetTable's item view): in
-            // code shared over a class the entry formatter's accessor is a call. A polymorphic base's values: its
+            // code shared over a class the entry formatter's accessor is a call. Strings: the string run kernels
+            // (NinoRuns.WriteEntries). A polymorphic base's values: its
             // generated loop over the run of the values, through a copy of the writer (the writer's address never
             // reaches the generated loop, a call, so the caller keeps its fields in registers). The intrinsic itself,
             // as in NinoRuns.Write.
@@ -147,19 +148,12 @@ namespace Nino.Core
             // As in Serialize: the entries of values without references, the values of those with.
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
-                // Values whose buckets the set guards itself (strings on .NET: neither inserted nor walked), added
-                // here, inline, one at a time: through NinoEntries' loops, in code shared over a class, each add was an
-                // indirect call of the table (HashSet<string> of 1,000 read 20 to 30 % slower, local).
-                if (!HashTables.Plan<T>.Inserts && !HashTables.Plan<T>.Walks)
+                // Strings: the string run kernels, one call not generic over the element (in code shared over a class,
+                // each call of a struct generic over it is an indirect one), the data and the bytes left to it.
+                if (NinoKind<TFormatter>.Strings)
                 {
-                    for (int i = 0; i < length; i++)
-                    {
-                        T item = default;
-                        NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
-                        if (!set.Add(item))
-                            NinoThrow.DuplicateKey(set.GetType());
-                    }
-
+                    reader.UnsafeAdvance(NinoStringRuns.ReadSet(Unsafe.As<HashSet<string>>(set), length,
+                        ref reader.Peek(), reader.Remaining, typeof(TFormatter) == typeof(Utf8StringFormatter)));
                     return;
                 }
 
@@ -167,20 +161,19 @@ namespace Nino.Core
             }
             else
                 NinoEntries<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T, TFormatter, CollectionFields.SetFields<T>>, SetTable<T>>.Read(
-                    new SetTable<T>(set), length, ref reader, NinoCursor.Own<T, TFormatter>());
+                    new SetTable<T>(set), length, ref reader);
         }
 
         /// <summary>
-        /// The values of a set of values with references that inserts or walks (<see cref="HashTables.Plan{T}"/>),
+        /// The values of a set of values with references other than strings,
         /// through <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>: out of line, the reader by value and returned,
-        /// so that the inline loop beside it keeps the caller's reader in registers (asm.py: HashSet&lt;string&gt;'s
-        /// read in code shared over a class 44 to 81 stack accesses with it inlined).
+        /// so that the caller keeps its reader in registers (asm.py: HashSet&lt;string&gt;'s read in code shared over
+        /// a class 44 to 81 stack accesses with it inlined).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Reader ReadValues(TSet set, int length, Reader reader)
         {
-            NinoEntries<T, TFormatter, SetTable<T>>.Read(new SetTable<T>(set), length, ref reader,
-                NinoCursor.Own<T, TFormatter>());
+            NinoEntries<T, TFormatter, SetTable<T>>.Read(new SetTable<T>(set), length, ref reader);
             return reader;
         }
 
