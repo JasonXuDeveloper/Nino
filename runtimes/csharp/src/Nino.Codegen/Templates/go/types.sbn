@@ -34,8 +34,29 @@ func union_type(c)
     $o = $o + "func (" + c.name + "Object) NinoTypeName() string {\n\treturn " + go_string(c.runtime_name) + "\n}\n\n"
   end
   $nests = c.model.union_nests
+  $classCases = c.class_slab_cases
+  if $classCases.size != 0
+    $o = $o + "type nino" + c.name + "Slabs struct {\n"
+    $width = 0
+    for $k in $classCases
+      $name = name($k.shape.type)
+      if $name.size > $width
+        $width = $name.size
+      end
+    end
+    for $k in $classCases
+      $name = name($k.shape.type)
+      $o = $o + "\t" + pad($name, $width) + " ninoClassSlab[" + $name + "]\n"
+    end
+    $o = $o + "}\n\n"
+  end
   $o = $o + "// Read" + c.name + " reads a " + c.name + ": the type id of its case (0 for the empty union), then the case's value.\n"
-  $o = $o + "func Read" + c.name + "(r *nino.Reader) " + c.name + " {\n\tid := r.TypeID()\n\tif id == nino.NullTypeID {\n\t\treturn nil\n\t}\n"
+  $o = $o + "func Read" + c.name + "(r *nino.Reader) " + c.name + " {\n"
+  if $classCases.size != 0
+    $o = $o + "\treturn read" + c.name + "Slab(r, nil)\n}\n\n"
+    $o = $o + "func read" + c.name + "Slab(r *nino.Reader, slabs *nino" + c.name + "Slabs) " + c.name + " {\n"
+  end
+  $o = $o + "\tid := r.TypeID()\n\tif id == nino.NullTypeID {\n\t\treturn nil\n\t}\n"
   # Without a depth count, each case returns its value; with one (a case can hold the union again), the value is kept
   # until the count is closed (no defer: it keeps the function out of line and costs a call).
   $ret = $nests ? "v = " : "return "
@@ -47,8 +68,17 @@ func union_type(c)
     $o = $o + "\tcase " + $k.model.type_id + ":\n"
     $made = $k.direct ? "value" : $k.name + "{Value: value}"
     if $k.model.nullable
+      $read = read($k.shape)
+      if $k.uses_class_slab
+        $name = name($k.shape.type)
+        $o = $o + "\t\tvar value *" + $name + "\n\t\tif slabs == nil {\n\t\t\tvalue = " + $read + "\n\t\t} else if r.Present() {\n"
+        $o = $o + "\t\t\tvalue = slabs." + $name + ".next(r)\n" + class_into($name, "value", "\t\t\t") + "\t\t}\n"
+        $read = "value != nil"
+      else
+        $read = "value := " + $read + "; value != nil"
+      end
       # A case read as nil is invalid: .NET writes the empty union for a case given null.
-      $o = $o + "\t\tif value := " + read($k.shape) + "; value != nil {\n\t\t\t" + $ret + $made + "\n"
+      $o = $o + "\t\tif " + $read + " {\n\t\t\t" + $ret + $made + "\n"
       $o = $o + ($nests ? "\t\t} else {\n\t\t\tr.Fail(nino.CodeInvalidData, \"a union case without a value\")\n\t\t}\n" : "\t\t}\n\t\tr.Fail(nino.CodeInvalidData, \"a union case without a value\")\n")
     else if $k.direct
       $o = $o + "\t\t" + $ret + read($k.shape) + "\n"
@@ -249,10 +279,17 @@ func helper_body(h)
     $o = "func " + $n + "(r *nino.Reader, p *" + $t + ") {\n"
     if $s.kind == "map"
       $e = "nino.Entry[" + gotype($s.key) + ", " + gotype($s.value) + "]"
-      ret $o + read_into_loop($e, plus($s.key, $s.value), "k := " + read($s.key) + "\n\t\te = " + $e + "{Key: k, Value: " + read($s.value) + "}", false) + "}\n"
+      ret $o + read_into_loop($e, plus($s.key, $s.value), "k := " + read($s.key) + "\n\t\te = " + $e + "{Key: k, Value: " + read($s.value) + "}", false, "") + "}\n"
+    end
+    if $s.element.kind == "struct" && $s.element.type.is_union
+      $union = type_of($s.element.type)
+      if $union.class_slab_cases.size != 0
+        $setup = "\tvar slabs nino" + $union.name + "Slabs\n"
+        ret $o + read_into_loop(gotype($s.element), $s.element.min, "e = read" + $union.name + "Slab(r, &slabs)", false, $setup) + "}\n"
+      end
     end
     $each = read_into($s.element, "e")
-    ret $o + read_into_loop(gotype($s.element), $s.element.min, $each, $each != "e = " + read($s.element)) + "}\n"
+    ret $o + read_into_loop(gotype($s.element), $s.element.min, $each, $each != "e = " + read($s.element), "") + "}\n"
   else if h.mode == "read" && reads_into($s) && $s.mode != "fixed"
     # The loop of the into form (a nil slice: a new one).
     ret "func " + $n + "(r *nino.Reader) (v " + $t + ") {\n\t" + helper($s, "readinto") + "(r, &v)\n\treturn v\n}\n"
@@ -427,9 +464,10 @@ end
 
 # The loop of a sequence's readinto helper: as read_loop, into *p, whose storage is reused when it holds n elements
 # (a nil one never: nil is null) and whose element i is what `each` reads into `e`. nil for null and on a failure.
-func read_into_loop(t, min, each, reuse)
+func read_into_loop(t, min, each, reuse, setup)
   $o = "\tn := r.Length(" + min + ")\n\tif n < 0 {\n\t\t*p = nil\n\t\treturn\n\t}\n\told := *p\n\tv := old[:0]\n"
   $o = $o + "\tif old == nil || cap(old) < n {\n\t\tvar z " + t + "\n\t\tv = make([]" + t + ", 0, r.SliceCap(n, int(unsafe.Sizeof(z))))\n\t}\n"
+  $o = $o + setup
   if reuse
     $o = $o + "\tfor i := range n {\n\t\tvar e " + t + "\n\t\tif i < len(old) {\n\t\t\te = old[i]\n\t\t}\n"
   else
@@ -902,10 +940,14 @@ else if uses_object
   "\nvar objects = nino.NewTypeSet()\n"
 end
 
+$hasClassSlabs = false
 for c in types
   "\n"
   if c.is_union
     union_type(c)
+    if c.class_slab_cases.size != 0
+      $hasClassSlabs = true
+    end
     continue
   end
   if c.is_abstract && c.parameters.size != 0
@@ -989,6 +1031,15 @@ for c in types
   end
   "func read" + c.name + "Body(r *nino.Reader, v *" + c.name + ") {\n" + read_members(c) + "}\n\n"
   "func write" + c.name + "Body(w *nino.Writer, v *" + c.name + ") {\n" + write_members(c) + "}\n"
+end
+
+if $hasClassSlabs
+  # Each union sequence holds its own typed slabs. A pointer returned into a slab keeps its block alive.
+  "\n// ninoClassSlab gives the class cases of a union sequence fresh storage in small blocks.\n"
+  "type ninoClassSlab[T any] struct {\n\tslots []T\n\tsize  int\n}\n\n"
+  "func (s *ninoClassSlab[T]) next(r *nino.Reader) *T {\n"
+  "\tif len(s.slots) == 0 {\n\t\tvar z T\n\t\ts.size = r.SliceCap(min(8, max(1, s.size*2)), int(unsafe.Sizeof(z)))\n"
+  "\t\ts.slots = make([]T, s.size)\n\t}\n\tv := &s.slots[0]\n\ts.slots = s.slots[1:]\n\treturn v\n}\n"
 end
 
 if uses_object

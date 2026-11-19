@@ -3046,8 +3046,16 @@ func (ChoiceObject) NinoTypeName() string {
 	return "Conformance.Choice"
 }
 
+type ninoChoiceSlabs struct {
+	Point ninoClassSlab[Point]
+}
+
 // ReadChoice reads a Choice: the type id of its case (0 for the empty union), then the case's value.
 func ReadChoice(r *nino.Reader) Choice {
+	return readChoiceSlab(r, nil)
+}
+
+func readChoiceSlab(r *nino.Reader, slabs *ninoChoiceSlabs) Choice {
 	id := r.TypeID()
 	if id == nino.NullTypeID {
 		return nil
@@ -3066,7 +3074,19 @@ func ReadChoice(r *nino.Reader) Choice {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
 	case -1773443910:
-		if value := ReadPoint(r); value != nil {
+		var value *Point
+		if slabs == nil {
+			value = ReadPoint(r)
+		} else if r.Present() {
+			value = slabs.Point.next(r)
+			if d, ok := r.EnterBody(); ok {
+				readPointBody(r, value)
+				r.ExitBody(d)
+			} else {
+				nino.ReadClassInto(r, value, &pointClass)
+			}
+		}
+		if value != nil {
 			v = value
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
@@ -11944,6 +11964,23 @@ func writeZooBody(w *nino.Writer, v *Zoo) {
 	writeV88(w, v.ByName)
 }
 
+// ninoClassSlab gives the class cases of a union sequence fresh storage in small blocks.
+type ninoClassSlab[T any] struct {
+	slots []T
+	size  int
+}
+
+func (s *ninoClassSlab[T]) next(r *nino.Reader) *T {
+	if len(s.slots) == 0 {
+		var z T
+		s.size = r.SliceCap(min(8, max(1, s.size*2)), int(unsafe.Sizeof(z)))
+		s.slots = make([]T, s.size)
+	}
+	v := &s.slots[0]
+	s.slots = s.slots[1:]
+	return v
+}
+
 func readObject(r *nino.Reader) nino.Typed {
 	v, _ := nino.ReadAny(r, objects).(nino.Typed)
 	return v
@@ -14425,12 +14462,10 @@ func readintoV85(r *nino.Reader, p *[]Choice) {
 		var z Choice
 		v = make([]Choice, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
 	}
-	for i := range n {
-		var e Choice
-		if i < len(old) {
-			e = old[i]
-		}
-		ReadChoiceInto(r, &e)
+	var slabs ninoChoiceSlabs
+	var e Choice
+	for range n {
+		e = readChoiceSlab(r, &slabs)
 		if r.Failed() {
 			*p = nil
 			return

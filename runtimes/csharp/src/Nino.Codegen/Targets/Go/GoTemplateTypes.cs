@@ -379,6 +379,9 @@ namespace Nino.Codegen.Targets
         /// </summary>
         public bool Direct { get; }
 
+        /// <summary>An untracked concrete class is already a pointer case, so a sequence can batch its allocation.</summary>
+        public bool UsesClassSlab => Direct && Shape.Kind == "class" && !Shape.Type!.TrackReferences;
+
         public UnionCaseModel Model { get; }
 
         public GoShape Shape { get; }
@@ -413,6 +416,8 @@ namespace Nino.Codegen.Targets
 
         /// <summary>A union's cases, in declaration order: each a struct named after the union and the case.</summary>
         public List<GoCase> Cases => _target.UnionCases(Model);
+
+        public List<GoCase> ClassSlabCases => Cases.Where(c => c.UsesClassSlab).ToList();
 
         /// <summary>The id it is written behind (its name's hash for a closed generic type).</summary>
         public int Id => GoTarget.IdOf(Model);

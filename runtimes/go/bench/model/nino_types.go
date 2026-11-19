@@ -24040,8 +24040,16 @@ func (UnionValueObject) NinoTypeName() string {
 	return "Nino.Benchmark.UnionValue"
 }
 
+type ninoUnionValueSlabs struct {
+	UnionItem ninoClassSlab[UnionItem]
+}
+
 // ReadUnionValue reads a UnionValue: the type id of its case (0 for the empty union), then the case's value.
 func ReadUnionValue(r *nino.Reader) UnionValue {
+	return readUnionValueSlab(r, nil)
+}
+
+func readUnionValueSlab(r *nino.Reader, slabs *ninoUnionValueSlabs) UnionValue {
 	id := r.TypeID()
 	if id == nino.NullTypeID {
 		return nil
@@ -24064,7 +24072,19 @@ func ReadUnionValue(r *nino.Reader) UnionValue {
 	case 791437675:
 		v = UnionValueUnionPoint{Value: readUnionPoint(r)}
 	case 635318394:
-		if value := ReadUnionItem(r); value != nil {
+		var value *UnionItem
+		if slabs == nil {
+			value = ReadUnionItem(r)
+		} else if r.Present() {
+			value = slabs.UnionItem.next(r)
+			if d, ok := r.EnterBody(); ok {
+				readUnionItemBody(r, value)
+				r.ExitBody(d)
+			} else {
+				nino.ReadClassInto(r, value, &unionItemClass)
+			}
+		}
+		if value != nil {
 			v = value
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
@@ -24877,6 +24897,23 @@ func readZooBody(r *nino.Reader, v *Zoo) {
 
 func writeZooBody(w *nino.Writer, v *Zoo) {
 	writeV57(w, v.Animals)
+}
+
+// ninoClassSlab gives the class cases of a union sequence fresh storage in small blocks.
+type ninoClassSlab[T any] struct {
+	slots []T
+	size  int
+}
+
+func (s *ninoClassSlab[T]) next(r *nino.Reader) *T {
+	if len(s.slots) == 0 {
+		var z T
+		s.size = r.SliceCap(min(8, max(1, s.size*2)), int(unsafe.Sizeof(z)))
+		s.slots = make([]T, s.size)
+	}
+	v := &s.slots[0]
+	s.slots = s.slots[1:]
+	return v
 }
 
 func readObject(r *nino.Reader) nino.Typed {
@@ -29685,12 +29722,10 @@ func readintoV90(r *nino.Reader, p *[]UnionValue) {
 		var z UnionValue
 		v = make([]UnionValue, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
 	}
-	for i := range n {
-		var e UnionValue
-		if i < len(old) {
-			e = old[i]
-		}
-		ReadUnionValueInto(r, &e)
+	var slabs ninoUnionValueSlabs
+	var e UnionValue
+	for range n {
+		e = readUnionValueSlab(r, &slabs)
 		if r.Failed() {
 			*p = nil
 			return
