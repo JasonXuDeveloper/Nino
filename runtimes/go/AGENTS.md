@@ -97,7 +97,8 @@ internal/
   generated/                 nino_types.go: the corpus's types as nino-gen writes them (do not edit), its corpus test and
                              into_test.go (DeserializeInto: objects, slices, slots, failures, deferral),
                              nesting_test.go (nested claims share the read's allocation budget);
-                             shapes/: runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped
+                             shapes/: runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped;
+                             prepared_keys_bench_test.go measures small and large generated sets and maps (#353 probe)
 bench/                       module of its own: the .NET suite's cases (runtimes/csharp/benchmarks) on the bytes
                              Nino.Benchmark writes, the runtime against Protocol Buffers, MessagePack, encoding/json
                              and encoding/gob, one adapter per serializer:
