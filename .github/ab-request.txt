@@ -1277,7 +1277,17 @@ typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions, Node
 # done (run 44443778134): rust:bytes 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 ^byte-copy/(read-control/2048|write-reused/(2048|2113|4096))$ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # write-only historical threshold floor
 
 # Mixed fresh/reused Rust writer lengths and source alignments (#263).
-rust:bytes 16366731 7ce7a622 ^copy-mixed/ # 263 mixed modern
-rust:bytes 16366731 16366731 ^copy-mixed/ # 263 mixed modern floor
-rust:bytes 16366731 7ce7a622 ^copy-mixed/ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 mixed legacy
-rust:bytes 16366731 16366731 ^copy-mixed/ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 mixed legacy floor
+# done (run 44447481096): rust:bytes 16366731 7ce7a622 ^copy-mixed/ # 263 mixed modern
+# done (run 44447481096): rust:bytes 16366731 16366731 ^copy-mixed/ # 263 mixed modern floor
+# done (run 44447481096): rust:bytes 16366731 7ce7a622 ^copy-mixed/ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 mixed legacy
+# done (run 44447481096): rust:bytes 16366731 16366731 ^copy-mixed/ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 mixed legacy floor
+
+# End-to-end Go block copy and fixed-collection controls, plus union allocation and competitor checks.
+go:.#6 cbaa5602 896200bf ^BenchmarkFreshRawRead$ # 263 Go megabyte copy
+go:.#6 cbaa5602 cbaa5602 ^BenchmarkFreshRawRead$ # 263 Go megabyte copy floor
+go:internal/generated/shapes#6 420a72c0 f9f3b19f ^BenchmarkPreparedKeys353$ # 353 prepared key checks
+go:internal/generated/shapes#6 420a72c0 420a72c0 ^BenchmarkPreparedKeys353$ # 353 prepared key checks floor
+go#8 63ef558b 2b5b726e ^Benchmark(Serialize|Deserialize)$/^(UnionArray|TaggedUnionArray)$/^Nino$ # 387 class storage
+go#8 63ef558b 63ef558b ^Benchmark(Serialize|Deserialize)$/^(UnionArray|TaggedUnionArray)$/^Nino$ # 387 class storage floor
+go:bench/model#3 e3e202df e3e202df ^BenchmarkLocal(Tagged)?UnionStorage$/^(Baseline|ClassSlab|DenseSlabs|AllSlabs)$ # 387 safe value boxing probe
+rust 63ef558b 63ef558b ^(UnionArray|TaggedUnionArray)/deserialize/(nino|postcard|bincode)$ NINO_BENCH_CASES=UnionArray|TaggedUnionArray NINO_BENCH_CASES=UnionArray|TaggedUnionArray # 387 Rust against runners' competitors
