@@ -91,7 +91,13 @@ value check in a runtime or a template.
   Keep Go's built-in copy in `Reader.ByteArray`. The Arm64 candidate for fresh 2–4 KiB reads took 5–9 %
   longer with a hot input and 24–26 % longer with a 64 MiB source rotation on Neoverse-N2
   ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411), `DeserializeExact`).
-  The 128-byte fallback control also took 30 % longer. The hot 1 MiB x64 copy result remains a microbenchmark.
+  The 128-byte fallback control also took 30 % longer.
+  The [1 MiB end-to-end x64 follow-up](https://github.com/JasonXuDeveloper/Nino/actions/runs/44451141322)
+  ran the AVX2 candidate through the same fresh `Reader.ByteArray` read. With a 64 MiB source rotation,
+  median time rose 17 % on Xeon 6975P-C, 39 % on EPYC 9V45 and 122 % on EPYC 7763. The hot 7763 row
+  rose 21 %. The same-revision 9V45 rotation moved 1.5 %. The other two x64 CPU models did not occur
+  in the floor jobs. The standard path compiles the allocation and copy to `runtime.makeslicecopy`.
+  Keep it for megabyte reads as well.
 - Compare Rust's standard copy under the default loader and with
   `GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112`. In the same run, forcing the historical lower
   threshold made the unaligned 2,113-byte standard copy 7.1× its default time on EPYC 7763 and 5.8× on 9V74.
