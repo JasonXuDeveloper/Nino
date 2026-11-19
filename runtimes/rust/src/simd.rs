@@ -30,6 +30,8 @@
 #![allow(unsafe_code)]
 #![deny(unsafe_op_in_unsafe_fn, clippy::undocumented_unsafe_blocks)]
 
+#[cfg(all(target_arch = "x86_64", target_os = "linux", target_env = "gnu", not(miri)))]
+pub(crate) mod byte_copy;
 mod decode;
 #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
 mod neon;

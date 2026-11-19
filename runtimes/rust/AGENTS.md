@@ -41,6 +41,7 @@ src/
                              fixed-size values, the cache facts (prefetch, last-level cache)
   simd/decode.rs             the reader's text: Latin-1 / UTF-16 decoding into a String it builds
   simd/x86.rs                x86_64 kernels (SSSE3, SSE4.1, AVX2, AVX-512) picked at run time
+  simd/byte_copy.rs          counted byte-block writes using AVX2 on supported AMD CPUs
   simd/neon.rs               Arm64 NEON kernels
   simd/tests.rs              every kernel and decoder against a plain one (Miri runs them)
   defer.rs                   deferred class bodies (spec §7.10): bounded stack whatever the depth
