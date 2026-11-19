@@ -63,7 +63,7 @@ namespace Nino.Core.Internal
 
     /// <summary>
     /// What <typeparamref name="TFormatter"/> says of every value, read once: its body traits, whether it writes
-    /// strings, its run loop, its prefetch and its top-level writes. A formatter without a capability
+    /// strings, its cursor form, its run loop, its prefetch and its top-level writes. A formatter without a capability
     /// answers its query through the interface's default, boxed, so the queries are asked here once and the hot paths
     /// read these fields and call a member only where the formatter has it (a constrained call). Generic over the
     /// formatter alone, so a field folds where the code reading it is shared over a class element (whose formatter is
@@ -76,15 +76,22 @@ namespace Nino.Core.Internal
         public static readonly int Traits = default(TFormatter).BodyTraits;
 
         /// <summary>
-        /// Whether the formatter writes strings in the default encoding (<see cref="StringFormatter"/>), which the
-        /// string loops write and read with their cursor in registers (UTF-8 strings go per value until #347). A
-        /// <c>typeof</c>, a constant on every runtime (NativeAOT and IL2CPP too).
+        /// Whether the formatter writes strings in the default encoding (<see cref="StringFormatter"/>): the keys a
+        /// polymorphic value's generated loop writes itself (<see cref="NinoRun.WriteKey"/>). A <c>typeof</c>, a
+        /// constant on every runtime (NativeAOT and IL2CPP too). Collections move strings through their
+        /// <see cref="Cursor"/>.
         /// </summary>
         public static bool IsString
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => typeof(TFormatter) == typeof(StringFormatter);
         }
+
+        /// <summary>
+        /// <see cref="INinoFormatter.HasCursor"/>: values written and read in the cursor form (strings, UTF-8 strings,
+        /// pairs of items that have it), which the loops over a run take (<see cref="NinoCursor.Has{T,TFormatter}"/>).
+        /// </summary>
+        public static readonly bool Cursor = default(TFormatter).HasCursor;
 
         /// <summary><see cref="INinoFormatter.HasRunLoop"/>: the values of a run (<see cref="NinoRun"/>) in one
         /// generated loop.</summary>

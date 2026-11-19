@@ -105,9 +105,9 @@ NinoFormatter.cs             INinoFormatter<T> (Serialize, Deserialize; capabili
                              WriteFixed, BlockMap, ReadBlock, internal slots) and the non-generic INinoFormatter it
                              extends (BodyTraits; the run loop of polymorphic bases: HasRunLoop, WriteRun; the prefetch of long
                              collections of classes: PrefetchBytes, HasMemberPrefetch, PrefetchMembers; internal
-                             HasSizedWrite, HasExternalWrite); NinoFormatterBase<T> and its struct wrappers
-                             (StructFormatter, FixedStructFormatter, TopStructFormatter, NestingFormatter),
-                             RawFormatter, NinoSized, INinoRawArrayFormatter, CachedFormatter<T>
+                             HasSizedWrite, HasExternalWrite, HasCursor with MaxSize, WriteAt, ReadAt);
+                             NinoFormatterBase<T> and its struct wrappers (StructFormatter, FixedStructFormatter,
+                             TopStructFormatter, NestingFormatter), RawFormatter, NinoSized, INinoRawArrayFormatter, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
                              NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields;
                              NinoMissingFormatter<T> (the never-null stand-in of a type without one)
@@ -162,13 +162,14 @@ Reader.cs                    ref struct Reader (partial, a file per concern): it
 Reader.References.cs         back references (ReadReference, SetReference) and the depth of struct bodies (EnterStruct)
 Reader.Regions.cs            slices and length-prefixed regions, deferred bodies and the sections after them
 Reader.Values.cs             position, blocks, unmanaged values, lengths checked before allocating, presence, raw bytes
-Reader.Strings.cs            strings (Latin-1 or UTF-16 through NinoStrings, UTF-8), shared or reused
+Reader.Strings.cs            strings (Latin-1 or UTF-16 through NinoStrings, UTF-8), shared or reused; ReadUtf8At, the
+                             cursor form of a UTF-8 read
 Writer.cs                    ref struct Writer (partial, as Reader): writes into a NinoArrayBufferWriter (Flush when
                              done); its fields, the cursor, Flush and reserving buffer space (growing it)
 Writer.References.cs         back references (WriteReference) and the depth of struct bodies (EnterStruct)
 Writer.Regions.cs            patched lengths, regions and deferred bodies
 Writer.Values.cs             unmanaged values, lengths and presence, raw bytes, reservations for counted elements
-Writer.Strings.cs            strings (NinoStrings) and UTF-8
+Writer.Strings.cs            strings (NinoStrings) and UTF-8; Utf8MaxSize and WriteUtf8At, the cursor form of a UTF-8 write
 NinoArrayBufferWriter.cs     the pooled, growable IBufferWriter<byte> Writer writes into
 NinoWire.cs                  the wire constants (null length, presence bytes, headers; also compiled into the generator)
 NinoDepth.cs                 depth bounds: bodies past Inline (128) open bodies are deferred; the limit is MaxDepth
@@ -234,14 +235,20 @@ HashTables.Checks.cs         its startup checks (the hashing of each implementat
 ```
 NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
 NinoKind.cs                  the one element-kind decision every collection reads: NinoKind<TFormatter> (what a formatter
-                             says of every value, read once: Traits, IsString, the run loop, prefetch,
+                             says of every value, read once: Traits, IsString, Cursor, the run loop, prefetch,
                              the sized and external top-level writes), NinoKind<T, TFormatter> (NinoElementKind: raw,
                              slot, block or per value, with Stride, MinWire, CopiedWhole, ReadOverwrites, Heavy,
                              HeavyHashed), NinoKind.Of / Stride (read behind the no-references guard)
 NinoRuns.cs                  the loops over a run (NinoRun), one per element kind and direction: values in a row (arrays,
                              lists, spans, ring halves; Write, Read), a set's entries (WriteSet, ReadSet), a dictionary's
-                             entries (the pair: blocks gathered or scattered, a polymorphic value's WriteRun, string
-                             pairs, value by value; WritePairs, ReadPairs into new entries the caller links)
+                             entries (the pair: blocks gathered or scattered, a polymorphic value's WriteRun, value by
+                             value; WritePairs, ReadPairs into new entries the caller links); the pair loop of values with
+                             the cursor form (WriteCursors, ReadCursors with a store), whose element loop is the pair
+                             loop without keys
+NinoCursor.cs                the cursor form of a value's write and read (strings, UTF-8, raw values, blocks, pairs of
+                             them: MaxSize, WriteAt, ReadAt; Has, decided by kind or by INinoFormatter.HasCursor), the
+                             missing key of the element loop (None) and the stores the read loop fills (Entries in
+                             place, Adds into a dictionary one Pair at a time, Merges into its pairs there)
 NinoElements.cs              the read policies of array-like formatters (capacity budgets, ReadGrowing, EnsureLength,
                              NewOrSame/Publish; MinWireSize, CopiedWhole, ReadOverwrites from NinoKind), the one-block
                              write and the one-value write and read of a sequence not held in a run

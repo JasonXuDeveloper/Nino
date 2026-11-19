@@ -69,177 +69,6 @@ namespace Nino.Core
             return new SizedString(value, size);
         }
 
-        /// <summary>
-        /// Reads <paramref name="count"/> strings into the slots starting at <paramref name="first"/> (the
-        /// elements of a string collection): <see cref="ReadString"/> in one loop that keeps the position and the
-        /// data in registers, where through the reader's reference they are loaded, and the position stored, for
-        /// every string.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ReadStrings(ref string first, int count) =>
-            Skip(ReadStrings(ref Cur, Avail, ref first, count));
-
-        // Static, the loop's state in five values (data, position, end, slot, last slot): as many as x64 has
-        // callee-saved registers to keep them in across the string allocations. Returns the bytes read.
-        private static int ReadStrings(ref byte data, int end, ref string first, int count)
-        {
-            int pos = 0;
-            ref string slot = ref first;
-            ref string last = ref Unsafe.Add(ref first, count);
-            while (Unsafe.IsAddressLessThan(ref slot, ref last))
-            {
-                // An element read in place keeps its string when the data holds the same chars.
-                slot = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, slot, out int size);
-                pos += size;
-                slot = ref Unsafe.Add(ref slot, 1);
-            }
-
-            return pos;
-        }
-
-        /// <summary>
-        /// Reads <paramref name="count"/> pairs of a raw key (its memory is its wire layout) and a string into
-        /// <paramref name="dictionary"/>: <see cref="ReadStrings"/> for a <c>Dictionary&lt;TKey, string&gt;</c>.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ReadStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary, int count) =>
-            Skip(ReadStringPairs(dictionary, ref Cur, Avail, count));
-
-        // Generic over the key only, so a value-type key makes this unshared code (the dictionary's methods inlined
-        // with no run-time lookups), with its state (dictionary, data, position, end, pairs left) kept in registers
-        // across the string and dictionary allocations.
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int ReadStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary,
-            ref byte data, int end, int count)
-        {
-            // Returns the bytes read.
-            int keySize = Unsafe.SizeOf<TKey>();
-            int pos = 0;
-            // Added here where the dictionary is as expected, else by it and the key's bucket walked after (hash
-            // flooding, HashTables).
-            bool insert = Internal.HashTables.CanInsert(dictionary, count);
-            while (count-- > 0)
-            {
-                if ((uint)(end - pos) < (uint)keySize)
-                    NinoThrow.EndOfData();
-                if (!NinoLayout<TKey>.CopiesAsIs)
-                    NinoChecks.Values<TKey>(ref Unsafe.Add(ref data, pos), 1, keySize);
-                TKey key = NinoUnsafe.Read<TKey>(ref Unsafe.Add(ref data, pos));
-                pos += keySize;
-                string value = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, null, out int size);
-                pos += size;
-                if (insert)
-                {
-                    Internal.HashTables.Insert(dictionary, key, value);
-                }
-                else
-                {
-                    NinoCollections.AddUnique(dictionary, key, value);
-                    Internal.HashTables.Added(dictionary, key);
-                }
-            }
-
-            return pos;
-        }
-
-#if NET8_0_OR_GREATER
-        /// <summary>
-        /// Merges <paramref name="count"/> pairs of a raw key and a string into an existing
-        /// <paramref name="dictionary"/> (NinoDictionary.Refill): each key into <paramref name="seen"/>, each value read
-        /// over the one the key maps to (kept when the data holds the same chars). Returns how many keys were already
-        /// there. <see cref="ReadStringPairs{TKey}(System.Collections.Generic.Dictionary{TKey, string}, int)"/> for a
-        /// dictionary read again.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int RefillStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary, TKey[] seen,
-            int count)
-        {
-            ulong done = RefillStringPairs(dictionary, seen, ref Cur, Avail, count);
-            Skip((int)(done >> 32));
-            return (int)done;
-        }
-
-        // One loop with the data, the position and the end in registers, the value read inline with the compare its
-        // only call: through the general merge each value took the reader's copy in memory and two calls
-        // (ReadStringOver, then SameLatin1), and a pooled class with such a dictionary read in 1.11 to 1.20 times
-        // rc.7's time (dotnet-ab run 41413072278). Returns the bytes read (high half) and the keys matched (low half).
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static ulong RefillStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary,
-            TKey[] seen, ref byte data, int end, int count)
-        {
-            int keySize = Unsafe.SizeOf<TKey>();
-            int pos = 0;
-            int matched = 0;
-            bool walk = Internal.HashTables.Plan<TKey, string>.Walks;
-            ref TKey slot = ref NinoUnsafe.GetArrayDataReference(seen);
-            for (int i = 0; i < count; i++)
-            {
-                if ((uint)(end - pos) < (uint)keySize)
-                    NinoThrow.EndOfData();
-                if (!NinoLayout<TKey>.CopiesAsIs)
-                    NinoChecks.Values<TKey>(ref Unsafe.Add(ref data, pos), 1, keySize);
-                TKey key = NinoUnsafe.Read<TKey>(ref Unsafe.Add(ref data, pos));
-                pos += keySize;
-                Unsafe.Add(ref slot, i) = key;
-                ref string value = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrAddDefault(
-                    dictionary, key, out bool exists);
-                if (exists)
-                    matched++;
-                else if (walk)
-                    Internal.HashTables.Walk(dictionary, key);
-                string read = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, value, out int size);
-                pos += size;
-                // An unchanged value (the usual case) is not stored again: no write barrier.
-                if (!ReferenceEquals(read, value))
-                    value = read;
-            }
-
-            return ((ulong)(uint)pos << 32) | (uint)matched;
-        }
-#endif
-
-        /// <summary>
-        /// Reads <paramref name="count"/> pairs of strings into <paramref name="dictionary"/>: <see cref="ReadStrings"/>
-        /// for a <c>Dictionary&lt;string, string&gt;</c>.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ReadStringPairs(System.Collections.Generic.Dictionary<string, string> dictionary, int count) =>
-            Skip(Avail - ReadStringPairs(dictionary, ref Cur, Avail, count));
-
-        // The loop's state in a cursor and the bytes left, not a copy of the reader: on Arm64 the reader's six fields
-        // took six callee-saved registers across the loop and left each string's size and position on the stack
-        // (ReadPairs: 59 to 143 stack accesses once the reader stopped being address-taken). Returns the bytes left.
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int ReadStringPairs(System.Collections.Generic.Dictionary<string, string> dictionary,
-            ref byte at, int left, int count)
-        {
-            // Added here where the dictionary is as expected, else by it and the key's bucket walked after (hash
-            // flooding, HashTables).
-            bool insert = Internal.HashTables.CanInsert(dictionary, count);
-            while (count-- > 0)
-            {
-                string key = NinoStrings.Read(ref at, left, null, out int size);
-                at = ref Unsafe.Add(ref at, size);
-                left -= size;
-                string value = NinoStrings.Read(ref at, left, null, out size);
-                at = ref Unsafe.Add(ref at, size);
-                left -= size;
-                if (key == null)
-                    NinoThrow.NullKey(dictionary);
-                if (insert)
-                {
-                    Internal.HashTables.Insert(dictionary, key, value);
-                }
-                else
-                {
-                    NinoCollections.AddUnique(dictionary, key, value);
-                    Internal.HashTables.Added(dictionary, key);
-                }
-            }
-
-            return left;
-        }
-
         /// <summary>Reads a UTF-8 string written by <see cref="Writer.WriteUtf8(string)"/>.</summary>
         // Inlined for a string of 1 to 126 chars and up to 127 bytes (both counts one byte), with the transcoding
         // out of line taking values: an instance call would take the reader's address, which keeps all its fields in
@@ -269,6 +98,15 @@ namespace Nino.Core
             Skip(read.Size);
             return read.Value;
         }
+
+        /// <summary>
+        /// The UTF-8 string at <paramref name="source"/> (<paramref name="available"/> bytes) and the bytes it takes,
+        /// as <see cref="ReadUtf8(string)"/> reads it: <paramref name="current"/> when it holds the same text (the
+        /// cursor form of <c>Utf8StringFormatter</c>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static SizedString ReadUtf8At(ref byte source, int available, string current) =>
+            current == null ? ReadUtf8At(ref source, available) : ReadUtf8Over(ref source, available, current);
 
         /// <summary>
         /// A UTF-8 string at <paramref name="source"/> (<paramref name="available"/> bytes) of any size, null or

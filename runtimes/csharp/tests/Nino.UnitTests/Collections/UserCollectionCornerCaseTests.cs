@@ -1135,8 +1135,8 @@ public class Holder
     [TestMethod]
     public void RawKeyStringDictionaryChecksItsData()
     {
-        // Raw keys and string values are read by their own loop (Reader.ReadStringPairs), new or into an empty
-        // dictionary: the same results and checks as the general one.
+        // Raw keys and string values are read by the pair loop (NinoRuns.ReadCursors), new or into an empty
+        // dictionary: the same results and checks as the per-value one.
         var value = new Dictionary<int, string> { [1] = "a", [2] = null, [3] = "", [4] = "bc" };
         var bytes = NinoSerializer.Serialize(value);
         CollectionAssert.AreEqual(value.ToList(), NinoDeserializer.Deserialize<Dictionary<int, string>>(bytes).ToList());

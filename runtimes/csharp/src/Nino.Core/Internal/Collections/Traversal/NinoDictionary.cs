@@ -146,13 +146,14 @@ namespace Nino.Core
             try
             {
                 int matched = 0;
-#if NET8_0_OR_GREATER
-                if (KeyKind == NinoElementKind.Raw && NinoKind<TValueFormatter>.IsString)
-                    // Raw keys and strings: one loop with the state in registers (see Reader.ReadStringPairs).
-                    matched = reader.RefillStringPairs(Unsafe.As<Dictionary<TKey, string>>(dictionary), seen,
-                        length);
+                if (CursorPairs)
+                {
+                    // The pair loop, each key kept in seen and each value read over the one it maps to.
+                    ulong read = MergeCursors(dictionary, seen, length, ref reader.Peek(), reader.Remaining);
+                    reader.UnsafeAdvance((int)read);
+                    matched = (int)(read >> 32);
+                }
                 else
-#endif
                 for (int i = 0; i < length; i++)
                 {
                     TKey key = default;
@@ -378,21 +379,6 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Read(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
-            if (KeyKind == NinoElementKind.Raw && NinoKind<TValueFormatter>.IsString)
-            {
-                // Raw keys and strings: one loop with the state in registers (see Reader.ReadStrings).
-                reader.ReadStringPairs(Unsafe.As<Dictionary<TKey, string>>(dictionary), length);
-                return;
-            }
-
-            if (NinoKind<TKeyFormatter>.IsString && NinoKind<TValueFormatter>.IsString)
-            {
-                // Strings for both: the same, a null key invalid data.
-                if (length != 0)
-                    reader.ReadStringPairs(Unsafe.As<Dictionary<string, string>>(dictionary), length);
-                return;
-            }
-
             if (ScattersPairs)
             {
                 // Pairs read as one block (no key can be null): the block is taken here and the pairs filled or added
@@ -407,6 +393,14 @@ namespace Nino.Core
             // Out of line, through a copy of the reader (see above); an empty dictionary skips both.
             if (length == 0)
                 return;
+            if (CursorPairs)
+            {
+                // Keys and values with the cursor form (strings among them): the pair loop, the data and the bytes
+                // left to the call, not the reader, which stays in the caller's registers.
+                reader.UnsafeAdvance(ReadCursors(dictionary, length, ref reader.Peek(), reader.Remaining));
+                return;
+            }
+
             Reader copy = reader;
             // Only a reference-type key can be null (a JIT-time constant).
             if (default(TKey) == null)
@@ -414,6 +408,87 @@ namespace Nino.Core
             else
                 ReadPairs(dictionary, length, ref copy);
             reader = copy;
+        }
+
+        /// <summary>
+        /// Whether the pairs take the pair loop (<see cref="NinoRuns.CursorPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>,
+        /// <see cref="NinoRuns.ReadCursors{TKey,TValue,TKeyFormatter,TValueFormatter,TStore}"/>): strings in either
+        /// encoding with strings, raw values or blocks. A JIT-time constant.
+        /// </summary>
+        private static bool CursorPairs
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => NinoRuns.CursorPairs<TKey, TValue, TKeyFormatter, TValueFormatter>();
+        }
+
+        /// <summary>
+        /// Reads <paramref name="length"/> pairs (not 0) through the pair loop from the data at <paramref name="data"/>
+        /// (<paramref name="end"/> bytes): into the entries of a dictionary
+        /// <see cref="HashTables.CanInsert{TKey,TValue}"/> accepts, then linked (from <see cref="HashTables.FillFrom"/>
+        /// pairs on), the dictionary left empty if the data is rejected part way (as
+        /// <see cref="FillGuarded(Dictionary{TKey,TValue}, int, Reader)"/>); else each added (<see cref="NinoCursor.Adds"/>).
+        /// Returns the bytes read.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int ReadCursors(Dictionary<TKey, TValue> dictionary, int length, ref byte data, int end)
+        {
+            bool insert = HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length);
+            if (insert && length >= HashTables.FillFrom)
+                return FillCursors(dictionary, length, ref data, end);
+
+            // Each pair read into one pair of locals, then added.
+            NinoCursor.Pair<TKey, TValue> pair = default;
+            var adds = new NinoCursor.Adds
+            {
+                Key = NinoCursor.Pair<TKey, TValue>.KeyOf(ref pair), Dictionary = dictionary, Insert = insert,
+                Walk = HashTables.Plan<TKey, TValue>.Walks,
+            };
+            return (int)NinoRuns.ReadCursors<TKey, TValue, TKeyFormatter, TValueFormatter, NinoCursor.Adds>(
+                NinoCursor.Pair<TKey, TValue>.Run(ref pair, length), ref data, end, adds);
+        }
+
+        /// <summary>
+        /// <see cref="Refill"/>'s pair loop: <paramref name="length"/> pairs (not 0) from the data at
+        /// <paramref name="data"/> (<paramref name="end"/> bytes), each key kept in <paramref name="seen"/> and each
+        /// value read over the one it maps to (<see cref="NinoCursor.Merges"/>). Returns the bytes read (low half) and
+        /// the keys already there (high half). Out of line, so the pair of locals the loop reads into stays out of the
+        /// caller's frame.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ulong MergeCursors(Dictionary<TKey, TValue> dictionary, TKey[] seen, int length, ref byte data,
+            int end)
+        {
+            NinoCursor.Pair<TKey, TValue> pair = default;
+            var merge = new NinoCursor.Merges
+            {
+                Key = NinoCursor.Pair<TKey, TValue>.KeyOf(ref pair), Dictionary = dictionary, Seen = seen,
+            };
+            return NinoRuns.ReadCursors<TKey, TValue, TKeyFormatter, TValueFormatter, NinoCursor.Merges>(
+                NinoCursor.Pair<TKey, TValue>.Run(ref pair, length), ref data, end, merge);
+        }
+
+        /// <summary>
+        /// <see cref="ReadCursors"/>' fill: the pairs read into the entries
+        /// (<see cref="NinoCursor.Entries{TKey,TValue}"/>), then linked (null and repeated keys, hash flooding), the
+        /// dictionary left empty, holding no reference the read stored, if the data is rejected part way. A method of
+        /// its own, as <see cref="FillGuarded(Dictionary{TKey,TValue}, int, Reader)"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int FillCursors(Dictionary<TKey, TValue> dictionary, int length, ref byte data, int end)
+        {
+            try
+            {
+                var entries = new NinoCursor.Entries { Key = NinoRuns.MapKey<TKey, TValue>() };
+                int read = (int)NinoRuns.ReadCursors<TKey, TValue, TKeyFormatter, TValueFormatter, NinoCursor.Entries>(
+                    CollectionFields.Run(HashTables.Entries(dictionary), length), ref data, end, entries);
+                HashTables.Link(dictionary, length);
+                return read;
+            }
+            catch
+            {
+                HashTables.Unlink(dictionary);
+                throw;
+            }
         }
 
         /// <summary>
