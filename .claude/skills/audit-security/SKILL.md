@@ -47,6 +47,11 @@ the runtime it targets.
   (T?[], List<T?>, bool lists, Untrusted checks) store a new array once filled (`NinoElements.NewOrSame`, `Publish`);
   `UntrustedInputTests.ARejectedReadKeepsNewArraysOutOfTheSlot` covers each, over 0xCD-filled freed memory. A new read
   of that kind gets a member in the fuzzer's `Stale` type (below).
+- A collection filled through the public API as elements are read (`Add`, `Enqueue`, `AddLast`): a read rejected
+  half way leaves the elements read so far in the caller's instance. Where the storage can be reached, read into it
+  and publish once whole (`runtime-internals`, "Fill the storage, then publish"); `GatherTests.ARejectedReadLeavesTheCollectionEmpty`
+  covers `LinkedList`, `SortedList` and `PriorityQueue`. A chunk of the gather (`NinoGather`) a read threw out of is
+  never given back, so the next read never reads into its half-filled values.
 - A check or copy that reads a run of strided values as whole strides (vectors over `count * stride` bytes): the
   run's last value need not be followed by the rest of a stride. The values of raw dictionary pairs start a key into
   each pair and end a key before the next, maybe on the data's last byte, so `NinoValueChecks`' vector passes read up

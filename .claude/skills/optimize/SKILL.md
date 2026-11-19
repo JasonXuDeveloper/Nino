@@ -72,8 +72,16 @@ says which CPUs and cases moved.
   devirtualized on .NET and netstandard (IL2CPP, Mono): capabilities through constrained calls on the formatter's
   struct type parameter, never an interface cast or a virtual call, and the dispatch of a polymorphic base in its
   fastest measured form with no indirect call per element. Every loop aligns its stores (or loads where that measures
-  better) to the vector width or cache line, not only the SIMD ones. Gathering into a span reuses pooled memory
-  (`ArrayPool`, the writer's own buffer) and copies at most a bounded number of elements per step. A new collection is
+  better) to the vector width or cache line, not only the SIMD ones. Gathering into a span goes through `NinoGather`
+  (step 6, #355): a chunk of Nino's own per-thread buffer (16 KB, not tuned yet; never `ArrayPool.Shared`, whose
+  large rents stay in its buckets), each chunk written or read by the same `NinoRuns` loop, a known count of values
+  whose memory is their wire form walked straight into the writer's buffer. Keep a few chunks per element type, not
+  one: a gather nested in a gather of the same type (a tree of nodes holding linked lists of nodes) found the one taken
+  and allocated a whole chunk per inner collection. A chunk is a `T[]` per element type, not one byte buffer shared by
+  every unmanaged type as first planned, because `ICollection<T>.CopyTo` copies only into a `T[]`, and a
+  `ReadOnlyCollection<int>` of 1,000 copied in one `Array.Copy` where an enumerator makes two interface calls per
+  element. Never wrap a gather in a try/finally to give its chunk back: a write or read that throws leaves its chunk to
+  the collector, so the gather inlines and a chunk half filled never returns to the buffer. A new collection is
   built the fastest way its runtime allows, through its internals where `runtime-internals` proves the layout:
   `Dictionary` fills its entries and links the buckets in one pass after (#390, LuminPack's form), keeping the
   collision count and the repeated- and null-key checks; `SortedSet` builds its tree in one pass; look for the same

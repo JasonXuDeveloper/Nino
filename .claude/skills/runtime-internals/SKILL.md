@@ -45,6 +45,14 @@ the fallback (the enumerator) out of line.
 
 ## Building a runtime's objects without its public API
 
+- **Fill the storage, then publish** (#350, #355 step 6): read a chunk at a time straight into the collection's own
+  arrays (`SortedList`'s keys and values, a .NET 10 `PriorityQueue`'s heap, a `LinkedList`'s new nodes), check what
+  its comparer requires (keys strictly ascending, each priority at least its parent's), and only then set its size,
+  head and version; out of order, add them through the public API. Until then the collection is empty, so a read
+  rejected half way leaves nothing in it. Grow an existing queue's heap the way enqueuing would
+  (`EnsureCapacity(capacity + 1)` until it fits), not to the count: `PriorityQueueReadsRawHeapWithoutChangingInsertionOrder`
+  pins the capacity a refill leaves.
+
 `Nino.Immutable/HashTrees.cs` (an `ImmutableDictionary` or `ImmutableHashSet` built as its tree, instead of one
 builder `Add` at a time); `SortedSetNodes` in Nino.Core (a `SortedSet<T>`'s red-black tree); `ReadLinked` (a
 `LinkedList<T>`'s ring of nodes); `ConcurrentTables.Builder` (a `ConcurrentDictionary`'s bucket chains). One way for
