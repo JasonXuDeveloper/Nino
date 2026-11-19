@@ -195,6 +195,19 @@ namespace Nino.UnitTests
             var strings = new PriorityQueue<string, long>(Enumerable.Range(0, 3000).Select(i => ("e" + i, (long)random.Next(100))));
             CollectionAssert.AreEqual(strings.UnorderedItems.ToArray(), RoundTrip(strings).UnorderedItems.ToArray());
 
+            // Published as a heap: used through the public API afterwards.
+            var built = NinoDeserializer.Deserialize<PriorityQueue<string, long>>(NinoSerializer.Serialize(
+                new PriorityQueue<string, long>(Enumerable.Range(0, 3000).Select(i => ("e" + i, (long)(i * 7919 % 3001))))));
+            built.Enqueue("first", -1);
+            Assert.AreEqual("first", built.Peek());
+            Assert.AreEqual(3001, built.Count);
+            long previous = long.MinValue;
+            while (built.TryDequeue(out _, out long priority))
+            {
+                Assert.IsTrue(priority >= previous, $"{priority} after {previous}");
+                previous = priority;
+            }
+
             // Not a heap (another writer): enqueued in turn, each still dequeued by its priority.
             var descending = Enumerable.Range(0, 3000).Select(i => ("d" + i, (long)(3000 - i))).ToArray();
             var queue = NinoDeserializer.Deserialize<PriorityQueue<string, long>>(NinoSerializer.Serialize(descending));

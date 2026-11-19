@@ -512,7 +512,10 @@ public static class Program
                    list.Keys.SequenceEqual(list.Keys.OrderBy(k => k));
         });
 #if NET8_0_OR_GREATER
-        Built("PriorityQueue<str,long> built", new PriorityQueue<string, long>(Enumerable.Range(0, 3000).Select(i => ("e" + i, (long)(i * 7919 % 3001)))), queue =>
+        // Sized for its pairs, as a queue read is (Contents compares the capacity too).
+        var heap = new PriorityQueue<string, long>(3000);
+        heap.EnqueueRange(Enumerable.Range(0, 3000).Select(i => ("e" + i, (long)(i * 7919 % 3001))));
+        Built("PriorityQueue<str,long> built", heap, queue =>
         {
             queue.Enqueue("first", -1);
             long last = long.MinValue;
