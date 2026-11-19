@@ -79,30 +79,22 @@ namespace Nino.Core
             value = new KeyValuePair<TKey, TValue>(key, item);
         }
 
-        // The cursor form where both items have it (strings, raw values, blocks): a pair in a run of pairs (a list's,
-        // a dictionary's entries, a sorted or concurrent dictionary's gathered) is then read and written by the cursor
-        // loop, its items composed here (NinoCursor's pair helpers, as a dictionary's entry composes them).
-        bool INinoFormatter.HasCursor => NinoCursor.Has<TKey, TValue, TKeyFormatter, TValueFormatter>();
+        // A run of pairs with a string among their items and the other a string or a value read as one (a list's,
+        // an array's, a sorted or concurrent dictionary's gathered): moved by the string run kernels, each item at
+        // its offset in the pair, where this runtime's pair is known (CollectionFields.PairLayout). One call per run:
+        // in code shared over a class (a pair holding a string is), a member of this formatter is an indirect call.
+        bool INinoFormatter.HasCursor => NinoCursor.Pairs<TKey, TValue, TKeyFormatter, TValueFormatter>() &&
+                                         CollectionFields.PairLayout<TKey, TValue>.Key >= 0 &&
+                                         CollectionFields.PairLayout<TKey, TValue>.Value >= 0;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<KeyValuePair<TKey, TValue>>.MaxSize(KeyValuePair<TKey, TValue> value) =>
-            NinoCursor.MaxSize<TKey, TValue, TKeyFormatter, TValueFormatter>(value.Key, value.Value);
+        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
+            NinoStringRuns.WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(run,
+                CollectionFields.PairLayout<TKey, TValue>.Key, CollectionFields.PairLayout<TKey, TValue>.Value, writer);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<KeyValuePair<TKey, TValue>>.WriteAt(ref byte destination, KeyValuePair<TKey, TValue> value) =>
-            NinoCursor.WriteAt<TKey, TValue, TKeyFormatter, TValueFormatter>(ref destination, value.Key, value.Value);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<KeyValuePair<TKey, TValue>>.ReadAt(ref byte source, int available,
-            ref KeyValuePair<TKey, TValue> value)
-        {
-            TKey key = value.Key;
-            TValue item = value.Value;
-            int size = NinoCursor.ReadAt<TKey, TValue, TKeyFormatter, TValueFormatter>(ref source, available, ref key,
-                ref item);
-            value = new KeyValuePair<TKey, TValue>(key, item);
-            return size;
-        }
+        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
+            NinoStringRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter, NinoStringRuns.InPlace>(run,
+                CollectionFields.PairLayout<TKey, TValue>.Key, CollectionFields.PairLayout<TKey, TValue>.Value,
+                ref data, end, default);
 
         // A pair of a polymorphic value composes onto its value's run loop (the keys written by it, NinoRuns.KeyOf),
         // where this runtime's pair is known (CollectionFields.PairLayout): a list's or an array's pairs, and a

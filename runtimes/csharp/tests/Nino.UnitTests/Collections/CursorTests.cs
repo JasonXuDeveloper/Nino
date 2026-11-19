@@ -20,10 +20,12 @@ namespace Nino.UnitTests
     }
 
     /// <summary>
-    /// Strings, raw values and blocks, and pairs of them in any pairing, are written and read by one cursor loop over
-    /// values, a pair one value whose formatter composes its items, their data, position and end in registers (<see cref="NinoCursor"/>, #347): the bytes of the formatters'
-    /// own writes, every collection that reaches the loops (arrays, lists, sets, dictionaries and the pairs of sorted
-    /// and concurrent ones), new and reused, and the checks of hostile data per pair.
+    /// Strings in either encoding, and pairs of a string with a string, a raw value or a block, are written and read by
+    /// the string run kernels (<see cref="NinoStringRuns"/>, #355), each item at its offset in the element, their data,
+    /// position and end in registers: the bytes of the formatters' own writes, every collection that reaches them
+    /// (arrays, lists, sets, dictionaries and the pairs of sorted and concurrent ones), new and reused, and hostile
+    /// data: every length of a run checked before a string is allocated, truncated data, invalid UTF-8, repeated keys
+    /// and counts the data cannot hold.
     /// </summary>
     [TestClass]
     public class CursorTests
@@ -305,6 +307,157 @@ namespace Nino.UnitTests
                 Array.Copy(raw, 4, raw, 4 + 7, 4);
                 Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<int, string>>(raw));
             }
+        }
+
+        /// <summary>The bytes of <paramref name="values"/> as <typeparamref name="TFormatter"/> writes a run of
+        /// them (the count, then each string).</summary>
+        private static byte[] Run<TFormatter>(string[] values) where TFormatter : struct, INinoFormatter<string> =>
+            Write<string[], ArrayFormatter<string, TFormatter>>(values);
+
+        /// <summary>
+        /// Whether <paramref name="data"/>, a run of strings, is rejected as an array, a list and a set, and read into
+        /// an existing array of its count without changing it: every length is checked before any string is read.
+        /// </summary>
+        private static void RejectedBeforeReading<TFormatter>(byte[] data, int count, string what)
+            where TFormatter : struct, INinoFormatter<string>
+        {
+            Assert.ThrowsExactly<NinoDataException>(() => Read<string[], ArrayFormatter<string, TFormatter>>(data),
+                what);
+            Assert.ThrowsExactly<NinoDataException>(() =>
+                Read<List<string>, ListFormatter<List<string>, string, TFormatter>>(data), what);
+            Assert.ThrowsExactly<NinoDataException>(() =>
+                Read<HashSet<string>, HashSetFormatter<HashSet<string>, string, TFormatter>>(data), what);
+            var existing = Enumerable.Range(0, count).Select(i => "old" + i).ToArray();
+            var before = (string[])existing.Clone();
+            Assert.ThrowsExactly<NinoDataException>(() =>
+                Read<string[], ArrayFormatter<string, TFormatter>>(data, existing), what);
+            for (int i = 0; i < count; i++)
+                Assert.AreSame(before[i], existing[i], $"{what}: [{i}] read before the run was measured");
+        }
+
+        /// <summary>
+        /// A length out of range at the first, a middle and the last string of a run (one past the data, a header
+        /// byte no write makes, a header that a shorter one holds) is rejected before any string of the run is read,
+        /// in both encodings; so is a count the data cannot hold, and a UTF-8 string of more chars than bytes.
+        /// </summary>
+        [TestMethod]
+        public void BadLengthsAnywhereInARunAreRejectedFirst()
+        {
+            var values = Enumerable.Range(0, 5).Select(i => "abc" + i).ToArray();
+            byte[] data = Run<StringFormatter>(values);
+            foreach (int index in new[] { 0, 2, 4 })
+            {
+                // Each string is a header (9: Latin-1, 4 chars) then 4 bytes, after the 4-byte count.
+                int at = 4 + 5 * index;
+                RejectedBeforeReading<StringFormatter>(With(data, at, 0x7F), 5, $"past the data at [{index}]");
+                RejectedBeforeReading<StringFormatter>(With(data, at, 0x82), 5, $"header out of range at [{index}]");
+                RejectedBeforeReading<StringFormatter>(With(data, at, 0x80, 0x10, 0x00), 5,
+                    $"header not minimal at [{index}]");
+                RejectedBeforeReading<StringFormatter>(data.AsSpan(0, at + 3).ToArray(), 5, $"cut in [{index}]");
+            }
+
+            // UTF-8: the char count plus one (5), the byte count (4), the bytes.
+            byte[] utf8 = Run<Utf8StringFormatter>(values);
+            foreach (int index in new[] { 0, 2, 4 })
+            {
+                int at = 4 + 6 * index;
+                RejectedBeforeReading<Utf8StringFormatter>(With(utf8, at + 1, 0x7F), 5, $"UTF-8 past the data [{index}]");
+                RejectedBeforeReading<Utf8StringFormatter>(With(utf8, at, 0x7F), 5, $"UTF-8 more chars [{index}]");
+                RejectedBeforeReading<Utf8StringFormatter>(With(utf8, at + 1, 0x80, 0x10, 0x00), 5,
+                    $"UTF-8 count not minimal [{index}]");
+                RejectedBeforeReading<Utf8StringFormatter>(utf8.AsSpan(0, at + 4).ToArray(), 5, $"UTF-8 cut [{index}]");
+            }
+
+            // A count of 2^28 strings with 25 bytes after it.
+            RejectedBeforeReading<StringFormatter>(With(data, 0, 0x00, 0x00, 0x00, 0x10), 5, "huge count");
+            RejectedBeforeReading<Utf8StringFormatter>(With(utf8, 0, 0x00, 0x00, 0x00, 0x10), 5, "UTF-8 huge count");
+        }
+
+        /// <summary>
+        /// Bytes that are not UTF-8, in the first, a middle or the last string of a run, are invalid data in every
+        /// collection of UTF-8 strings: arrays, sets, and either side of a dictionary.
+        /// </summary>
+        [TestMethod]
+        public void InvalidUtf8InARunIsRejected()
+        {
+            var values = Enumerable.Range(0, 5).Select(i => "abc" + i).ToArray();
+            byte[] data = Run<Utf8StringFormatter>(values);
+            var keyed = values.ToDictionary(v => v, v => v.Length);
+            byte[] keys = Write<Dictionary<string, int>,
+                DictionaryFormatter<string, int, Utf8StringFormatter, UnmanagedFormatter<int>>>(keyed);
+            foreach (int index in new[] { 0, 2, 4 })
+            {
+                // A lone continuation byte, then an unfinished sequence.
+                var bad = With(data, 4 + 6 * index + 2, 0x80, 0xE2);
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    Read<string[], ArrayFormatter<string, Utf8StringFormatter>>(bad), $"[{index}]");
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    Read<HashSet<string>, HashSetFormatter<HashSet<string>, string, Utf8StringFormatter>>(bad));
+                var badKey = With(keys, 4 + 10 * index + 2, 0xFF);
+                Assert.ThrowsExactly<NinoDataException>(() => Read<Dictionary<string, int>,
+                    DictionaryFormatter<string, int, Utf8StringFormatter, UnmanagedFormatter<int>>>(badKey));
+            }
+
+            var labels = Enumerable.Range(0, 5).ToDictionary(i => i, i => values[i]);
+            byte[] valued = Write<Dictionary<int, string>,
+                DictionaryFormatter<int, string, UnmanagedFormatter<int>, Utf8StringFormatter>>(labels);
+            Assert.ThrowsExactly<NinoDataException>(() => Read<Dictionary<int, string>,
+                DictionaryFormatter<int, string, UnmanagedFormatter<int>, Utf8StringFormatter>>(
+                With(valued, 4 + 10 * 4 + 6, 0xC0)));
+        }
+
+        /// <summary>
+        /// A key repeated in a set of strings or in a dictionary with strings among its pairs (its fill and its adds,
+        /// both encodings, either side) is invalid data; and a pair's length out of range at the first, a middle or
+        /// the last pair is rejected before the dictionary is filled.
+        /// </summary>
+        [TestMethod]
+        public void RepeatedKeysAndBadPairsAreRejected()
+        {
+            foreach (int count in new[] { 3, 9 })
+            {
+                var values = Enumerable.Range(0, count).Select(i => "s" + i).ToArray();
+                values[count - 1] = values[count / 2];
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    NinoDeserializer.Deserialize<HashSet<string>>(NinoSerializer.Serialize(values)));
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    Read<HashSet<string>, HashSetFormatter<HashSet<string>, string, Utf8StringFormatter>>(
+                        Run<Utf8StringFormatter>(values)));
+
+                var pairs = values.Select((v, i) => new KeyValuePair<string, string>(v, "v" + i)).ToArray();
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    NinoDeserializer.Deserialize<Dictionary<string, string>>(NinoSerializer.Serialize(pairs)));
+                var numbered = values.Select((v, i) => new KeyValuePair<string, int>(v, i)).ToArray();
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    NinoDeserializer.Deserialize<Dictionary<string, int>>(NinoSerializer.Serialize(numbered)));
+                var labels = Enumerable.Range(0, count)
+                    .Select(i => new KeyValuePair<int, string>(i == count - 1 ? 0 : i, "v" + i)).ToArray();
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    NinoDeserializer.Deserialize<Dictionary<int, string>>(NinoSerializer.Serialize(labels)));
+            }
+
+            // Pairs of a key "kN" (header 5, two chars) and an int: 7 bytes each after the count.
+            var map = Enumerable.Range(0, 5).ToDictionary(i => "k" + i, i => i);
+            byte[] data = NinoSerializer.Serialize(map);
+            foreach (int index in new[] { 0, 2, 4 })
+            {
+                var bad = With(data, 4 + 7 * index, 0x7F);
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<string, int>>(bad));
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    NinoDeserializer.Deserialize<KeyValuePair<string, int>[]>(bad));
+                var existing = Enumerable.Range(0, 5).Select(i => new KeyValuePair<string, int>("old" + i, -i))
+                    .ToArray();
+                var before = (KeyValuePair<string, int>[])existing.Clone();
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bad, ref existing));
+                CollectionAssert.AreEqual(before, existing, $"pairs read before the run was measured, [{index}]");
+            }
+        }
+
+        private static byte[] With(byte[] data, int at, params byte[] bytes)
+        {
+            var copy = (byte[])data.Clone();
+            bytes.CopyTo(copy, at);
+            return copy;
         }
     }
 }

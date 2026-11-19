@@ -176,16 +176,24 @@ public static partial class SettingsProbes
         var names = NinoDeserializer.Deserialize<Dictionary<string, int>>(
             NinoSerializer.Serialize(new Dictionary<string, int> { ["a"] = 1, ["b"] = 2 }));
         var guids = NinoDeserializer.Deserialize<HashSet<Guid>>(NinoSerializer.Serialize(new HashSet<Guid> { Guid.Empty }));
+        // Strings, read by the string run kernels: into tables with the seeded comparer too.
+        var tags = NinoDeserializer.Deserialize<HashSet<string>>(
+            NinoSerializer.Serialize(new HashSet<string> { "a", "b", "c", "d", "e" }));
+        var texts = NinoDeserializer.Deserialize<Dictionary<string, string>>(
+            NinoSerializer.Serialize(new Dictionary<string, string> { ["a"] = "x", ["b"] = "y" }));
         var objects = NinoDeserializer.Deserialize<Dictionary<FloodKey, int>>(
             NinoSerializer.Serialize(new Dictionary<FloodKey, int> { [new FloodKey { Id = 1 }] = 1 }));
         var lookup = NinoDeserializer.Deserialize<ILookup<int, string>>(
             NinoSerializer.Serialize(new[] { "a", "bb" }.ToLookup(s => s.Length)));
         if (map.Count != keys.Length || keys.Any(k => map[k] != (int)k) || set.Count != keys.Length ||
-            !keys.All(set.Contains) || names["b"] != 2 || !guids.Contains(Guid.Empty) || lookup[2].Single() != "bb")
+            !keys.All(set.Contains) || names["b"] != 2 || !guids.Contains(Guid.Empty) || lookup[2].Single() != "bb" ||
+            tags.Count != 5 || !tags.Contains("e") || texts["b"] != "y")
             return "contents";
         if (ReferenceEquals(map.Comparer, EqualityComparer<long>.Default) ||
             ReferenceEquals(set.Comparer, EqualityComparer<long>.Default) ||
             ReferenceEquals(names.Comparer, EqualityComparer<string>.Default) ||
+            ReferenceEquals(tags.Comparer, EqualityComparer<string>.Default) ||
+            ReferenceEquals(texts.Comparer, EqualityComparer<string>.Default) ||
             ReferenceEquals(guids.Comparer, EqualityComparer<Guid>.Default))
             return "default comparer";
         // Other keys keep the default one, with the collision limit; equality is the default one.

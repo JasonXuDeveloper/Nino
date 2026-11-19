@@ -33,6 +33,10 @@ namespace Nino.Fuzz
             Many = new[] { "a", null, "", "日本", "ÿĀ", new string('x', 70) },
             ManyUtf8 = new() { "é", null, "😀😀", "" }, Map = new() { ["k"] = "v", ["ключ"] = null, [""] = "e" },
             Chars = "chars".ToCharArray(), CharList = new() { 'a', '\uD800', 'z' }, Empty = "", Null = null,
+            Counts = new() { ["one"] = 1, ["日本"] = 2, [""] = 3, ["x"] = 4, ["long key " + new string('k', 70)] = 5 },
+            Names = new() { [1] = "a", [2] = null, [3] = "ÿĀ", [4] = "日本語", [5] = "" },
+            SetUtf8 = new() { "é", "😀", "", "ascii", null }, CountsUtf8 = new() { ["ü"] = 1, ["😀😀"] = -2, ["k"] = 3, ["z"] = 4 },
+            Pairs = new[] { new KeyValuePair<string, int>("p", 1), new("日", 2), new(null, 3) },
         };
 
         public static RawRoot RawRoot() => new()

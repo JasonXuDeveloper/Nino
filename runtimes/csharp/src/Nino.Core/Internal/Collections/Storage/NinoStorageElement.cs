@@ -65,7 +65,7 @@ namespace Nino.Core.Internal
     /// block (<see cref="NinoBlocks.ItemSize{TItem,TFormatter}"/>), its <see cref="BlockMap"/> the item's at its offset
     /// here, so the block kernels (<see cref="NinoBlockPlan{T,TFormatter}"/>: groups, lanes, 64-byte permutes, the
     /// netstandard2.1 build's registered kernels) pack the items out of a run of elements and scatter them back with no
-    /// code of their own; else the item's cursor form, its run loop and its formatter, through the element. The
+    /// code of their own; else its run loop and its formatter, through the element. The
     /// pieces a collection's top layer adds are its own: reaching the storage, measuring where the fields are (its
     /// startup check), and what it does after a fill (link). Extension points that take it unchanged: a
     /// <c>SortedList</c>'s two arrays, a <c>Queue</c>'s ring in two segments and the chunks of nodes the gather walks
@@ -117,20 +117,6 @@ namespace Nino.Core.Internal
         void INinoFormatter<TElement>.ReadBlock(ref TElement value, ref byte source) =>
             NinoBlocks.ReadItem<TA, TFormatterA>(ref default(TFields).A(ref value), ref source);
 
-        bool INinoFormatter.HasCursor => NinoCursor.Has<TA, TFormatterA>();
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<TElement>.MaxSize(TElement value) =>
-            NinoCursor.MaxSize<TA, TFormatterA>(in default(TFields).A(ref value));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<TElement>.WriteAt(ref byte destination, TElement value) =>
-            NinoCursor.WriteAt<TA, TFormatterA>(ref destination, in default(TFields).A(ref value));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<TElement>.ReadAt(ref byte source, int available, ref TElement value) =>
-            NinoCursor.ReadAt<TA, TFormatterA>(ref source, available, ref default(TFields).A(ref value));
-
         // A polymorphic item: its generated loop over the run of the items.
         bool INinoFormatter.HasRunLoop => !typeof(TA).IsValueType && NinoKind<TFormatterA>.Runs;
 
@@ -171,7 +157,7 @@ namespace Nino.Core.Internal
     /// <typeparamref name="TFields"/> reaches, the rest of its stride skipped: <see
     /// cref="NinoStorageFormatter{TElement,TA,TFormatterA,TFields}"/> of a pair, composed as
     /// <see cref="KeyValuePairFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/> composes its key and value (the
-    /// same bytes, cursor form, dispatch bit, and run of a polymorphic second item with its first written by that
+    /// same bytes, dispatch bit, and run of a polymorphic second item with its first written by that
     /// loop). The element of a <c>Dictionary</c>'s run of entries, for every key and value: a block where both items
     /// are raw or blocks, whatever this runtime moves between them (CoreCLR moves references first: a
     /// <c>Dictionary&lt;string, int&gt;</c>'s entry has its key at 0, hash code 8, link 12, value 16).
@@ -230,23 +216,6 @@ namespace Nino.Core.Internal
             NinoBlocks.ReadItem<TA, TFormatterA>(ref default(TFields).A(ref value), ref source);
             NinoBlocks.ReadItem<TB, TFormatterB>(ref default(TFields).B(ref value), ref Unsafe.Add(ref source, SizeA));
         }
-
-        bool INinoFormatter.HasCursor => NinoCursor.Has<TA, TB, TFormatterA, TFormatterB>();
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<TElement>.MaxSize(TElement value) =>
-            NinoCursor.MaxSize<TA, TB, TFormatterA, TFormatterB>(in default(TFields).A(ref value),
-                in default(TFields).B(ref value));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<TElement>.WriteAt(ref byte destination, TElement value) =>
-            NinoCursor.WriteAt<TA, TB, TFormatterA, TFormatterB>(ref destination, in default(TFields).A(ref value),
-                in default(TFields).B(ref value));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<TElement>.ReadAt(ref byte source, int available, ref TElement value) =>
-            NinoCursor.ReadAt<TA, TB, TFormatterA, TFormatterB>(ref source, available,
-                ref default(TFields).A(ref value), ref default(TFields).B(ref value));
 
         bool INinoFormatter.HasRunLoop => NinoRuns.PairRuns<TA, TB, TFormatterA, TFormatterB>();
 

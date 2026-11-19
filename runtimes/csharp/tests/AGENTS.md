@@ -71,9 +71,11 @@ Collections/                 arrays, BCL and user collections, empty ones, Stack
                              runs every contiguous collection writes through (RunTests: every collection with every
                              element kind, free entries, the polymorphic run loop's keys and bytes, composites'
                              dispatch bit, pairs in lists and arrays taking a dictionary's paths, hostile pairs on every
-                             dictionary read), the cursor loop over values with the cursor form, pairs of them composed
+                             dictionary read), the string run kernels over strings and pairs holding them
                              (CursorTests: every string, UTF-8, raw and block pairing, [NinoUtf8] members, sorted and
-                             concurrent dictionaries, merges and hostile pairs), the prefetch of long top-level arrays
+                             concurrent dictionaries, merges, hostile pairs, and hostile runs: bad lengths at any string
+                             rejected before one is read, invalid UTF-8, repeated keys), the prefetch of long top-level
+                             arrays
                              and lists of scattered objects and the
                              interceptors that route them there (PrefetchTests), the gather of collections that are not
                              one run across its chunks, SortedList and PriorityQueue read into their storage for any pair,

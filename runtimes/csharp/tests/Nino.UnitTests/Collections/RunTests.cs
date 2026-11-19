@@ -405,12 +405,11 @@ namespace Nino.UnitTests
             CollectionAssert.AreEqual(ExpectedPairs(pairs), NinoSerializer.Serialize(
                 NinoDeserializer.Deserialize<List<KeyValuePair<int, DispatchRoot>>>(NinoSerializer.Serialize(pairs))));
 
-            // Strings: the cursor loop, in a row and in a dictionary's entries (each the entry, composed).
+            // Strings: the string run kernels, in a row (the pair's items at their offsets in it) and in a
+            // dictionary's entries (the key and value at their offsets in the entry).
             Assert.IsTrue(NinoCursor.Own<KeyValuePair<string, string>,
                 KeyValuePairFormatter<string, string, StringFormatter, StringFormatter>>());
-            Assert.IsTrue(NinoCursor.Own<CollectionFields.MapEntry<string, string>,
-                NinoStorageFormatter<CollectionFields.MapEntry<string, string>, string, string, StringFormatter,
-                    StringFormatter, CollectionFields.MapFields<string, string>>>());
+            Assert.IsTrue(NinoCursor.Pairs<string, string, StringFormatter, StringFormatter>());
             var texts = Enumerable.Range(0, 40).Select(i => new KeyValuePair<string, string>("k" + i, "v" + i)).ToArray();
             CollectionAssert.AreEqual(NinoSerializer.Serialize(texts.ToDictionary(p => p.Key, p => p.Value)),
                 NinoSerializer.Serialize(texts));

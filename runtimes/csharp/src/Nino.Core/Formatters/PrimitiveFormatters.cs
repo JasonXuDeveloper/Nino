@@ -150,26 +150,6 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref string value) => value = reader.ReadString(value);
-
-        bool INinoFormatter.HasCursor => true;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<string>.MaxSize(string value) => NinoStrings.MaxSize(value);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<string>.WriteAt(ref byte destination, string value) =>
-            NinoStrings.Write(ref destination, value);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<string>.ReadAt(ref byte source, int available, ref string value)
-        {
-            // An element read in place keeps its string when the data holds the same chars, and an unchanged one (the
-            // usual case of a read into an existing collection) is not stored again: no write barrier.
-            string read = NinoStrings.Read(ref source, available, value, out int size);
-            if (!ReferenceEquals(read, value))
-                value = read;
-            return size;
-        }
     }
 
     /// <summary>
@@ -184,25 +164,6 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref string value) => value = reader.ReadUtf8(value);
-
-        bool INinoFormatter.HasCursor => true;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<string>.MaxSize(string value) => Writer.Utf8MaxSize(value);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<string>.WriteAt(ref byte destination, string value) =>
-            Writer.WriteUtf8At(ref destination, value);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoFormatter<string>.ReadAt(ref byte source, int available, ref string value)
-        {
-            // As StringFormatter's: an unchanged string is not stored again.
-            SizedString read = Reader.ReadUtf8At(ref source, available, value);
-            if (!ReferenceEquals(read.Value, value))
-                value = read.Value;
-            return read.Size;
-        }
     }
 
     /// <summary>Writes a nullable value: a presence byte, then the value.</summary>

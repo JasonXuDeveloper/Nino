@@ -106,7 +106,8 @@ NinoFormatter.cs             INinoFormatter<T> (Serialize, Deserialize; capabili
                              WriteFixed, BlockMap, ReadBlock, internal slots) and the non-generic INinoFormatter it
                              extends (BodyTraits; the run loop of polymorphic bases: HasRunLoop, WriteRun; the prefetch of long
                              collections of classes: PrefetchBytes, HasMemberPrefetch, PrefetchMembers; internal
-                             HasSizedWrite, HasExternalWrite, HasCursor with MaxSize, WriteAt, ReadAt);
+                             HasSizedWrite, HasExternalWrite, HasCursor with WriteStrings, ReadStrings: a run of pairs
+                             holding strings through the string run kernels);
                              NinoFormatterBase<T> and its struct wrappers (StructFormatter, FixedStructFormatter,
                              TopStructFormatter, NestingFormatter), RawFormatter, NinoSized, INinoRawArrayFormatter, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
@@ -164,7 +165,7 @@ Reader.References.cs         back references (ReadReference, SetReference) and t
 Reader.Regions.cs            slices and length-prefixed regions, deferred bodies and the sections after them
 Reader.Values.cs             position, blocks, unmanaged values, lengths checked before allocating, presence, raw bytes
 Reader.Strings.cs            strings (Latin-1 or UTF-16 through NinoStrings, UTF-8), shared or reused; ReadUtf8At, the
-                             cursor form of a UTF-8 read
+                             cursor form of a UTF-8 read, and MeasureUtf8, its lengths checked without reading it
 Writer.cs                    ref struct Writer (partial, as Reader): writes into a NinoArrayBufferWriter (Flush when
                              done); its fields, the cursor, Flush and reserving buffer space (growing it)
 Writer.References.cs         back references (WriteReference) and the depth of struct bodies (EnterStruct)
@@ -246,22 +247,22 @@ HashTables.Checks.cs         its startup checks (the hashing of each implementat
 ```
 NinoCollections.cs           shared collection helpers (rented reads, enumerable writes through the gather, AddAll)
 NinoKind.cs                  the one element-kind decision every collection reads: NinoKind<TFormatter> (what a formatter
-                             says of every value, read once: Traits, IsString, Cursor, the run loop, prefetch,
+                             says of every value, read once: Traits, IsString, Strings, Cursor, the run loop, prefetch,
                              the sized and external top-level writes), NinoKind<T, TFormatter> (NinoElementKind: raw,
                              slot, block or per value, with Stride, MinWire, CopiedWhole, ReadOverwrites, Heavy,
                              HeavyHashed), NinoKind.Of / Stride (read behind the no-references guard)
 NinoRuns.cs                  the loops over a run (NinoRun), one per element kind and direction, over <T, TFormatter>
                              only: values in a row (arrays, lists, spans, ring halves; Write, Read), and a set's or a
-                             dictionary's entries, each the element (WriteEntries); the cursor loop (WriteCursors,
-                             ReadCursors with a store); a polymorphic base's run loop and a pair's composed onto it
-                             (KeyOf, PairRuns, WritePairRun)
+                             dictionary's entries, each the element (WriteEntries); strings and pairs holding them
+                             handed to the string run kernels, one call out of line (WriteStrings, ReadStrings); a
+                             polymorphic base's run loop and a pair's composed onto it (KeyOf, PairRuns, WritePairRun)
 NinoEntries.cs               the one read of a set's and a dictionary's entries (NinoEntries: a block scattered into new
-                             entries, the cursor loop or value by value, filled then linked, or each added), over the
-                             collection's own layer (INinoHashTable: SetTable, MapTable, each the cursor loop's store)
-NinoCursor.cs                the cursor form of a value's write and read (strings, UTF-8, raw values, blocks: MaxSize,
-                             WriteAt, ReadAt; Has, decided by kind or by INinoFormatter.HasCursor), its composition for
-                             pairs of items (the pair overloads, Pairs) and what the read loop does with each value
-                             (IStore: InPlace, or a dictionary's adds)
+                             entries, or value by value, filled then linked, or each added), over the collection's own
+                             layer (INinoHashTable: SetTable, MapTable; their static Add, which the string kernels'
+                             stores call)
+NinoCursor.cs                which values the string run kernels move (Own: strings by their formatter's type, pairs by
+                             INinoFormatter.HasCursor; Pairs: a string with a string or a value read as one) and the
+                             cursor read of one item (ReadAt: a dictionary's merge)
 NinoElements.cs              the read policies of array-like formatters (capacity budgets, ReadGrowing, EnsureLength,
                              NewOrSame/Publish; MinWireSize, CopiedWhole, ReadOverwrites from NinoKind), the one-block
                              write and the one-value write and read of a sequence not held in a run
@@ -269,9 +270,11 @@ NinoNesting.cs               which types can hold themselves through collections
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the
                              out-of-line helper per run; Threshold and ReverseReadIsLocal of a formatter's PrefetchBytes
-NinoDictionary.cs            the dictionary's top layer: its entries reached and written, read through NinoEntries, or
-                             pairs merged one at a time into an existing one; at the bottom its entries are elements of
-                             NinoRuns' loops (Entries: the element formatter of entries holding references)
+NinoDictionary.cs            the dictionary's top layer: its entries reached and written, read through NinoEntries
+                             (pairs holding strings through the string run kernels at the key's and value's offsets
+                             in the entry: ReadStrings, FillStrings), or pairs merged one at a time into an existing
+                             one; at the bottom its entries are elements of NinoRuns' loops (Entries: the element
+                             formatter of entries holding other references)
 NinoNullables.cs             fixed-stride nullable encoding and the host layout probe
 BclCollections.cs            runtime-owned collections using their checked views, gathered: SortedSet's tree, LinkedList's
                              ring (Ring) and its nodes linked as read (Links)
@@ -373,8 +376,14 @@ NinoUnload.cs                hooks that forget an unloaded assembly's types (Nin
 ### Internal/Text/
 
 ```
-NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString;
-                             UTF-8 ([NinoUtf8]) is in Reader / Writer
+NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString,
+                             Measure (a string's bytes, its header checked, without reading it); UTF-8 ([NinoUtf8]) is
+                             in Reader / Writer
+NinoStringRuns.cs            the string run kernels (#355): a run of strings, or of pairs holding one, at their offsets
+                             in each element, written into the free space with one check per element and read after
+                             every length was measured; items not generic over a class (NinoUtf16Item, NinoUtf8Item,
+                             NinoValueItem, NinoItemPair), the pairs' dispatch by the formatters' types (WritePairs,
+                             ReadPairs), stores (InPlace, a set's and a dictionary's adds) and a set's read (ReadSet)
 NinoStrings.Latin1.cs        Latin-1 chars narrowed, widened, appended and compared (the scalar and word paths; the
                              vector kernels are NinoSimd.Text)
 ```

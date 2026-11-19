@@ -46,6 +46,10 @@ namespace Nino.Fuzz
                 Name = "hash-set", What = "a HashSet<long> of 50,000 keys that all hash to 0, against 50,000 spread keys",
                 Run = () => Collisions(50_000, keys => new HashColl { H = keys.ToHashSet() }),
             },
+            new() {
+                Name = "string-run", What = "a string[] of 1,000,000 two-char strings whose last length runs past the data",
+                Run = () => RejectedBeforeStrings(1_000_000),
+            },
             // Nesting through each kind of member, 100,000 levels on a 1 MB stack (a Windows or Unity thread):
             // Nino's depth limit must reject it before the stack runs out.
             Depth("depth-list", "a class holding a List of itself",
@@ -139,6 +143,29 @@ namespace Nino.Fuzz
             make(Enumerable.Range(1, n).Select(i => ((long)i << 32) | (uint)i));
             return $"colliding keys took {slow:F0} ms, spread keys {fast:F1} ms (limit {limit:F0} ms; " +
                    $"the BCL adding the colliding keys one by one: {sw.Elapsed.TotalMilliseconds:F0} ms)";
+        }
+
+        // The string run kernels measure every length of a run before they allocate a string: the read is rejected
+        // having allocated the array and nothing near the n strings it would have held (24 bytes and more each).
+        static string RejectedBeforeStrings(int n)
+        {
+            var data = Cat(Ints(n), Rep(new byte[] { 5, (byte)'a', (byte)'b' }, n - 1), new byte[] { 0x7F, (byte)'c' });
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            try
+            {
+                NinoDeserializer.Deserialize<string[]>(data);
+                return "read";
+            }
+            catch (Exception e) when (Executor.IsRejection(e))
+            {
+            }
+            catch (Exception e)
+            {
+                return "unexpected " + e.GetType().Name + ": " + e.Message.Split('\n')[0] + " at " + Executor.TopFrame(e);
+            }
+
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before, limit = (long)n * IntPtr.Size + (1 << 20);
+            return allocated <= limit ? null : $"allocated {allocated:N0} bytes before rejecting (limit {limit:N0})";
         }
 
         static byte[] Ints(params int[] v) => v.SelectMany(BitConverter.GetBytes).ToArray();
