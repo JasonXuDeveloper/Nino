@@ -50,7 +50,9 @@ crashing. Read it before running anything under qemu or taking a listing for Arm
   garbage collector's lock-free lists (`runtime.(*lfstack).pop` SIGSEGV at address 0, during any test) in 2 to 5 of
   8 runs with qemu 8.2 and the runners' qemu, and main's code before the run that showed it (f618b973) crashed too
   (1 of 10, more allocation only made it likelier); Go 1.24 crashed in 0 of 8, `GOMAXPROCS=1` in 0 of 18, `GOARM=6`
-  did not help (4 of 8). runtimes.yml sets it on that step (r101).
+  did not help (4 of 8). runtimes.yml sets it on that step (r101). If qemu-arm still faults in
+  `runtime.(*lfstack).pop`, retry with `GODEBUG=asyncpreemptoff=1` as well. With Go 1.26.11 and QEMU
+  10.0.13, the first #353 run faulted during `TestStringEncodings`; all packages passed with both flags.
   Use QEMU user-mode 10.0.13 or later for local Go 386 tests on Arm64 Linux. Go 1.26.11's same static
   test binary reported `bad g in signal handler` or `morestack on gsignal` on QEMU 7.2.22. On Debian
   trixie's QEMU 10.0.13 it passed three runs and `GOARCH=386 go test -exec qemu-i386 ./...` passed with
