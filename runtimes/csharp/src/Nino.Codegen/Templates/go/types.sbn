@@ -214,6 +214,10 @@ func write_members(c)
   ret $o
 end
 
+func check_unique_values(s, value)
+  ret key_check(gotype(s)) + ".Values(r, " + value + ")"
+end
+
 func helper_body(h)
   $s = h.shape
   $n = h.name
@@ -291,34 +295,34 @@ func helper_body(h)
         $o = $o + read_loop($e, plus($s.key, $s.value), "k := " + read($s.key) + "\n\t\te = " + $e + "{Key: k, Value: " + read($s.value) + "}")
       end
       # Keys read twice fail, checked once over the pairs.
-      ret $o + ($s.unique_keys ? "\treturn nino.CheckUniqueKeys(r, v)\n}\n" : "\treturn v\n}\n")
+      ret $o + ($s.unique_keys ? "\treturn nino.CheckUniqueKeysWith(r, v, &" + key_check(gotype($s.key)) + ")\n}\n" : "\treturn v\n}\n")
     end
     # A sequence.
     case $s.mode
     when "unique", "fixed"
       # Elements read twice fail, checked once over the elements (primitives read as one block).
       if $s.mode == "unique" && $s.element.block
-        ret $o + "\treturn nino.CheckUniqueValues(r, nino.ReadPrimitives[" + gotype($s.element) + "](r))\n}\n"
+        ret $o + "\treturn " + check_unique_values($s.element, "nino.ReadPrimitives[" + gotype($s.element) + "](r)") + "\n}\n"
       end
       if $s.element.block_value
-        ret $o + "\treturn nino.CheckUniqueValues(r, nino.ReadBlock[" + gotype($s.element) + "](r))\n}\n"
+        ret $o + "\treturn " + check_unique_values($s.element, "nino.ReadBlock[" + gotype($s.element) + "](r)") + "\n}\n"
       end
       if $s.element.kind == "prim" && $s.element.primitive == "Bool"
-        ret $o + "\treturn nino.CheckUniqueValues(r, nino.ReadBools(r))\n}\n"
+        ret $o + "\treturn " + check_unique_values($s.element, "nino.ReadBools(r)") + "\n}\n"
       end
       $unique = $s.mode == "unique" || $s.unique_slots
       $b = $s.element.raw_block
       if $b
-        $o = $o + "\tif v, ok := nino.TryReadRaw[" + gotype($s.element) + "](r, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + "); ok {\n\t\treturn " + ($unique ? "nino.CheckUniqueValues(r, v)" : "v") + "\n\t}\n"
+        $o = $o + "\tif v, ok := nino.TryReadRaw[" + gotype($s.element) + "](r, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + "); ok {\n\t\treturn " + ($unique ? check_unique_values($s.element, "v") : "v") + "\n\t}\n"
       end
-      ret $o + read_fixed(gotype($s.element), $s.element.size, "e = " + decode($s.element, 0), !$s.element.runnable) + "\treturn " + ($unique ? "nino.CheckUniqueValues(r, v)" : "v") + "\n}\n"
+      ret $o + read_fixed(gotype($s.element), $s.element.size, "e = " + decode($s.element, 0), !$s.element.runnable) + "\treturn " + ($unique ? check_unique_values($s.element, "v") : "v") + "\n}\n"
     when "stringset"
       # A set of strings in the order of the data: a string (or null) read twice fails.
       ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.CheckUniqueStrings(r, v)\n}\n"
     when "nullableslots"
       # A set of the slots of a number (any other sequence of them calls the block directly): an element read twice
       # fails, null included.
-      ret $o + "\treturn nino.CheckUniqueValues(r, nino.ReadNullableSlots[" + gotype($s.element.inner) + "](r))\n}\n"
+      ret $o + "\treturn " + check_unique_values($s.element, "nino.ReadNullableSlots[" + gotype($s.element.inner) + "](r)") + "\n}\n"
     end
     ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn v\n}\n"
   end
@@ -1021,6 +1025,11 @@ $i = 0
 while $i < helper_count()
   "\n" + helper_body(helper_at($i))
   $i = $i + 1
+end
+
+# The duplicate check initializers shared across helpers by the Go key type.
+for $type in key_check_types()
+  "\nvar keyCheck" + for.index + " = nino.PrepareKeyCheck[" + $type + "]()\n"
 end
 
 for n in tuples

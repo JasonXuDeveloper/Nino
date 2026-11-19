@@ -378,16 +378,21 @@ func (w *Writer) WriteShape(dims ...int) {
 
 // CheckUniqueValues returns v, the elements of a set read in the order of the data, unless two of them are equal: then
 // it fails r with CodeDuplicateKey (as .NET's HashSet and SortedSet do when filled from empty) and returns nil. It
-// returns nil for nil and after r failed. Generated code reads the elements with direct calls, then checks them
-// once here, as [CheckUniqueKeys] does for a dictionary's keys. Numbers and strings are compared as .NET compares them
+// returns nil for nil and after r failed. Numbers and strings are compared as .NET compares them
 // (a NaN equals every NaN), without a map, and so is a [NullableSlot] of a number, a set of T? (two nulls are equal);
 // other values as Go compares them (unique.go).
 func CheckUniqueValues[T comparable](r *Reader, v []T) []T {
+	return (*KeyCheck[T])(nil).Values(r, v)
+}
+
+// Values checks the elements of a set with c and returns them in their original order.
+// It has the same result and error behavior as [CheckUniqueValues]. A nil check discovers the key kind.
+func (c *KeyCheck[T]) Values(r *Reader, v []T) []T {
 	if v == nil || r.err != nil {
 		return nil
 	}
 	var e T
-	if repeated[T](unsafe.Pointer(unsafe.SliceData(v)), len(v), int(unsafe.Sizeof(e)), &r.keys) {
+	if c.repeated(unsafe.Pointer(unsafe.SliceData(v)), len(v), int(unsafe.Sizeof(e)), &r.keys) {
 		r.Fail(CodeDuplicateKey, "")
 		return nil
 	}
@@ -415,14 +420,18 @@ func readUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func
 
 // CheckUniqueKeys returns e, the pairs of a dictionary read in the order of the data, unless two of its keys are equal:
 // then it fails r with CodeDuplicateKey (as .NET's dictionaries do when filled from empty) and returns nil. It
-// returns nil for nil and after r failed. Generated code reads the pairs with direct calls, then checks them once
-// here. Keys are compared as [CheckUniqueValues] compares elements.
+// returns nil for nil and after r failed. Keys are compared as [CheckUniqueValues] compares elements.
 func CheckUniqueKeys[K comparable, V any](r *Reader, e []Entry[K, V]) []Entry[K, V] {
+	return CheckUniqueKeysWith[K, V](r, e, nil)
+}
+
+// CheckUniqueKeysWith is [CheckUniqueKeys] with key metadata prepared before decoding. A nil check discovers the key kind.
+func CheckUniqueKeysWith[K comparable, V any](r *Reader, e []Entry[K, V], c *KeyCheck[K]) []Entry[K, V] {
 	if e == nil || r.err != nil {
 		return nil
 	}
 	var pair Entry[K, V]
-	if repeated[K](unsafe.Pointer(unsafe.SliceData(e)), len(e), int(unsafe.Sizeof(pair)), &r.keys) {
+	if c.repeated(unsafe.Pointer(unsafe.SliceData(e)), len(e), int(unsafe.Sizeof(pair)), &r.keys) {
 		r.Fail(CodeDuplicateKey, "")
 		return nil
 	}

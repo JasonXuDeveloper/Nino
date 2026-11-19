@@ -40,6 +40,25 @@ type keyKind struct {
 	slot  uintptr
 }
 
+// KeyCheck holds the duplicate-check metadata for one key type. Generated codecs prepare it once.
+// A zero or nil check discovers the key kind as [CheckUniqueValues] and [CheckUniqueKeys] do.
+type KeyCheck[K comparable] struct {
+	_            [0]K // A conversion cannot carry offsets or strides to a different key type.
+	kind         keyKind
+	bytewiseSize int
+	prepared     bool
+}
+
+// PrepareKeyCheck discovers the duplicate-check metadata for K before decoding.
+func PrepareKeyCheck[K comparable]() KeyCheck[K] {
+	kind := kindOf[K]()
+	c := KeyCheck[K]{kind: kind, prepared: true}
+	if kind == (keyKind{}) {
+		c.bytewiseSize = bytewiseKeySize[K]()
+	}
+	return c
+}
+
 // kindOf returns how keys of type K are compared.
 func kindOf[K comparable]() keyKind {
 	t := reflect.TypeFor[K]()
@@ -79,11 +98,17 @@ func kindOfType(t reflect.Type) keyKind {
 
 // repeated reports whether two of the n keys of type K, the first at p and each stride bytes after the one before,
 // are equal (see the top of this file). scratch is the reader's memory for the tables (see table).
-func repeated[K comparable](p unsafe.Pointer, n, stride int, scratch *[]uint64) bool {
+func (c *KeyCheck[K]) repeated(p unsafe.Pointer, n, stride int, scratch *[]uint64) bool {
 	if n < 2 {
 		return false
 	}
-	switch k := kindOf[K](); {
+	var k keyKind
+	if c != nil && c.prepared {
+		k = c.kind
+	} else {
+		k = kindOf[K]()
+	}
+	switch {
 	case k.slot != 0:
 		return repeatedSlots(p, n, stride, k, scratch)
 	case k.size != 0:
@@ -91,7 +116,7 @@ func repeated[K comparable](p unsafe.Pointer, n, stride int, scratch *[]uint64) 
 	case k.text:
 		return repeatedStrings(p, n, stride, false, scratch)
 	}
-	return repeatedOtherKeys[K](p, n, stride, scratch)
+	return c.repeatedOtherKeys(p, n, stride, scratch)
 }
 
 // repeatedSlots is repeated for NullableSlots of a number (k): two nulls are equal, and the values present are
@@ -470,8 +495,14 @@ func bytewiseKey(t reflect.Type) bool {
 // repeatedOtherKeys keeps bytewise key handling off the scalar and string paths.
 //
 //go:noinline
-func repeatedOtherKeys[K comparable](p unsafe.Pointer, n, stride int, scratch *[]uint64) bool {
-	if size := bytewiseKeySize[K](); size != 0 && n <= 1<<(bits.UintSize-6) && int64(n) < 1<<31 {
+func (c *KeyCheck[K]) repeatedOtherKeys(p unsafe.Pointer, n, stride int, scratch *[]uint64) bool {
+	var size int
+	if c != nil && c.prepared {
+		size = c.bytewiseSize
+	} else {
+		size = bytewiseKeySize[K]()
+	}
+	if size != 0 && n <= 1<<(bits.UintSize-6) && int64(n) < 1<<31 {
 		if result, bounded := repeatedBytewise(p, n, stride, size, scratch); bounded {
 			return result
 		}
