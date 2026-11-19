@@ -45,7 +45,7 @@ namespace Nino.Core.Internal
             while (true)
             {
                 var span = ListAccess.Open(list, count, overwritten: false, out var buffer);
-                NinoElements.Read<T, TFormatter>(span.Slice(done), ref reader);
+                NinoRuns.Read<T, TFormatter>(span.Slice(done), ref reader);
                 ListAccess.Close(list, count, buffer);
                 if (count == length)
                     return reader;
@@ -268,7 +268,7 @@ namespace Nino.Core.Internal
             bool read = false;
             try
             {
-                NinoElements.Read<T, TFormatter>(span, ref reader);
+                NinoRuns.Read<T, TFormatter>(span, ref reader);
                 read = true;
             }
             finally

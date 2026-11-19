@@ -1,15 +1,20 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
     /// <summary>
-    /// The write loops over a run of a collection's storage (<see cref="NinoRun"/>), one per element kind
-    /// (<see cref="NinoKind"/>): every contiguous collection writes its elements through these (#355). A run of values
-    /// in a row (an array, a list, a span, each half of a ring) is <see cref="Write{T,TFormatter}(NinoRun, ref
-    /// Writer)"/>; the entries of a set are <see cref="WriteSet{T,TFormatter}"/>, and of a dictionary, whose element is
-    /// the pair, <see cref="WritePairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>. In each:
+    /// The loops over a run of a collection's storage (<see cref="NinoRun"/>), one per element kind
+    /// (<see cref="NinoKind"/>) and direction: every contiguous collection writes its elements through these, and
+    /// reads them into its storage through the same view (#355). A run of values in a row (an array, a list, a span,
+    /// each half of a ring) is <see cref="Write{T,TFormatter}(NinoRun, ref Writer)"/> and
+    /// <see cref="Read{T,TFormatter}(NinoRun, ref Reader, bool)"/>; the entries of a set are
+    /// <see cref="WriteSet{T,TFormatter}"/> and <see cref="ReadSet{T,TFormatter}"/>, and of a dictionary, whose element
+    /// is the pair, <see cref="WritePairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/> and
+    /// <see cref="ReadPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/> (new entries, which the caller links after:
+    /// <see cref="HashTables"/>). In each:
     /// <list type="bullet">
     /// <item>raw elements and blocks: one block, copied, or gathered out of the entries by the block kernels through
     /// the entries' one block formatter (<see cref="CollectionFields.EntryBlock{TEntry,TItems}"/>);</item>
@@ -19,7 +24,8 @@ namespace Nino.Core.Internal
     /// <item>others: value by value through the formatter, a constrained call.</item>
     /// </list>
     /// Entries a set or a dictionary freed are skipped (<see cref="NinoRun.Skips"/>); the kinds moved as one block take
-    /// a run without free entries, else they go value by value.
+    /// a run without free entries, else they go value by value. Reads fill a run whose every entry is in use, and read
+    /// a polymorphic base's values through its formatter's <c>Deserialize</c> (its subtype switch inlined there).
     /// </summary>
     internal static class NinoRuns
     {
@@ -375,6 +381,313 @@ namespace Nino.Core.Internal
                 pos += (nuint)(uint)(keySize + NinoStrings.Write(ref Unsafe.Add(ref entry, keySize), s));
                 return true;
             }
+        }
+
+        /// <summary>Reads into the elements of <paramref name="values"/>, reusing the existing values.</summary>
+        /// <param name="prechecked">The collection length already proved its entire fixed-stride payload fits.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Read<T, TFormatter>(Span<T> values, ref Reader reader, bool prechecked = false)
+            where TFormatter : struct, INinoFormatter<T> =>
+            Read<T, TFormatter>(ref MemoryMarshal.GetReference(values), values.Length, ref reader, prechecked);
+
+        /// <summary>
+        /// Reads <paramref name="count"/> elements into the slots starting at <paramref name="first"/> (a
+        /// multi-dimensional array's), as <see cref="Read{T,TFormatter}(Span{T}, ref Reader, bool)"/> reads a span.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader, bool prechecked = false)
+            where TFormatter : struct, INinoFormatter<T> =>
+            Read<T, TFormatter>(new NinoRun(ref Unsafe.As<T, byte>(ref first), count, Unsafe.SizeOf<T>(), NinoRun.NoKey,
+                NinoRun.AllInUse), ref reader, prechecked);
+
+        /// <summary>
+        /// Reads into the elements of <paramref name="run"/>, a run of values in a row (an array's, a list's backing
+        /// array, a ring's from its start), reusing the existing values: the dense half of the one view reads fill
+        /// (#355, design §2.4). The caller publishes what it filled (a list's count, a ring's head and tail).
+        /// </summary>
+        /// <param name="prechecked">The collection length already proved its entire fixed-stride payload fits.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Read<T, TFormatter>(scoped NinoRun run, ref Reader reader, bool prechecked)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int count = run.Count;
+            ref T first = ref Unsafe.As<byte, T>(ref run.First);
+            if (NinoKind<TFormatter>.IsString)
+            {
+                // One loop with the position in a register (see Reader.ReadStrings).
+                reader.ReadStrings(ref Unsafe.As<T, string>(ref first), count);
+                return;
+            }
+
+            // Raw elements: one bounds check and one block copy (see Write). Bools one by one (checked,
+            // NinoLayout<T>.CopiesAsIs).
+            var kind = NinoKind.Of<T, TFormatter>();
+            if (kind == NinoElementKind.Raw && NinoLayout<T>.CopiesAsIs)
+            {
+                ref byte destination = ref Unsafe.As<T, byte>(ref first);
+                ref byte source = ref TakeElements(ref reader, count, Unsafe.SizeOf<T>(), prechecked);
+                uint bytes = (uint)count * (uint)Unsafe.SizeOf<T>();
+#if NET8_0_OR_GREATER
+                if (Unsafe.SizeOf<T>() == 1 && NinoUnsafe.IsArm64Short(bytes))
+                    NinoUnsafe.CopyArm64ShortMayOverlap(ref destination, ref source, bytes);
+                else
+#endif
+                    NinoUnsafe.CopyToNew(ref destination, ref source, bytes);
+                return;
+            }
+
+            if (kind == NinoElementKind.Slot)
+            {
+                // The kernels check the presence bytes and take the slots in one pass over the block.
+                if (count != 0)
+                    ReadSlots<T, TFormatter>(ref first, count, ref reader, prechecked);
+                return;
+            }
+
+            // Blocks as one run, except in Untrusted mode where their fields need checks (ReadSize -1): one by one.
+            int block = NinoBlockCollections.ReadSize<T, TFormatter>();
+            if (kind == NinoElementKind.Block && block > 0)
+            {
+                NinoBlockCollections.ReadAll<T, TFormatter>(ref TakeElements(ref reader, count, block, prechecked),
+                    ref first, count, block);
+                return;
+            }
+
+            // Empty collections (the leaves of a tree) skip the call and the copies of the reader in and out.
+            if (count != 0)
+                reader = ReadEach<T, TFormatter>(ref first, count, reader);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ref byte TakeElements(ref Reader reader, int count, int stride, bool prechecked) =>
+            ref (prechecked ? ref reader.UnsafeAdvance(count * stride) : ref reader.ReadElements(count, stride));
+
+        /// <summary>Reads <paramref name="count"/> slots (not 0), their bytes checked first unless
+        /// <paramref name="prechecked"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void ReadSlots<T, TFormatter>(ref T first, int count, ref Reader reader, bool prechecked)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (!prechecked && (ulong)(uint)count * (uint)NinoKind.Stride<T, TFormatter>() > (uint)reader.Remaining)
+                NinoThrow.EndOfData();
+            default(TFormatter).ReadSlots(MemoryMarshal.CreateSpan(ref first, count), ref reader);
+        }
+
+        /// <summary>
+        /// The elements one by one, out of line: inlined into a read (also where they are blocks and it is never
+        /// reached), the loop and the element's formatter used up what the JIT inlines into the method, and helpers as
+        /// small as Reader.Skip were left calls. The reader by value and returned, not by reference: its address passed
+        /// to a call would keep the caller's reader in memory.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadEach<T, TFormatter>(scoped ref T item, int count, Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            // The reader a local, its cursor in registers, where through a reference every element would store it and
+            // load it back (List<(int, long)>: 2x faster). By reference, see WriteOnLocal.
+            for (int left = count; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
+                default(TFormatter).Deserialize(ref reader, ref item);
+            return reader;
+        }
+
+        /// <summary>
+        /// Whether a set's or a dictionary's entries take <typeparamref name="T"/>'s values as one block, scattered
+        /// into them by the block kernels (<see cref="CollectionFields.EntryBlock{TEntry,TItems}"/>): raw values (their
+        /// checks made first on the block, <see cref="TakeSet{T,TFormatter}"/>) and blocks read as one
+        /// (<see cref="NinoBlockCollections.ReadSize{T,TFormatter}"/>; not in Untrusted mode where their fields need
+        /// checks). Their item bytes are <see cref="NinoKind.Stride{T,TFormatter}"/>. A JIT-time constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ScattersItems<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw ||
+            NinoKind.Of<T, TFormatter>() == NinoElementKind.Block && NinoBlockCollections.ReadSize<T, TFormatter>() > 0;
+
+        /// <summary>
+        /// <see cref="ScattersItems{T,TFormatter}"/> for a set's values, and slots whose memory is their wire form
+        /// (<see cref="INinoFormatter{T}.SlotsAreMemory"/>), checked on the block and moved as bytes. A JIT-time
+        /// constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ScattersSet<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            ScattersItems<T, TFormatter>() ||
+            NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot && default(TFormatter).SlotsAreMemory;
+
+        /// <summary>
+        /// Takes the block of <paramref name="count"/> values a set reads as one (<see cref="ScattersSet"/>), with the
+        /// checks of their bytes a read of each makes: a raw bool other than 0 or 1 (and in Untrusted mode other values
+        /// no constructor makes), a presence byte of a slot other than 0 or 1. Blocks are checked as they are read.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref byte TakeSet<T, TFormatter>(ref Reader reader, int count)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int size = NinoKind.Stride<T, TFormatter>();
+            ref byte source = ref reader.ReadElements(count, size);
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
+                default(TFormatter).CheckSlots(ref source, count);
+            else
+                CheckRaw<T, TFormatter>(ref source, count, size);
+            return ref source;
+        }
+
+        /// <summary>
+        /// As <see cref="TakeSet{T,TFormatter}"/>, for the pairs of a dictionary whose keys and values are both
+        /// <see cref="ScattersItems{T,TFormatter}"/>: each pair the key's item bytes, then the value's.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref byte TakePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(ref Reader reader, int count)
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+            where TValueFormatter : struct, INinoFormatter<TValue>
+        {
+            int keySize = NinoKind.Stride<TKey, TKeyFormatter>();
+            int size = keySize + NinoKind.Stride<TValue, TValueFormatter>();
+            ref byte source = ref reader.ReadElements(count, size);
+            CheckRaw<TKey, TKeyFormatter>(ref source, count, size);
+            CheckRaw<TValue, TValueFormatter>(ref Unsafe.Add(ref source, keySize), count, size);
+            return ref source;
+        }
+
+        // Raw values the block moves without a look: a bool other than 0 or 1, and in Untrusted mode other values no
+        // constructor makes, are invalid data (NinoLayout<T>.CopiesAsIs, a constant).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CheckRaw<T, TFormatter>(ref byte source, int count, int stride)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw && !NinoLayout<T>.CopiesAsIs)
+                NinoChecks.Values<T>(ref source, count, stride);
+        }
+
+        /// <summary>
+        /// Reads a value of a block <see cref="TakeSet{T,TFormatter}"/> or <see cref="TakePairs"/> took at
+        /// <paramref name="source"/>: a set or dictionary that is not filled through its entries adds them one by one.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T ReadItem<T, TFormatter>(ref byte source) where TFormatter : struct, INinoFormatter<T>
+        {
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
+                return NinoUnsafe.Read<T>(ref source);
+            T value = default;
+            NinoBlocks.ReadItem<T, TFormatter>(ref value, ref source);
+            return value;
+        }
+
+        /// <summary>
+        /// Reads the values of <paramref name="run"/>, a set's new entries (every one in use, <see cref="CollectionFields
+        /// .Run{T}(CollectionFields.SetEntry{T}[], int)"/>), from the data: the values a set takes as one block
+        /// (<see cref="ScattersSet{T,TFormatter}"/>) scattered into the entries by the block kernels, the others value by
+        /// value into their places. The entries' hash codes and links are the caller's
+        /// (<see cref="HashTables.Link{T}(System.Collections.Generic.HashSet{T}, int)"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ReadSet<T, TFormatter>(NinoRun run, ref Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (ScattersSet<T, TFormatter>())
+            {
+                ScatterSet<T, TFormatter>(run, ref TakeSet<T, TFormatter>(ref reader, run.Count));
+                return;
+            }
+
+            reader = ReadSetEach<T, TFormatter>(run, reader);
+        }
+
+        /// <summary>
+        /// The values a set takes as one block (<see cref="TakeSet{T,TFormatter}"/>'s, at <paramref name="source"/>),
+        /// scattered into its entries: the gather of <see cref="WriteSet{T,TFormatter}"/> the other way. A caller that
+        /// takes the block itself (to keep its reader out of a call) passes it here.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ScatterSet<T, TFormatter>(NinoRun run, ref byte source)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            ref var entries = ref CollectionFields.SetEntryOf<T>(ref run.First);
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
+                NinoBlockCollections.ReadAll<CollectionFields.SetEntry<T>,
+                    CollectionFields.EntryBlock<CollectionFields.SetEntry<T>, CollectionFields.SetValueBytes<T>>>(
+                    ref source, ref entries, run.Count, Unsafe.SizeOf<T>());
+            else
+                NinoBlockCollections.ReadAll<CollectionFields.SetEntry<T>,
+                    CollectionFields.EntryBlock<CollectionFields.SetEntry<T>, CollectionFields.SetValue<T, TFormatter>>>(
+                    ref source, ref entries, run.Count, NinoKind.Stride<T, TFormatter>());
+        }
+
+        /// <summary>
+        /// The values of a set's run one by one into their entries, out of line with the reader by value (as
+        /// <see cref="ReadEach{T,TFormatter}"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadSetEach<T, TFormatter>(NinoRun run, Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            ref byte value = ref run.First;
+            int stride = run.Stride;
+            for (int left = run.Count; left > 0; left--, value = ref NinoRun.Next(ref value, stride))
+                NinoElements.ReadOne<T, TFormatter>(ref reader, ref Unsafe.As<byte, T>(ref value));
+            return reader;
+        }
+
+        /// <summary>
+        /// Reads the pairs of <paramref name="run"/>, a dictionary's new entries (every one in use,
+        /// <see cref="CollectionFields.Run{TKey,TValue}(CollectionFields.MapEntry{TKey,TValue}[], int)"/>), from the data,
+        /// as its formatter wrote them, key then value: pairs whose keys and values are both
+        /// <see cref="ScattersItems{T,TFormatter}"/> scattered into the entries by the block kernels, the others pair by
+        /// pair into their places. The entries' hash codes and links are the caller's
+        /// (<see cref="HashTables.Link{TKey,TValue}(System.Collections.Generic.Dictionary{TKey,TValue}, int)"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, ref Reader reader)
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+            where TValueFormatter : struct, INinoFormatter<TValue>
+        {
+            if (ScattersItems<TKey, TKeyFormatter>() && ScattersItems<TValue, TValueFormatter>())
+            {
+                ScatterPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(run,
+                    ref TakePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(ref reader, run.Count));
+                return;
+            }
+
+            reader = ReadPairsEach<TKey, TValue, TKeyFormatter, TValueFormatter>(run, reader);
+        }
+
+        /// <summary>
+        /// The pairs of <see cref="TakePairs"/>' block at <paramref name="source"/> scattered into a dictionary's
+        /// entries: the gather of <see cref="WritePairBlocks"/> the other way. A caller that takes the block itself
+        /// passes it here, as with <see cref="ScatterSet{T,TFormatter}"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ScatterPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run,
+            ref byte source)
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+            where TValueFormatter : struct, INinoFormatter<TValue> =>
+            NinoBlockCollections.ReadAll<CollectionFields.MapEntry<TKey, TValue>,
+                CollectionFields.EntryBlock<CollectionFields.MapEntry<TKey, TValue>,
+                    CollectionFields.MapPair<TKey, TValue, TKeyFormatter, TValueFormatter>>>(ref source,
+                ref CollectionFields.MapEntryOf<TKey, TValue>(ref run.First), run.Count,
+                NinoKind.Stride<TKey, TKeyFormatter>() + NinoKind.Stride<TValue, TValueFormatter>());
+
+        /// <summary>
+        /// The pairs of a dictionary's run one by one into their entries, each key and value through its formatter
+        /// with nothing else in the loop. A key added one at a time (HashTables.Insert, a call per pair that loaded
+        /// the table's fields again each time) read a <c>Dictionary&lt;int, IFoo&gt;</c> of 100 pairs about 10 %
+        /// slower than LuminPack, which fills the entries this way (#320). The reader by value and returned: its
+        /// address reaching no call, its fields stay in registers in the loop.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadPairsEach<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, Reader reader)
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+            where TValueFormatter : struct, INinoFormatter<TValue>
+        {
+            ref byte value = ref run.First;
+            int stride = run.Stride;
+            nint key = CollectionFields.MapLayout<TKey, TValue>.Key - CollectionFields.MapLayout<TKey, TValue>.Value;
+            for (int left = run.Count; left > 0; left--, value = ref NinoRun.Next(ref value, stride))
+            {
+                default(TKeyFormatter).Deserialize(ref reader,
+                    ref Unsafe.As<byte, TKey>(ref Unsafe.AddByteOffset(ref value, key)));
+                default(TValueFormatter).Deserialize(ref reader, ref Unsafe.As<byte, TValue>(ref value));
+            }
+
+            return reader;
         }
     }
 }

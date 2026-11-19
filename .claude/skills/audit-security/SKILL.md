@@ -26,8 +26,8 @@ the runtime it targets.
   not match their region, headers that are not minimal. A raw block copy of a type with a `bool` in it goes through
   `NinoLayout<T>.CopiesAsIs`, never `IsCanonical` alone.
 - A hash table Nino fills counts the keys in each bucket against `NinoSettings.MaxHashCollisions` (`HashTables`:
-  `TryFill`, `Insert`, `Link` after a read filled a new dictionary's entries (the reader then empties the dictionary
-  on any exception: `Unlink`), or `Added`/`Walk` after the table's own add, as `HashTables.Plan` says;
+  `Insert`, `Link` after a read filled a new set's or dictionary's entries through their run (`NinoRuns.ReadSet`,
+  `ReadPairs`; the reader then empties the collection on any exception: `Unlink`), or `Added`/`Walk` after the table's own add, as `HashTables.Plan` says;
   `ConcurrentTables` for `ConcurrentDictionary`). A new path that adds keys from the data to a hash table does one of
   these.
 - `NinoSettings.Untrusted` holds the checks that cost time on every read (seeded comparers, value checks of raw

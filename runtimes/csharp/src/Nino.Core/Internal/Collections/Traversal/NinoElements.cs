@@ -5,7 +5,11 @@ using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
-    /// <summary>Shared element loops for array-like formatters.</summary>
+    /// <summary>
+    /// The read policies of array-like formatters (what a new array is allocated as, what a count is checked with,
+    /// how far a collection is sized ahead of its elements) and the one-value write and read of a sequence not held
+    /// in a run; the loops themselves are <see cref="NinoRuns"/>.
+    /// </summary>
     internal static class NinoElements
     {
         /// <summary>
@@ -47,7 +51,7 @@ namespace Nino.Core.Internal
             WritesOnLocal<T>() || NinoKind<T, TFormatter>.FlatClass;
 
         /// <summary>
-        /// Whether <see cref="Read{T,TFormatter}(Span{T}, ref Reader)"/> overwrites every element
+        /// Whether <see cref="NinoRuns.Read{T,TFormatter}(Span{T}, ref Reader, bool)"/> overwrites every element
         /// whatever it held (raw elements and blocks are each read in full), so the slots need not
         /// be cleared or zeroed first. A JIT-time constant.
         /// </summary>
@@ -180,23 +184,12 @@ namespace Nino.Core.Internal
             while (true)
             {
                 var items = EnsureLength(ref array, count);
-                Read<T, TFormatter>(new Span<T>(items, done, count - done), ref reader);
+                NinoRuns.Read<T, TFormatter>(new Span<T>(items, done, count - done), ref reader);
                 if (count == length)
                     return reader;
                 done = count;
                 count = (int)Math.Min(length, 2L * count);
             }
-        }
-
-        /// <summary>
-        /// Reads <paramref name="count"/> elements into the slots starting at <paramref name="first"/> (a
-        /// multi-dimensional array's), as <see cref="Read{T,TFormatter}(Span{T}, ref Reader)"/> reads a span of them.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader, bool prechecked = false)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            Read<T, TFormatter>(MemoryMarshal.CreateSpan(ref first, count), ref reader, prechecked);
         }
 
         /// <summary>
@@ -221,19 +214,9 @@ namespace Nino.Core.Internal
             where TFormatter : struct, INinoFormatter<T>
         {
             if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                ReadSlots<T, TFormatter>(MemoryMarshal.CreateSpan(ref item, 1), ref reader, prechecked: false);
+                NinoRuns.ReadSlots<T, TFormatter>(ref item, 1, ref reader, prechecked: false);
             else
                 default(TFormatter).Deserialize(ref reader, ref item);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void ReadSlots<T, TFormatter>(Span<T> values, ref Reader reader, bool prechecked)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            if (!prechecked &&
-                (ulong)(uint)values.Length * (uint)NinoKind.Stride<T, TFormatter>() > (uint)reader.Remaining)
-                NinoThrow.EndOfData();
-            default(TFormatter).ReadSlots(values, ref reader);
         }
 
         /// <summary>Writes <paramref name="values"/> (not empty) as one block of <see cref="NinoKind.Stride"/> bytes
@@ -285,80 +268,6 @@ namespace Nino.Core.Internal
             NinoUnsafe.Write(ref destination, isNull ? NinoWire.NullLength : values.Length);
             if (!values.IsEmpty)
                 WriteBlock<T, TFormatter>(ref Unsafe.Add(ref destination, NinoWire.LengthSize), values);
-        }
-
-        /// <summary>Reads into the elements of a span, reusing the existing values.</summary>
-        /// <param name="prechecked">The collection length already proved its entire fixed-stride payload fits.</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(Span<T> values, ref Reader reader, bool prechecked = false)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            if (NinoKind<TFormatter>.IsString)
-            {
-                // One loop with the position in a register (see Reader.ReadStrings).
-                reader.ReadStrings(ref Unsafe.As<T, string>(ref MemoryMarshal.GetReference(values)), values.Length);
-                return;
-            }
-
-            // Raw elements: one bounds check and one block copy (see Write). Bools one by one (checked,
-            // NinoLayout<T>.CopiesAsIs).
-            var kind = NinoKind.Of<T, TFormatter>();
-            if (kind == NinoElementKind.Raw && NinoLayout<T>.CopiesAsIs)
-            {
-                ref byte destination = ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values));
-                ref byte source = ref TakeElements(ref reader, values.Length, Unsafe.SizeOf<T>(), prechecked);
-                uint bytes = (uint)values.Length * (uint)Unsafe.SizeOf<T>();
-#if NET8_0_OR_GREATER
-                if (Unsafe.SizeOf<T>() == 1 && NinoUnsafe.IsArm64Short(bytes))
-                    NinoUnsafe.CopyArm64ShortMayOverlap(ref destination, ref source, bytes);
-                else
-#endif
-                    NinoUnsafe.CopyToNew(ref destination, ref source, bytes);
-                return;
-            }
-
-            if (kind == NinoElementKind.Slot)
-            {
-                // The kernels check the presence bytes and take the slots in one pass over the block.
-                if (!values.IsEmpty)
-                    ReadSlots<T, TFormatter>(values, ref reader, prechecked);
-                return;
-            }
-
-            // Blocks as one run, except in Untrusted mode where their fields need checks (ReadSize -1): one by one.
-            int block = NinoBlockCollections.ReadSize<T, TFormatter>();
-            if (kind == NinoElementKind.Block && block > 0)
-            {
-                NinoBlockCollections.ReadAll<T, TFormatter>(ref TakeElements(ref reader, values.Length, block, prechecked),
-                    ref MemoryMarshal.GetReference(values), values.Length, block);
-                return;
-            }
-
-            // Empty collections (the leaves of a tree) skip the call and the copies of the reader in and out.
-            if (values.Length != 0)
-                reader = ReadEach<T, TFormatter>(values, reader);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ref byte TakeElements(ref Reader reader, int count, int stride, bool prechecked) =>
-            ref (prechecked ? ref reader.UnsafeAdvance(count * stride) : ref reader.ReadElements(count, stride));
-
-        /// <summary>
-        /// The elements one by one, out of line: inlined into a read (also where they are blocks and it is never
-        /// reached), the loop and the element's formatter used up what the JIT inlines into the method, and helpers as
-        /// small as Reader.Skip were left calls. The reader by value and returned, not by reference: its address passed
-        /// to a call would keep the caller's reader in memory.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadEach<T, TFormatter>(Span<T> values, Reader reader)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            // The reader a local, its cursor in registers, where through a reference every element would store it and
-            // load it back (List<(int, long)>: 2x faster).
-            ref T item = ref MemoryMarshal.GetReference(values); // by reference, see NinoRuns.WriteOnLocal
-            for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
-                default(TFormatter).Deserialize(ref reader, ref item);
-            return reader;
         }
 
         /// <summary>

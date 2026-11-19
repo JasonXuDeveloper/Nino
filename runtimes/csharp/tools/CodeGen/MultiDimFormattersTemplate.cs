@@ -90,7 +90,7 @@ namespace Nino.CodeGen
             sb.Append("            }\n");
             sb.Append("\n");
             sb.Append("            if (shape.Total != 0)\n");
-            sb.Append($"                NinoElements.Read<T, TFormatter>(ref array[{first}], shape.Total, ref reader, prechecked: true);\n");
+            sb.Append($"                NinoRuns.Read<T, TFormatter>(ref array[{first}], shape.Total, ref reader, prechecked: true);\n");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        // Publish the new array only after the entire payload has been read.\n");
@@ -107,7 +107,7 @@ namespace Nino.CodeGen
             sb.Append($"            ref T first = ref array[{first}];\n");
             sb.Append("#endif\n");
             sb.Append("            if (items == null)\n");
-            sb.Append("                NinoElements.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);\n");
+            sb.Append("                NinoRuns.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);\n");
             sb.Append("            else\n");
             sb.Append("                MultiDim.Fill(items, ref first);\n");
             sb.Append("            NinoRecycler.Replace(ref value, array);\n");

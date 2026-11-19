@@ -46,7 +46,7 @@ namespace Nino.Core
                 ? NinoRuns.KeyOf<TKey, TKeyFormatter>()
                 : NinoRun.NoKey;
             int count = value.Count;
-            // An empty dictionary skips the run and the copies of the writer in and out (as NinoElements.Read).
+            // An empty dictionary skips the run and the copies of the writer in and out (as NinoRuns.Read).
             if (count == 0)
             {
                 writer.WriteLength(0);
@@ -364,43 +364,20 @@ namespace Nino.Core
             NinoRecycler.DiscardPairs<TKey, TValue>(stale);
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void AddRaw(Dictionary<TKey, TValue> dictionary, ref byte src, int length)
+        /// <summary>
+        /// Whether the pairs are read as one block and scattered into the entries
+        /// (<see cref="NinoRuns.ScattersItems{T,TFormatter}"/> for the keys and the values): a JIT-time constant.
+        /// </summary>
+        private static bool ScattersPairs
         {
-            // A cursor rather than an int offset, which every access would sign-extend.
-            int keySize = Unsafe.SizeOf<TKey>();
-            int pairSize = keySize + Unsafe.SizeOf<TValue>();
-            // A bool other than 0 or 1, and in Untrusted mode other values no constructor makes, are invalid data.
-            if (!NinoLayout<TKey>.CopiesAsIs)
-                NinoChecks.Values<TKey>(ref src, length, pairSize);
-            if (!NinoLayout<TValue>.CopiesAsIs)
-                NinoChecks.Values<TValue>(ref Unsafe.Add(ref src, keySize), length, pairSize);
-            // The dictionary is new and sized for the pairs (Read's only caller): filled directly where it can be.
-            if (HashTables.Map && HashTables.TryFill(dictionary, ref src, length, keySize, pairSize))
-                return;
-            for (int i = 0; i < length; i++)
-            {
-                TKey key = NinoUnsafe.Read<TKey>(ref src);
-                NinoCollections.AddUnique(dictionary, key, NinoUnsafe.Read<TValue>(ref src, keySize));
-                HashTables.Added(dictionary, key);
-                src = ref Unsafe.Add(ref src, pairSize);
-            }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => NinoRuns.ScattersItems<TKey, TKeyFormatter>() && NinoRuns.ScattersItems<TValue, TValueFormatter>();
         }
 
         /// <summary>Reads <paramref name="length"/> pairs into <paramref name="dictionary"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Read(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
-            if (KeyKind == NinoElementKind.Raw && ValueKind == NinoElementKind.Raw)
-            {
-                // The block is taken here and the pairs added out of line: the reader's address never leaves the
-                // caller, and the caller stays small enough for the JIT to inline the rest of its path.
-                ref byte src = ref reader.ReadElements(length, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>());
-                if (length != 0)
-                    AddRaw(dictionary, ref src, length);
-                return;
-            }
-
             if (KeyKind == NinoElementKind.Raw && NinoKind<TValueFormatter>.IsString)
             {
                 // Raw keys and strings: one loop with the state in registers (see Reader.ReadStrings).
@@ -416,7 +393,18 @@ namespace Nino.Core
                 return;
             }
 
-            // Out of line, through a copy of the reader (see AddRaw); an empty dictionary skips both.
+            if (ScattersPairs)
+            {
+                // Pairs read as one block (no key can be null): the block is taken here and the pairs filled or added
+                // out of line, so the reader's address never leaves the caller, which stays small enough for the JIT
+                // to inline the rest of its path.
+                ref byte src = ref NinoRuns.TakePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(ref reader, length);
+                if (length != 0)
+                    AddBlock(dictionary, ref src, length);
+                return;
+            }
+
+            // Out of line, through a copy of the reader (see above); an empty dictionary skips both.
             if (length == 0)
                 return;
             Reader copy = reader;
@@ -472,34 +460,27 @@ namespace Nino.Core
             source = reader;
         }
 
-        /// <summary>
-        /// The fewest pairs <see cref="ReadEntries"/> reads: below it the two calls it adds (the read loop and
-        /// <see cref="HashTables.Link{TKey,TValue}"/>) cost more than the inserts they save. Runners (#320, run
-        /// 44243147222): one int-keyed pair 4 to 9 % slower than one insert on Xeon 6975P-C and Neoverse-N2, four on
-        /// par, 12 and more up to 13 % faster.
-        /// </summary>
-        private const int EntriesFrom = 4;
-
         /// <summary><see cref="ReadPairs"/>, each key inserted or its bucket walked (hash flooding).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadGuarded(Dictionary<TKey, TValue> dictionary, int length, ref Reader source)
         {
             // Where the dictionary is as expected (new, sized for the pairs), the pairs are read into its entries and
-            // its buckets built after them (HashTables.Link: hash flooding, repeated keys), or, for a few pairs, each
-            // key added here with its bucket walked as it is; else added by the dictionary, and its bucket walked after
-            // (HashTables: hash flooding). The plan read once, into locals (HashTables.Plan).
+            // its buckets built after them (Fill, from HashTables.FillFrom pairs on),
+            // or, for a few pairs, each key added here with its bucket walked as it is; else added by the dictionary,
+            // and its bucket walked after (HashTables: hash flooding). The plan read once, into locals
+            // (HashTables.Plan).
             bool insert = HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length);
-            if (insert && length >= EntriesFrom)
+            if (insert && length >= HashTables.FillFrom)
             {
-                source = ReadEntriesGuarded(dictionary, length, source);
+                source = FillGuarded(dictionary, length, source);
                 return;
             }
 
             // A local reader, so its fields stay in registers inside the loop.
             Reader reader = source;
+            bool walk = HashTables.Plan<TKey, TValue>.Walks;
             // One loop (the formatters inlined once), the choice made per pair: predicted, and cheaper than a second
             // copy of the loop, which kept more of its state on the stack.
-            bool walk = HashTables.Plan<TKey, TValue>.Walks;
             for (int i = 0; i < length; i++)
             {
                 TKey key = default;
@@ -522,18 +503,46 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// <see cref="ReadEntries"/>, with the dictionary left empty if the data is rejected part way, holding no
-        /// reference the read stored (<see cref="HashTables.Unlink{TKey,TValue}"/>). A method of its own: an exception
-        /// region in <see cref="ReadGuarded"/> slowed its loop for a few pairs too (one int-keyed pair 5 to 7 % slower
-        /// on Neoverse-N2, #320, run 44246428900), and one in <see cref="ReadEntries"/> would keep the reader out of
-        /// registers in its loop.
+        /// The <paramref name="length"/> pairs of the block at <paramref name="src"/>
+        /// (<see cref="NinoRuns.TakePairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>): scattered into the entries of
+        /// a dictionary <see cref="HashTables.CanInsert{TKey,TValue}"/> accepts and linked, else each read from the
+        /// block, added by the dictionary and its bucket walked after (HashTables.Plan).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadEntriesGuarded(Dictionary<TKey, TValue> dictionary, int length, Reader reader)
+        private static void AddBlock(Dictionary<TKey, TValue> dictionary, ref byte src, int length)
+        {
+            if (HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length))
+            {
+                FillGuarded(dictionary, ref src, length);
+                return;
+            }
+
+            bool walk = HashTables.Plan<TKey, TValue>.Walks;
+            int keySize = NinoKind.Stride<TKey, TKeyFormatter>();
+            int pairSize = keySize + NinoKind.Stride<TValue, TValueFormatter>();
+            for (int i = 0; i < length; i++, src = ref Unsafe.Add(ref src, pairSize))
+            {
+                TKey key = NinoRuns.ReadItem<TKey, TKeyFormatter>(ref src);
+                NinoCollections.AddUnique(dictionary, key,
+                    NinoRuns.ReadItem<TValue, TValueFormatter>(ref Unsafe.Add(ref src, keySize)));
+                if (walk)
+                    HashTables.Walk(dictionary, key);
+            }
+        }
+
+        /// <summary>
+        /// <see cref="AddBlock"/>'s fill: the block scattered into the entries
+        /// (<see cref="NinoRuns.ScatterPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>), then linked, the dictionary
+        /// left empty if the data is rejected part way (<see cref="HashTables.Unlink{TKey,TValue}"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void FillGuarded(Dictionary<TKey, TValue> dictionary, ref byte src, int length)
         {
             try
             {
-                return ReadEntries(dictionary, length, reader);
+                NinoRuns.ScatterPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(
+                    CollectionFields.Run(HashTables.Entries(dictionary), length), ref src);
+                HashTables.Link(dictionary, length);
             }
             catch
             {
@@ -543,24 +552,37 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Reads <paramref name="length"/> (at least <see cref="EntriesFrom"/>) pairs straight into the entries of a dictionary
-        /// <see cref="HashTables.CanInsert{TKey,TValue}"/> accepted, each key and value in its place with nothing but
-        /// the formatters in the loop, then builds the buckets in one pass (<see cref="HashTables.Link{TKey,TValue}"/>).
-        /// A key added one at a time (HashTables.Insert, a call per pair that loaded the table's fields again each time)
-        /// read a <c>Dictionary&lt;int, IFoo&gt;</c> of 100 pairs about 10 % slower than LuminPack, which fills the
-        /// entries this way (#320). The reader by value and returned: its address reaching no call, its fields stay in
-        /// registers in the loop.
+        /// <see cref="Fill"/>, with the dictionary left empty if the data is rejected part way, holding no reference the
+        /// read stored (<see cref="HashTables.Unlink{TKey,TValue}"/>). A method of its own: an exception region in
+        /// <see cref="ReadGuarded"/> slowed its loop for a few pairs too (one int-keyed pair 5 to 7 % slower on
+        /// Neoverse-N2, #320, run 44246428900), and one in the read loop would keep the reader out of registers there.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadEntries(Dictionary<TKey, TValue> dictionary, int length, Reader reader)
+        private static Reader FillGuarded(Dictionary<TKey, TValue> dictionary, int length, Reader reader)
         {
-            ref var entry = ref NinoUnsafe.GetArrayDataReference(HashTables.Entries(dictionary));
-            for (int left = length; left > 0; left--, entry = ref Unsafe.Add(ref entry, 1))
+            try
             {
-                default(TKeyFormatter).Deserialize(ref reader, ref entry.Key);
-                default(TValueFormatter).Deserialize(ref reader, ref entry.Value);
+                return Fill(dictionary, length, reader);
             }
+            catch
+            {
+                HashTables.Unlink(dictionary);
+                throw;
+            }
+        }
 
+        /// <summary>
+        /// Reads <paramref name="length"/> pairs straight into the entries of a dictionary
+        /// <see cref="HashTables.CanInsert{TKey,TValue}"/> accepted, through their run
+        /// (<see cref="NinoRuns.ReadPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>), then builds the buckets in
+        /// one pass (<see cref="HashTables.Link{TKey,TValue}(Dictionary{TKey,TValue}, int)"/>: null and repeated keys,
+        /// hash flooding).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader Fill(Dictionary<TKey, TValue> dictionary, int length, Reader reader)
+        {
+            NinoRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(
+                CollectionFields.Run(HashTables.Entries(dictionary), length), ref reader);
             HashTables.Link(dictionary, length);
             return reader;
         }

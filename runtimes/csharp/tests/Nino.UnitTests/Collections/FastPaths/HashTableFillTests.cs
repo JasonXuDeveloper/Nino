@@ -99,7 +99,7 @@ public class HashTableFillTests
 
     /// <summary>
     /// Pairs of a key or value that is not raw are read into a new dictionary's entries and linked after the read from
-    /// four pairs on (NinoDictionary.ReadEntries, HashTables.Link), one at a time below: the same contents either way,
+    /// four pairs on (NinoRuns.ReadPairs, HashTables.Link), one at a time below: the same contents either way,
     /// a repeated or null key rejected, and a read that fails part way leaves the dictionary it filled empty.
     /// </summary>
     [TestMethod]
@@ -143,5 +143,79 @@ public class HashTableFillTests
         NinoDeserializer.Deserialize(bytes, ref target);
         Assert.AreEqual(8, target.Count);
         CollectionAssert.AreEqual(new List<int> { 7, 7 }, target[7]);
+    }
+
+    /// <summary>
+    /// Sets of values that are not raw are read into a new set's entries and linked after (NinoRuns.ReadSet,
+    /// HashTables.Link): values read one by one from HashTables.FillFrom on, blocks scattered by the block kernels at
+    /// any count. The same contents and order as the public API gives, a repeated value rejected, and a read that
+    /// fails part way leaves the set it filled empty.
+    /// </summary>
+    [TestMethod]
+    public void EntriesFillOfSets()
+    {
+        for (int n = 1; n <= 9; n++)
+        {
+            CheckSet(Enumerable.Range(0, n).Select(i => (i * 7 - 20, "s" + i)).ToArray(), (1000, "x"));
+            CheckSet(Enumerable.Range(0, n).Select(i => (i * 7 - 20, (long)i << 40)).ToArray(), (1000, 1L));
+            CheckSet(Enumerable.Range(0, n).Select(i => new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.FromHours(i % 5))
+                .AddDays(i)).ToArray(), DateTimeOffset.MinValue);
+        }
+
+        // Cut inside its last value: the existing empty set read into is empty again, and usable.
+        var bytes = NinoSerializer.Serialize(new HashSet<(int, string)>(Enumerable.Range(0, 8).Select(i => (i, "v" + i))));
+        var target = new HashSet<(int, string)>();
+        Assert.ThrowsExactly<NinoDataException>(() =>
+            NinoDeserializer.Deserialize(bytes.AsSpan(0, bytes.Length - 2).ToArray(), ref target));
+        Assert.AreEqual(0, target.Count);
+        Assert.IsTrue(target.Add((1, "v1")));
+        NinoDeserializer.Deserialize(bytes, ref target);
+        Assert.AreEqual(8, target.Count);
+        Assert.IsTrue(target.Contains((7, "v7")));
+    }
+
+    /// <summary>
+    /// Dictionaries whose keys and values are raw or blocks are read as one block scattered into the new entries
+    /// (NinoRuns.ReadPairs), then linked: the same contents and order, a repeated key rejected.
+    /// </summary>
+    [TestMethod]
+    public void BlockDictionariesRoundTrip()
+    {
+        for (int n = 1; n <= 9; n++)
+        {
+            CheckDictionary(Enumerable.Range(0, n).Select(i => i * 13 - 50).ToArray(), i => (i, (long)i * 3), -1);
+            CheckDictionary(Enumerable.Range(0, n).Select(i => (i, -i)).ToArray(),
+                k => new DateTimeOffset(2021, 3, 4, 5, 6, 7, TimeSpan.FromMinutes(k.Item1 * 15)), (-1, -1));
+            CheckDictionary(Enumerable.Range(0, n).Select(i => (i, (long)i << 35)).ToArray(), k => k.Item1 % 2 == 0,
+                (-1, 0L));
+        }
+    }
+
+    /// <summary>
+    /// A bool other than 0 or 1 inside a value scattered into a set's or a dictionary's entries is invalid data, and
+    /// the collection read into is left empty.
+    /// </summary>
+    [TestMethod]
+    public void ScatteredBlocksRejectBadBools()
+    {
+        var setBytes = NinoSerializer.Serialize(new HashSet<(int, bool)>(Enumerable.Range(0, 6).Select(i => (i, true))));
+        // count, then (int, bool) blocks of 5 bytes: the bool of the fourth set to 2.
+        setBytes[4 + 3 * 5 + 4] = 2;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<HashSet<(int, bool)>>(setBytes));
+        var set = new HashSet<(int, bool)>();
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(setBytes, ref set));
+        Assert.AreEqual(0, set.Count);
+        Assert.IsTrue(set.Add((1, true)));
+
+        var mapBytes = NinoSerializer.Serialize(Enumerable.Range(0, 6).ToDictionary(i => i, i => (true, i)));
+        // count, then pairs of 4 + 5 bytes: the bool of the third value set to 7.
+        mapBytes[4 + 2 * 9 + 4] = 7;
+        Assert.ThrowsExactly<NinoDataException>(() =>
+            NinoDeserializer.Deserialize<Dictionary<int, (bool, int)>>(mapBytes));
+        var map = new Dictionary<int, (bool, int)>();
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(mapBytes, ref map));
+        Assert.AreEqual(0, map.Count);
+        map[1] = (true, 1);
+        Assert.AreEqual(1, map.Count);
     }
 }

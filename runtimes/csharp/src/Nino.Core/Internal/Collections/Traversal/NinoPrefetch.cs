@@ -190,7 +190,7 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Reads into the existing objects <paramref name="values"/> in runs, as
-        /// <see cref="NinoElements.Read{T,TFormatter}(Span{T}, ref Reader)"/> reads them one by one. The reader by value
+        /// <see cref="NinoRuns.Read{T,TFormatter}(Span{T}, ref Reader, bool)"/> reads them one by one. The reader by value
         /// and returned, as there.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

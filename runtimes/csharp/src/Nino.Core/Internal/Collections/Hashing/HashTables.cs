@@ -9,9 +9,12 @@ using System.Runtime.InteropServices;
 namespace Nino.Core.Internal
 {
     /// <summary>
-    /// Fills a new <see cref="HashSet{T}"/> or <see cref="Dictionary{TKey,TValue}"/> of raw elements by writing its
-    /// entries and buckets directly, as its Add would, without the checks Add repeats per element (the comparer, the
-    /// free list, the capacity, the version). The collection is created and sized through its public API first (its
+    /// Fills a new <see cref="HashSet{T}"/> or <see cref="Dictionary{TKey,TValue}"/> by writing its entries and buckets
+    /// directly, as its Add would, without the checks Add repeats per element (the comparer, the free list, the
+    /// capacity, the version): a read fills the entries through their run (<see cref="NinoRuns.ReadSet{T,TFormatter}"/>,
+    /// <see cref="NinoRuns.ReadPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>: raw values and blocks scattered by
+    /// the block kernels, others value by value), then <see cref="Link{T}(HashSet{T}, int)"/> hashes them and links the
+    /// buckets in one pass (#320, #355). The collection is created and sized through its public API first (its
     /// constructor or EnsureCapacity allocate the buckets and entries and set the fast-mod multiplier); only the
     /// entries, the buckets and the count are written here, at the offsets <see cref="CollectionViews"/> found. The
     /// hashing differs between implementations, and not along the lines of their fields (Mono's dictionary has .NET
@@ -21,7 +24,7 @@ namespace Nino.Core.Internal
     /// startup, as the first of the four that a collection filled here passes the public API's checks with. None:
     /// the formatters add element by element.
     /// <para>
-    /// Hash flooding: every key added here walks its bucket, as Add would, and more than
+    /// Hash flooding: every key linked or added here walks its bucket, as Add would, and more than
     /// <see cref="NinoSettings.MaxHashCollisions"/> keys in it is invalid data (keys built to collide would make
     /// reading quadratic). Keys that are not raw are added here one at a time (<see cref="Insert{TKey,TValue}"/>)
     /// where entries with references and string keys pass the same startup checks; where the runtime adds them (a
@@ -52,10 +55,11 @@ namespace Nino.Core.Internal
         private static readonly int MapHashing = MapAt == null ? -1 : FindHashing(CheckMap);
         private static readonly int MapMask = Mask(MapHashing), MapBias = Bias(MapHashing);
 
-        /// <summary>Whether <see cref="TryFill{T}"/> fills a new <see cref="HashSet{T}"/> on this runtime.</summary>
+        /// <summary>Whether a new <see cref="HashSet{T}"/> is filled and linked here on this runtime (its hashing
+        /// found).</summary>
         public static readonly bool Set = SetHashing >= 0;
 
-        /// <summary>Whether <see cref="TryFill{TKey,TValue}"/> fills a new dictionary on this runtime.</summary>
+        /// <summary>As <see cref="Set"/>, for a dictionary.</summary>
         public static readonly bool Map = MapHashing >= 0;
 
         // Whether the chain of an entry the runtime added can be walked: the layout is known, and for entries with
@@ -100,159 +104,15 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Adds the <paramref name="count"/> raw values at <paramref name="source"/> to <paramref name="set"/>, new
-        /// (default comparer) and sized for them; false, with the set untouched, when it is not as expected. A value
-        /// the data holds twice throws, as the element by element read does.
+        /// The fewest values a read of values one by one (<see cref="NinoRuns"/>' per-value loops) fills into the
+        /// entries of a new collection and links after (<see cref="Link{TKey,TValue}(Dictionary{TKey,TValue}, int)"/>)
+        /// rather than inserting each: below it the two calls it adds (the read loop and the link) cost more than the
+        /// inserts they save. Runners, dictionaries (#320, run 44243147222): one int-keyed pair 4 to 9 % slower than one
+        /// insert on Xeon 6975P-C and Neoverse-N2, four on par, 12 and more up to 13 % faster. Values a set or a
+        /// dictionary takes as one block (<see cref="NinoRuns.ScattersSet{T,TFormatter}"/>) are filled from one on, as
+        /// the raw fill they generalize was.
         /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static bool TryFill<T>(HashSet<T> set, ref byte source, int count, int size)
-        {
-            // A set with its own comparer (Untrusted mode's) is not hashed here.
-            if (!ReferenceEquals(set.Comparer, EqualityComparer<T>.Default))
-                return false;
-            // A bool other than 0 or 1, and in Untrusted mode other values no constructor makes, are invalid data.
-            if (!NinoLayout<T>.CopiesAsIs)
-                NinoChecks.Values<T>(ref source, count, size);
-            return Fill(set, ref source, count, size, SetMask, SetBias);
-        }
-
-        /// <summary>
-        /// <see cref="TryFill{T}"/> for an existing set that was cleared (a read into it): data it rejects part way
-        /// leaves entries the set does not count yet, so the set is emptied again before the exception leaves (its
-        /// buckets and entries cleared, as <see cref="HashSet{T}.Clear"/> would have them).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static bool TryRefill<T>(HashSet<T> set, ref byte source, int count, int size)
-        {
-            try
-            {
-                return TryFill(set, ref source, count, size);
-            }
-            catch
-            {
-                var buckets = ObjectFields.At<int[]>(set, SetBuckets);
-                var entries = (Array)ObjectFields.At<object>(set, SetEntries);
-                Array.Clear(buckets, 0, buckets.Length);
-                Array.Clear(entries, 0, entries.Length);
-                ObjectFields.At<int>(set, SetBound) = 0;
-                ObjectFields.At<int>(set, SetCount) = 0;
-                throw;
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool Fill<T>(HashSet<T> set, ref byte source, int count, int size, int mask, int bias)
-        {
-            var buckets = ObjectFields.At<int[]>(set, SetBuckets);
-            var entries = Unsafe.As<CollectionFields.SetEntry<T>[]>(ObjectFields.At<object>(set, SetEntries));
-            if (buckets == null || buckets.Length == 0 || entries == null || entries.Length < count ||
-                ObjectFields.At<int>(set, SetBound) != 0)
-                return false;
-
-            ulong multiplier = SetFastMod >= 0 ? ObjectFields.At<ulong>(set, SetFastMod) : 0;
-            uint length = (uint)buckets.Length;
-            ref int firstBucket = ref buckets[0];
-            // Entry at is reached from the entry being written (entry, i), not from the first: one register fewer in
-            // the loop, which the collision count takes (with it, the first entry's address was kept on the stack).
-            ref var entry = ref entries[0];
-            for (int i = 0; i < count; i++)
-            {
-                T value = NinoUnsafe.Read<T>(ref source);
-                source = ref Unsafe.Add(ref source, size);
-                int hash = EqualityComparer<T>.Default.GetHashCode(value) & mask;
-                ref int bucket = ref Unsafe.Add(ref firstBucket, (IntPtr)Bucket((uint)hash, length, multiplier));
-                // Only a key whose bucket is not empty counts (the common case, an empty bucket, does nothing more).
-                int at = bucket - bias;
-                if (at >= 0)
-                {
-                    int left = NinoLimits.MaxHashCollisions;
-                    do
-                    {
-                        if (--left < 0)
-                            NinoThrow.HashFlood(typeof(HashSet<T>));
-                        ref var other = ref Unsafe.Add(ref entry, (IntPtr)(at - i));
-                        if (other.HashCode == hash && EqualityComparer<T>.Default.Equals(other.Value, value))
-                            NinoThrow.DuplicateKey(typeof(HashSet<T>));
-                        at = other.Next;
-                    } while (at >= 0);
-                }
-
-                entry.HashCode = hash;
-                entry.Next = bucket - bias;
-                entry.Value = value;
-                bucket = i + bias;
-                entry = ref Unsafe.Add(ref entry, 1);
-            }
-
-            ObjectFields.At<int>(set, SetBound) = count;
-            ObjectFields.At<int>(set, SetCount) = count;
-            return true;
-        }
-
-        /// <summary>
-        /// As <see cref="TryFill{T}"/>, for the raw pairs of an empty dictionary with the default comparer: a key, then
-        /// its value, each pair <paramref name="pairSize"/> bytes.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static bool TryFill<TKey, TValue>(Dictionary<TKey, TValue> dictionary, ref byte source, int count,
-            int keySize, int pairSize) =>
-            // An existing dictionary may have been refilled (cleared) with another comparer, which this hashing is
-            // not.
-            ReferenceEquals(dictionary.Comparer, EqualityComparer<TKey>.Default) &&
-            Fill(dictionary, ref source, count, keySize, pairSize, MapMask, MapBias);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool Fill<TKey, TValue>(Dictionary<TKey, TValue> dictionary, ref byte source, int count,
-            int keySize, int pairSize, int mask, int bias)
-        {
-            var buckets = ObjectFields.At<int[]>(dictionary, MapBuckets);
-            var entries = Unsafe.As<CollectionFields.MapEntry<TKey, TValue>[]>(
-                ObjectFields.At<object>(dictionary, MapEntries));
-            if (buckets == null || buckets.Length == 0 || entries == null || entries.Length < count ||
-                ObjectFields.At<int>(dictionary, MapBound) != 0)
-                return false;
-
-            ulong multiplier = MapFastMod >= 0 ? ObjectFields.At<ulong>(dictionary, MapFastMod) : 0;
-            uint length = (uint)buckets.Length;
-            ref int firstBucket = ref buckets[0];
-            // Entry at is reached from the entry being written (entry, i), not from the first: one register fewer in
-            // the loop, which the collision count takes (with it, the first entry's address was kept on the stack).
-            ref var entry = ref entries[0];
-            for (int i = 0; i < count; i++)
-            {
-                TKey key = NinoUnsafe.Read<TKey>(ref source);
-                TValue value = NinoUnsafe.Read<TValue>(ref source, keySize);
-                source = ref Unsafe.Add(ref source, pairSize);
-                int hash = EqualityComparer<TKey>.Default.GetHashCode(key) & mask;
-                ref int bucket = ref Unsafe.Add(ref firstBucket, (IntPtr)Bucket((uint)hash, length, multiplier));
-                // Only a key whose bucket is not empty counts (the common case, an empty bucket, does nothing more).
-                int at = bucket - bias;
-                if (at >= 0)
-                {
-                    int left = NinoLimits.MaxHashCollisions;
-                    do
-                    {
-                        if (--left < 0)
-                            NinoThrow.HashFlood(typeof(Dictionary<TKey, TValue>));
-                        ref var other = ref Unsafe.Add(ref entry, (IntPtr)(at - i));
-                        if (other.HashCode == hash && EqualityComparer<TKey>.Default.Equals(other.Key, key))
-                            NinoThrow.DuplicateKey(typeof(Dictionary<TKey, TValue>));
-                        at = other.Next;
-                    } while (at >= 0);
-                }
-
-                entry.HashCode = hash;
-                entry.Next = bucket - bias;
-                entry.Key = key;
-                entry.Value = value;
-                bucket = i + bias;
-                entry = ref Unsafe.Add(ref entry, 1);
-            }
-
-            ObjectFields.At<int>(dictionary, MapBound) = count;
-            ObjectFields.At<int>(dictionary, MapCount) = count;
-            return true;
-        }
+        public const int FillFrom = 4;
 
         /// <summary>
         /// Whether <paramref name="dictionary"/> takes keys one at a time through <see cref="Insert{TKey,TValue}"/>: an
@@ -376,15 +236,21 @@ namespace Nino.Core.Internal
         /// invalid data (the caller then empties the dictionary: <see cref="Unlink{TKey,TValue}"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void Link<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count)
+        public static void Link<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count) =>
+            Link(dictionary, count, MapMask, MapBias);
+
+        // Link with the hashing given: the startup checks try each (CheckMap).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Link<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count, int mask, int bias)
         {
             var buckets = ObjectFields.At<int[]>(dictionary, MapBuckets);
             var entries = Entries(dictionary);
             ulong multiplier = MapFastMod >= 0 ? ObjectFields.At<ulong>(dictionary, MapFastMod) : 0;
             uint length = (uint)buckets.Length;
-            int mask = MapMask, bias = MapBias;
             ref int firstBucket = ref buckets[0];
             ref var entry = ref entries[0];
+            // Entry at is reached from the entry being linked (entry, i), not from the first: one register fewer in
+            // the loop, which the collision count takes (with it, the first entry's address was kept on the stack).
             for (int i = 0; i < count; i++)
             {
                 TKey key = entry.Key;
@@ -447,6 +313,72 @@ namespace Nino.Core.Internal
                    ObjectFields.At<object>(set, SetEntries) is Array entries && entries.Length >= count &&
                    ObjectFields.At<int>(set, SetBound) == 0 &&
                    ReferenceEquals(set.Comparer, EqualityComparer<T>.Default);
+        }
+
+        /// <summary>As <see cref="Entries{TKey,TValue}"/>, for a set <see cref="CanInsert{T}"/> accepted.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static CollectionFields.SetEntry<T>[] Entries<T>(HashSet<T> set) =>
+            Unsafe.As<CollectionFields.SetEntry<T>[]>(ObjectFields.At<object>(set, SetEntries));
+
+        /// <summary>
+        /// As <see cref="Link{TKey,TValue}(Dictionary{TKey,TValue}, int)"/>, for a set whose first
+        /// <paramref name="count"/> entries a read filled (<see cref="Entries{T}"/>): a value twice, or more than
+        /// <see cref="NinoSettings.MaxHashCollisions"/> values in a bucket, are invalid data (the caller then empties
+        /// the set: <see cref="Unlink{T}"/>); null is a value.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void Link<T>(HashSet<T> set, int count) => Link(set, count, SetMask, SetBias);
+
+        // Link with the hashing given: the startup checks try each (CheckSet).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Link<T>(HashSet<T> set, int count, int mask, int bias)
+        {
+            var buckets = ObjectFields.At<int[]>(set, SetBuckets);
+            var entries = Entries(set);
+            ulong multiplier = SetFastMod >= 0 ? ObjectFields.At<ulong>(set, SetFastMod) : 0;
+            uint length = (uint)buckets.Length;
+            ref int firstBucket = ref buckets[0];
+            // As in the dictionary's.
+            ref var entry = ref entries[0];
+            for (int i = 0; i < count; i++)
+            {
+                T value = entry.Value;
+                int hash = (value == null ? 0 : EqualityComparer<T>.Default.GetHashCode(value)) & mask;
+                ref int bucket = ref Unsafe.Add(ref firstBucket, (IntPtr)Bucket((uint)hash, length, multiplier));
+                // Only a value whose bucket is not empty counts (the common case, an empty bucket, does nothing more).
+                int at = bucket - bias;
+                if (at >= 0)
+                {
+                    int left = NinoLimits.MaxHashCollisions;
+                    do
+                    {
+                        if (--left < 0)
+                            NinoThrow.HashFlood(set.GetType());
+                        ref var other = ref Unsafe.Add(ref entry, (IntPtr)(at - i));
+                        if (other.HashCode == hash && EqualityComparer<T>.Default.Equals(other.Value, value))
+                            NinoThrow.DuplicateKey(set.GetType());
+                        at = other.Next;
+                    } while (at >= 0);
+                }
+
+                entry.HashCode = hash;
+                entry.Next = bucket - bias;
+                bucket = i + bias;
+                entry = ref Unsafe.Add(ref entry, 1);
+            }
+
+            ObjectFields.At<int>(set, SetBound) = count;
+            ObjectFields.At<int>(set, SetCount) = count;
+        }
+
+        /// <summary>As <see cref="Unlink{TKey,TValue}"/>, for a set.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void Unlink<T>(HashSet<T> set)
+        {
+            var buckets = ObjectFields.At<int[]>(set, SetBuckets);
+            var entries = Entries(set);
+            Array.Clear(buckets, 0, buckets.Length);
+            Array.Clear(entries, 0, entries.Length);
         }
 
         /// <summary>As <see cref="Insert{TKey,TValue}"/>, for an element of a set (null is one).</summary>
