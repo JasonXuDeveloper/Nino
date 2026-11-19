@@ -257,7 +257,7 @@ NinoRuns.cs                  the loops over a run (NinoRun), one per element kin
                              (KeyOf, PairRuns, WritePairRun)
 NinoEntries.cs               the one read of a set's and a dictionary's entries (NinoEntries: a block scattered into new
                              entries, the cursor loop or value by value, filled then linked, or each added), over the
-                             collection's own layer (INinoHashTable: SetTable, MapTable)
+                             collection's own layer (INinoHashTable: SetTable, MapTable, each the cursor loop's store)
 NinoCursor.cs                the cursor form of a value's write and read (strings, UTF-8, raw values, blocks: MaxSize,
                              WriteAt, ReadAt; Has, decided by kind or by INinoFormatter.HasCursor), its composition for
                              pairs of items (the pair overloads, Pairs) and what the read loop does with each value
@@ -271,7 +271,7 @@ NinoPrefetch.cs              software prefetch for long top-level collections of
                              out-of-line helper per run; Threshold and ReverseReadIsLocal of a formatter's PrefetchBytes
 NinoDictionary.cs            the dictionary's top layer: its entries reached and written, read through NinoEntries, or
                              pairs merged one at a time into an existing one; at the bottom its entries are elements of
-                             NinoRuns' loops
+                             NinoRuns' loops (Entries: the element formatter of entries holding references)
 NinoNullables.cs             fixed-stride nullable encoding and the host layout probe
 BclCollections.cs            runtime-owned collections using their checked views, gathered: SortedSet's tree, LinkedList's
                              ring (Ring) and its nodes linked as read (Links)

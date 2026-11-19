@@ -146,11 +146,42 @@ namespace Nino.Core
 
             // As in Serialize: the entries of values without references, the values of those with.
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-                NinoEntries<T, TFormatter, SetTable<T>>.Read(new SetTable<T>(set), length, ref reader,
-                    NinoCursor.Own<T, TFormatter>());
+            {
+                // Values whose buckets the set guards itself (strings on .NET: neither inserted nor walked), added
+                // here, inline, one at a time: through NinoEntries' loops, in code shared over a class, each add was an
+                // indirect call of the table (HashSet<string> of 1,000 read 20 to 30 % slower, local).
+                if (!HashTables.Plan<T>.Inserts && !HashTables.Plan<T>.Walks)
+                {
+                    for (int i = 0; i < length; i++)
+                    {
+                        T item = default;
+                        NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
+                        if (!set.Add(item))
+                            NinoThrow.DuplicateKey(set.GetType());
+                    }
+
+                    return;
+                }
+
+                reader = ReadValues(set, length, reader);
+            }
             else
                 NinoEntries<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T, TFormatter, CollectionFields.SetFields<T>>, SetTable<T>>.Read(
                     new SetTable<T>(set), length, ref reader, NinoCursor.Own<T, TFormatter>());
+        }
+
+        /// <summary>
+        /// The values of a set of values with references that inserts or walks (<see cref="HashTables.Plan{T}"/>),
+        /// through <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>: out of line, the reader by value and returned,
+        /// so that the inline loop beside it keeps the caller's reader in registers (asm.py: HashSet&lt;string&gt;'s
+        /// read in code shared over a class 44 to 81 stack accesses with it inlined).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadValues(TSet set, int length, Reader reader)
+        {
+            NinoEntries<T, TFormatter, SetTable<T>>.Read(new SetTable<T>(set), length, ref reader,
+                NinoCursor.Own<T, TFormatter>());
+            return reader;
         }
 
         /// <summary>
