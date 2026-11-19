@@ -43,7 +43,9 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   [44339615693](https://github.com/JasonXuDeveloper/Nino/actions/runs/44339615693) measured the eight-int control
   15 % higher on Neoverse-N2. Caching only the composite field walk and restoring the string probe brought both
   controls within 2 % by median on that CPU ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411)).
-  The bytewise path still uses the reader's shared seeded table and bounded probing.
+  The bytewise path still uses the reader's shared seeded table and bounded probing. Prepare generated duplicate
+  checks in package initializers, shared by key type across set and dictionary helpers; primitive-entry readers
+  know the key width and distinguish integer `K(1)/K(2)` from floating point at compile time.
 
 ## Reuse branches
 
