@@ -43,7 +43,13 @@ where that is so, and its x64 sizes are listings, not throughput.
   1,060 bytes instead of main's 770 (single-block inlinees 142 to 155; `DOTNET_TieredPGO=0` dumps), while
   NonGenericBase's 1,112 methods stayed identical.
 - Add nothing to a method whose inlinee sits at the edge of the JIT's inlining budget, not even code that is dead for
-  the instantiation at hand: the budget is spent by IL size, before branches fold. `NinoBlockCollections.Lanes16` (three
+  the instantiation at hand: the budget is spent by IL size, before branches fold. A wrapper counts: in `NinoRuns.Write`
+  (inlined into every collection's write) call `RuntimeHelpers.IsReferenceOrContainsReferences<T>()` itself, not
+  `NinoUnsafe`'s wrapper or a helper of Nino's around it. Evidence: the pairs-are-elements refactor first tested the run
+  loop through a helper `RunLoop<T, TFormatter>()`; behind the folded block test it was one inlinee more (36 against
+  35 without PGO data) and the top-level write of every block array kept its writer in memory (`ByteIntPairs32` 443 to
+  579 bytes, 10 to 38 stack accesses, `NinoWriteContext.Return` a call; 149 methods worse across the suite), all back to
+  main's code with the intrinsic in place. `NinoBlockCollections.Lanes16` (three
   inlined copies in `Lanes`) became a call per group on Arm64 when `Lanes` gained a fused bool check (accumulators by
   reference, two groups a step, or groups returned by value), every lane path 1.4 to 5 times as slow on Neoverse-N2
   (TupleList and `HashSet<int>` writes included, run 41035440735), while x64 inlined everything. Put the new path in a
