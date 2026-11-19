@@ -77,6 +77,11 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   deferred bodies. Against 44d49866 on runtime A/B 44333395182, `UnionArray` / `TaggedUnionArray` deserialize
   medians fell 38 % / 51 % on EPYC 9V74, 43 % / 55 % on Xeon 6975P-C and 33 % / 44 % on Neoverse-N2.
   Both serialize controls stayed on par. Count struct depth around each non-null case, including a failed read.
+- Measure the whole Rust enum array before storing a boxed class inline. In the `UnionArray` probe, moving
+  the sealed class into the enum removed a box per class case and expanded the 64-bit stride from 24 to
+  40 bytes. In [44458051073](https://github.com/JasonXuDeveloper/Nino/actions/runs/44458051073), the actual read
+  took 31–33 % more time on the sampled x64 AMD CPUs and 36 % more on Neoverse-N2. The unchanged tagged read
+  stayed on par on both architectures. Keep the box for the measured class variant.
 - Reserve the case ID and fixed payload together in TypeScript union writers. Use the same offset writer and padding
   policy as other fixed shapes. On runtime A/B 44333395182, Node's `UnionArray` / `TaggedUnionArray` serialize
   medians fell 17 % / 22 % on Neoverse-N2. The plain union wrote its 1,000 values in 37.1 µs against JSON's 38.8 µs
