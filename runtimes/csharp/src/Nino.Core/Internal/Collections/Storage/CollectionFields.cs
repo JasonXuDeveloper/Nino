@@ -39,8 +39,8 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// What <see cref="EntryBlock{TEntry, TItems}"/> moves of an entry: the items of its element (a set's value, a
-        /// dictionary's key and value) at their offsets in the entry, so that a run of entries is written by
+        /// What <see cref="EntryBlock{TEntry, TItems}"/> moves of an entry: the items of its element (a set's value, or
+        /// a dictionary's pair, the value of a <see cref="SetEntry{T}"/> of it) at their offsets in the entry, so that a run of entries is written by
         /// <see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/> and new entries are read by
         /// <see cref="NinoBlockCollections.ReadAll{T, TFormatter}"/>: several entries at a time, the items packed out of
         /// the strided entries, or scattered into them, by vector permutes (or the registered kernels in the
@@ -125,54 +125,22 @@ namespace Nino.Core.Internal
             public void Read(ref SetEntry<T> entry, ref byte source) => entry.Value = NinoUnsafe.Read<T>(ref source);
         }
 
-        /// <summary>A dictionary entry's key and value (its element, the pair), each raw or a block.</summary>
-        internal struct MapPair<TKey, TValue, TKeyFormatter, TValueFormatter> : IEntryItems<MapEntry<TKey, TValue>>
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
-        {
-            public int Size
-            {
-                get
-                {
-                    int key = NinoBlocks.ItemSize<TKey, TKeyFormatter>();
-                    int value = NinoBlocks.ItemSize<TValue, TValueFormatter>();
-                    return key < 0 || value < 0 ? -1 : key + value;
-                }
-            }
-
-            public NinoBlockMap Map() => new NinoBlockMap().Item<TKey, TKeyFormatter>(MapLayout<TKey, TValue>.Key)
-                .Item<TValue, TValueFormatter>(MapLayout<TKey, TValue>.Value);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Write(in MapEntry<TKey, TValue> entry, ref byte destination)
-            {
-                NinoBlocks.WriteItem<TKey, TKeyFormatter>(entry.Key, ref destination);
-                NinoBlocks.WriteItem<TValue, TValueFormatter>(entry.Value,
-                    ref Unsafe.Add(ref destination, NinoBlocks.ItemSize<TKey, TKeyFormatter>()));
-            }
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Read(ref MapEntry<TKey, TValue> entry, ref byte source)
-            {
-                NinoBlocks.ReadItem<TKey, TKeyFormatter>(ref entry.Key, ref source);
-                NinoBlocks.ReadItem<TValue, TValueFormatter>(ref entry.Value,
-                    ref Unsafe.Add(ref source, NinoBlocks.ItemSize<TKey, TKeyFormatter>()));
-            }
-        }
-
         /// <summary>
         /// The offsets in a <see cref="SetEntry{T}"/> (the runtime may move the fields: references first), and the
-        /// <see cref="NinoRun.InUse"/> of its runs with free entries.
+        /// <see cref="NinoRun.InUse"/> of its runs with free entries (from the entry's start, as
+        /// <see cref="MapLayout{TKey,TValue}"/>'s).
         /// </summary>
         internal static class SetLayout<T>
         {
             private static SetEntry<T> s_entry;
 
+            public static readonly int HashCode = NinoBlocks.Offset(ref s_entry, ref s_entry.HashCode);
+
+            public static readonly int Next = NinoBlocks.Offset(ref s_entry, ref s_entry.Next);
+
             public static readonly int Value = NinoBlocks.Offset(ref s_entry, ref s_entry.Value);
 
-            public static readonly int InUse = InUseAt(CollectionViews.SetFree,
-                NinoBlocks.Offset(ref s_entry, ref s_entry.HashCode), NinoBlocks.Offset(ref s_entry, ref s_entry.Next),
-                Value);
+            public static readonly int InUse = InUseAt(CollectionViews.SetFree, HashCode, Next, 0);
         }
 
         /// <summary>As <see cref="SetLayout{T}"/>, for a <see cref="MapEntry{TKey,TValue}"/>.</summary>
@@ -180,13 +148,150 @@ namespace Nino.Core.Internal
         {
             private static MapEntry<TKey, TValue> s_entry;
 
+            public static readonly int HashCode = NinoBlocks.Offset(ref s_entry, ref s_entry.HashCode);
+
+            public static readonly int Next = NinoBlocks.Offset(ref s_entry, ref s_entry.Next);
+
             public static readonly int Key = NinoBlocks.Offset(ref s_entry, ref s_entry.Key);
 
             public static readonly int Value = NinoBlocks.Offset(ref s_entry, ref s_entry.Value);
 
-            public static readonly int InUse = InUseAt(CollectionViews.MapFree,
-                NinoBlocks.Offset(ref s_entry, ref s_entry.HashCode), NinoBlocks.Offset(ref s_entry, ref s_entry.Next),
-                Value);
+            public static readonly int InUse = InUseAt(CollectionViews.MapFree, HashCode, Next, 0);
+        }
+
+        /// <summary>
+        /// The fields of <see cref="KeyValuePair{TKey,TValue}"/> (private: <c>key</c>, then <c>value</c>) as a struct of
+        /// the same shape lays them out, which every runtime lays out by the same rules (<see cref="PairLayout.Mirrors"/>
+        /// proves it on pairs of references and values).
+        /// </summary>
+        internal struct PairMirror<TKey, TValue>
+        {
+#pragma warning disable CS0649 // read through Unsafe.As
+            public TKey Key;
+            public TValue Value;
+#pragma warning restore CS0649
+        }
+
+        /// <summary>
+        /// Whether <see cref="PairMirror{TKey,TValue}"/> reads a <see cref="KeyValuePair{TKey,TValue}"/>
+        /// (<see cref="Mirrors"/>), and whether this runtime's dictionaries hold pairs of values as
+        /// <see cref="KeyValuePair{TKey,TValue}"/> lays them out (<see cref="Entries"/>, decided per pair of types by
+        /// <see cref="PairLayout{TKey,TValue}.InEntries"/>; these pairs are the startup proof RuntimeTests reads).
+        /// </summary>
+        internal static class PairLayout
+        {
+            public static readonly bool Mirrors = ObjectTypes.Passes(() =>
+                Mirror("k", 5L) && Mirror(5L, "v") && Mirror("k", "v") && Mirror((byte)3, new object()) &&
+                Mirror(7, (short)-2));
+
+            public static readonly bool Entries = PairLayout<int, int>.InEntries &&
+                                                  PairLayout<long, short>.InEntries &&
+                                                  PairLayout<short, long>.InEntries &&
+                                                  PairLayout<byte, long>.InEntries && PairLayout<int, Guid>.InEntries;
+
+            private static bool Mirror<TKey, TValue>(TKey key, TValue value)
+            {
+                var pair = new KeyValuePair<TKey, TValue>(key, value);
+                ref var mirror = ref Unsafe.As<KeyValuePair<TKey, TValue>, PairMirror<TKey, TValue>>(ref pair);
+                return Unsafe.SizeOf<PairMirror<TKey, TValue>>() == Unsafe.SizeOf<KeyValuePair<TKey, TValue>>() &&
+                       EqualityComparer<TKey>.Default.Equals(mirror.Key, key) &&
+                       EqualityComparer<TValue>.Default.Equals(mirror.Value, value);
+            }
+        }
+
+        /// <summary>
+        /// Where a <see cref="KeyValuePair{TKey,TValue}"/> keeps its key and value (-1: not known), and whether a
+        /// dictionary's entries hold their pairs as <see cref="KeyValuePair{TKey,TValue}"/> lays them out
+        /// (<see cref="InEntries"/>): then its entry is a <see cref="SetEntry{T}"/> of the pair, and its pairs a run of
+        /// <c>KeyValuePair</c>s with the entry's stride, the same element as a list's of pairs (#355). Not where the
+        /// pair holds references: CoreCLR moves them first in the entry (a <c>Dictionary&lt;string, int&gt;</c>'s
+        /// entry: key 0, hash code 8, next 12, value 16; its pair's: key 0, value 8), so the element of those runs is
+        /// the entry itself (<see cref="MapEntryFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/>).
+        /// </summary>
+        internal static class PairLayout<TKey, TValue>
+        {
+            private static PairMirror<TKey, TValue> s_pair;
+
+            public static readonly int Key = !NinoUnsafe.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
+                ? NinoBlocks.Find(Unsafe.SizeOf<TKey>(),
+                    () => new KeyValuePair<TKey, TValue>(NinoBlocks.Marked<TKey>(), default))
+                : PairLayout.Mirrors ? NinoBlocks.Offset(ref s_pair, ref s_pair.Key) : -1;
+
+            public static readonly int Value = !NinoUnsafe.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
+                ? NinoBlocks.Find(Unsafe.SizeOf<TValue>(),
+                    () => new KeyValuePair<TKey, TValue>(default, NinoBlocks.Marked<TValue>()))
+                : PairLayout.Mirrors ? NinoBlocks.Offset(ref s_pair, ref s_pair.Value) : -1;
+
+            /// <summary>
+            /// Whether a <c>Dictionary&lt;TKey, TValue&gt;</c>'s entry (<see cref="MapEntry{TKey,TValue}"/>, checked
+            /// against the runtime's) is laid out as a <see cref="SetEntry{T}"/> of the pair: the same size, hash code and
+            /// link, and the key and value where the pair inside it has them. Proven per pair of types on this runtime
+            /// (Mono and IL2CPP lay structs out otherwise); for pairs without references only.
+            /// </summary>
+            public static readonly bool InEntries =
+                !NinoUnsafe.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>() && Key >= 0 && Value >= 0 &&
+                Unsafe.SizeOf<SetEntry<KeyValuePair<TKey, TValue>>>() == Unsafe.SizeOf<MapEntry<TKey, TValue>>() &&
+                SetLayout<KeyValuePair<TKey, TValue>>.HashCode == MapLayout<TKey, TValue>.HashCode &&
+                SetLayout<KeyValuePair<TKey, TValue>>.Next == MapLayout<TKey, TValue>.Next &&
+                SetLayout<KeyValuePair<TKey, TValue>>.Value + Key == MapLayout<TKey, TValue>.Key &&
+                SetLayout<KeyValuePair<TKey, TValue>>.Value + Value == MapLayout<TKey, TValue>.Value;
+
+            /// <summary>Where the element of a dictionary's run starts in its entry: the pair, or the entry.</summary>
+            public static readonly int Start = InEntries ? SetLayout<KeyValuePair<TKey, TValue>>.Value : 0;
+        }
+
+        /// <summary>
+        /// A dictionary's entry as the element of its run where its pair is not a <see cref="KeyValuePair{TKey,TValue}"/>
+        /// in it (<see cref="PairLayout{TKey,TValue}.InEntries"/>): the pair composed from its key and value, as
+        /// <see cref="KeyValuePairFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/> composes them (the same bytes,
+        /// cursor form, dispatch bit and run of a polymorphic value), at the entry's offsets. Each value is read in
+        /// place, its hash code and link left to <see cref="HashTables"/>. Pairs with references only, so no block.
+        /// </summary>
+        internal struct MapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>
+            : INinoFormatter<MapEntry<TKey, TValue>>
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+            where TValueFormatter : struct, INinoFormatter<TValue>
+        {
+            int INinoFormatter.BodyTraits =>
+                NinoBodyTraits.Nests | NinoBlocks.Dispatches<TKeyFormatter>() | NinoBlocks.Dispatches<TValueFormatter>();
+
+            bool INinoFormatter.HasCursor => NinoCursor.Has<TKey, TValue, TKeyFormatter, TValueFormatter>();
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            int INinoFormatter<MapEntry<TKey, TValue>>.MaxSize(MapEntry<TKey, TValue> value) =>
+                NinoCursor.MaxSize<TKey, TValue, TKeyFormatter, TValueFormatter>(in value.Key, in value.Value);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            int INinoFormatter<MapEntry<TKey, TValue>>.WriteAt(ref byte destination, MapEntry<TKey, TValue> value) =>
+                NinoCursor.WriteAt<TKey, TValue, TKeyFormatter, TValueFormatter>(ref destination, in value.Key,
+                    in value.Value);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            int INinoFormatter<MapEntry<TKey, TValue>>.ReadAt(ref byte source, int available,
+                ref MapEntry<TKey, TValue> value) =>
+                NinoCursor.ReadAt<TKey, TValue, TKeyFormatter, TValueFormatter>(ref source, available, ref value.Key,
+                    ref value.Value);
+
+            bool INinoFormatter.HasRunLoop => NinoRuns.PairRuns<TKey, TValue, TKeyFormatter, TValueFormatter>();
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            void INinoFormatter.WriteRun(NinoRun run, ref Writer writer) =>
+                NinoRuns.WritePairRun<TKey, TValue, TKeyFormatter, TValueFormatter>(run, MapLayout<TKey, TValue>.Value,
+                    MapLayout<TKey, TValue>.Key, ref writer);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Serialize(MapEntry<TKey, TValue> value, ref Writer writer)
+            {
+                default(TKeyFormatter).Serialize(value.Key, ref writer);
+                default(TValueFormatter).Serialize(value.Value, ref writer);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Deserialize(ref Reader reader, ref MapEntry<TKey, TValue> value)
+            {
+                default(TKeyFormatter).Deserialize(ref reader, ref value.Key);
+                default(TValueFormatter).Deserialize(ref reader, ref value.Value);
+            }
         }
 
         private static int InUseAt(CollectionViews.FreeEntries free, int hashCode, int next, int value) => free switch
@@ -212,18 +317,23 @@ namespace Nino.Core.Internal
             if (entries == null || bound > entries.Length || bound < count ||
                 bound != count && CollectionViews.SetFree == CollectionViews.FreeEntries.Unknown)
                 return false;
+            // The value's offset read only for a run with free entries: a class a set without them never
+            // initializes, whose field in every write was a helper call (asm.py: HashSet<int>).
             run = new NinoRun(ref Unsafe.As<T, byte>(ref entries[0].Value), bound, Unsafe.SizeOf<SetEntry<T>>(),
-                NinoRun.NoKey, bound == count ? NinoRun.AllInUse : SetLayout<T>.InUse);
+                NinoRun.NoKey, bound == count ? NinoRun.AllInUse : NinoRun.Rebase(SetLayout<T>.InUse, SetLayout<T>.Value));
             return true;
         }
 
         /// <summary>
-        /// As <see cref="Run{T}(HashSet{T}, int, out NinoRun)"/>, for a dictionary: each value of the run after its key,
-        /// written as <paramref name="key"/> says (a <see cref="NinoRun.Key"/> without its offset, which this adds:
-        /// the key's bytes, a string, or <see cref="NinoRun.NoKey"/>).
+        /// As <see cref="Run{T}(HashSet{T}, int, out NinoRun)"/>, for a dictionary: the run of its pairs, each a
+        /// <see cref="KeyValuePair{TKey,TValue}"/> in its entry where <see cref="PairLayout{TKey,TValue}.InEntries"/>,
+        /// else the entry (<see cref="PairLayout{TKey,TValue}.Start"/>). The check is the set's, written out again: a
+        /// helper of both, generic over the entry, was not inlined in code shared over a class, and its out values
+        /// kept a dictionary's write in memory (asm.py: a generated body holding a Dictionary&lt;string, string&gt;
+        /// 26 to 56 stack accesses).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool Run<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count, int key, out NinoRun run)
+        public static bool Run<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count, out NinoRun run)
         {
             run = default;
             if (!CollectionViews.Dictionary)
@@ -234,12 +344,24 @@ namespace Nino.Core.Internal
             if (entries == null || bound > entries.Length || bound < count ||
                 bound != count && CollectionViews.MapFree == CollectionViews.FreeEntries.Unknown)
                 return false;
-            run = new NinoRun(ref Unsafe.As<TValue, byte>(ref entries[0].Value), bound,
-                Unsafe.SizeOf<MapEntry<TKey, TValue>>(),
-                key == NinoRun.NoKey ? key : key + ((MapLayout<TKey, TValue>.Key - MapLayout<TKey, TValue>.Value) << 8),
-                bound == count ? NinoRun.AllInUse : MapLayout<TKey, TValue>.InUse);
+            // 0 without a lookup for pairs with references (the entry), whose code may be shared over a class; written
+            // out, not through a helper, one inlinee fewer in every dictionary's write.
+            int start = RuntimeHelpers.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
+                ? 0
+                : PairLayout<TKey, TValue>.Start;
+            run = new NinoRun(ref Unsafe.Add(ref Unsafe.As<MapEntry<TKey, TValue>, byte>(ref entries[0]), start), bound,
+                Unsafe.SizeOf<MapEntry<TKey, TValue>>(), NinoRun.NoKey,
+                bound == count ? NinoRun.AllInUse : NinoRun.Rebase(MapLayout<TKey, TValue>.InUse, start));
             return true;
         }
+
+        // Where a dictionary run's element starts in its entry: 0 without a lookup for pairs with references (the
+        // entry), whose code may be shared over a class.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Start<TKey, TValue>() =>
+            RuntimeHelpers.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
+                ? 0
+                : PairLayout<TKey, TValue>.Start;
 
         /// <summary>
         /// The run of the first <paramref name="count"/> (not 0) of a new set's <paramref name="entries"/>, which a read
@@ -250,22 +372,18 @@ namespace Nino.Core.Internal
             new(ref Unsafe.As<T, byte>(ref entries[0].Value), count, Unsafe.SizeOf<SetEntry<T>>(), NinoRun.NoKey,
                 NinoRun.AllInUse);
 
-        /// <summary>As <see cref="Run{T}(SetEntry{T}[], int)"/>, for a new dictionary's entries
-        /// (<see cref="NinoRuns.ReadPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>).</summary>
+        /// <summary>As <see cref="Run{T}(SetEntry{T}[], int)"/>, for a new dictionary's entries: the run of its pairs
+        /// (<see cref="Run{TKey,TValue}(Dictionary{TKey,TValue}, int, out NinoRun)"/>).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static NinoRun Run<TKey, TValue>(MapEntry<TKey, TValue>[] entries, int count) =>
-            new(ref Unsafe.As<TValue, byte>(ref entries[0].Value), count, Unsafe.SizeOf<MapEntry<TKey, TValue>>(),
-                NinoRun.NoKey, NinoRun.AllInUse);
+            new(ref Unsafe.Add(ref Unsafe.As<MapEntry<TKey, TValue>, byte>(ref entries[0]), Start<TKey, TValue>()),
+                count, Unsafe.SizeOf<MapEntry<TKey, TValue>>(), NinoRun.NoKey,
+                NinoRun.AllInUse);
 
         /// <summary>The entry whose value <paramref name="value"/> is (a run's <see cref="NinoRun.First"/>).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref SetEntry<T> SetEntryOf<T>(ref byte value) =>
             ref Unsafe.As<byte, SetEntry<T>>(ref Unsafe.Subtract(ref value, SetLayout<T>.Value));
-
-        /// <summary>As <see cref="SetEntryOf{T}"/>, for a dictionary's entry.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ref MapEntry<TKey, TValue> MapEntryOf<TKey, TValue>(ref byte value) =>
-            ref Unsafe.As<byte, MapEntry<TKey, TValue>>(ref Unsafe.Subtract(ref value, MapLayout<TKey, TValue>.Value));
 
         /// <summary>
         /// The <see cref="List{T}"/> that <paramref name="collection"/> wraps (what its constructors without a list

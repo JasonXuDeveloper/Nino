@@ -69,9 +69,10 @@ NinoFieldBlock.cs            generated raw bodies of classes: whether the fields
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
                              ...Prefetched for arrays and lists of prefetching classes (PrefetchBytes); the sequence and
                              Stream forms, the latter through NinoStreams)
-NinoRun.cs                   NinoRun: the run cursor over any contiguous storage (first value, count, stride, the key's
-                             offset and write, the in-use test of free entries) and the pieces of a loop over it
-                             (Next, Skips, WriteKey, Value; WriteEach, the deep path); what INinoFormatter.WriteRun takes
+NinoRun.cs                   NinoRun: the run cursor over any contiguous storage (first value, count, stride, the in-use
+                             test of free entries; the key's offset and write only in the run of a pair's values, Values)
+                             and the pieces of a loop over it (Next, Skips, WriteKey, Value; WriteEach, the deep path);
+                             what INinoFormatter.WriteRun takes
 NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory, built item by item (Item)
 NinoBlocks.cs                NinoBlocks: the items of composites (ItemSize, WriteItem, ReadItem: raw, or a block through
                              constrained calls), and the offsets NinoBlockMap is built from
@@ -205,9 +206,10 @@ NinoRecycler.cs              NinoRecycler<T> / NinoRecycler: where reuse deseria
 
 ```
 CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, MapEntry, LinkedNode); the runs
-                             of a set's and a dictionary's entries (Run: in use, or new ones a read fills); EntryBlock,
-                             the one block formatter of their entries, written and read, with the items it moves
-                             (SetValue, SetValueBytes, MapPair)
+                             of a set's values and a dictionary's pairs (Run: in use, or new ones a read fills), each a
+                             KeyValuePair where the entry holds it as one (PairLayout, PairMirror; proven per pair of
+                             types), else the entry composed by MapEntryFormatter; EntryBlock, the one block formatter
+                             of entries, written and read, with the items it moves (SetValue, SetValueBytes)
 CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,
                              SortedDictionary per runtime (offsets, the first candidate that passes), as static fields;
                              how a set and a dictionary mark free entries (SetFree, MapFree)
@@ -228,7 +230,8 @@ NinoCollectionViews.cs       reads into the backing storage shared by Queue and 
 ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder)
 ConcurrentTables.Checks.cs   its startup checks (the layout, the hash mask, chains, a built table)
 HashTables.cs                links the entries a read filled into a new HashSet / Dictionary (Link, Unlink on a
-                             rejected read), counting collisions against MaxHashCollisions; Plan, Insert, Added, Walk
+                             rejected read), counting collisions against MaxHashCollisions; Plan, Insert, Added, Walk; one
+                             core for both tables over the entry mirrors (Fields, the null-key policy)
 HashTables.Checks.cs         its startup checks (the hashing of each implementation, chains, references and strings)
 ```
 
@@ -241,16 +244,15 @@ NinoKind.cs                  the one element-kind decision every collection read
                              the sized and external top-level writes), NinoKind<T, TFormatter> (NinoElementKind: raw,
                              slot, block or per value, with Stride, MinWire, CopiedWhole, ReadOverwrites, Heavy,
                              HeavyHashed), NinoKind.Of / Stride (read behind the no-references guard)
-NinoRuns.cs                  the loops over a run (NinoRun), one per element kind and direction: values in a row (arrays,
-                             lists, spans, ring halves; Write, Read), a set's entries (WriteSet, ReadSet), a dictionary's
-                             entries (the pair: blocks gathered or scattered, a polymorphic value's WriteRun, value by
-                             value; WritePairs, ReadPairs into new entries the caller links); the pair loop of values with
-                             the cursor form (WriteCursors, ReadCursors with a store), whose element loop is the pair
-                             loop without keys
-NinoCursor.cs                the cursor form of a value's write and read (strings, UTF-8, raw values, blocks, pairs of
-                             them: MaxSize, WriteAt, ReadAt; Has, decided by kind or by INinoFormatter.HasCursor), the
-                             missing key of the element loop (None) and the stores the read loop fills (Entries in
-                             place, Adds into a dictionary one Pair at a time, Merges into its pairs there)
+NinoRuns.cs                  the loops over a run (NinoRun), one per element kind and direction, over <T, TFormatter>
+                             only: values in a row (arrays, lists, spans, ring halves; Write, Read), a set's values and a
+                             dictionary's pairs in their entries (WriteSet, ReadSet into new entries the caller links);
+                             the cursor loop (WriteCursors, ReadCursors with a store); a polymorphic base's run loop and a
+                             pair's composed onto it (KeyOf, PairRuns, WritePairRun)
+NinoCursor.cs                the cursor form of a value's write and read (strings, UTF-8, raw values, blocks: MaxSize,
+                             WriteAt, ReadAt; Has, decided by kind or by INinoFormatter.HasCursor), its composition for
+                             pairs of items (the pair overloads, Pairs) and what the read loop does with each value
+                             (IStore: InPlace, or a dictionary's adds)
 NinoElements.cs              the read policies of array-like formatters (capacity budgets, ReadGrowing, EnsureLength,
                              NewOrSame/Publish; MinWireSize, CopiedWhole, ReadOverwrites from NinoKind), the one-block
                              write and the one-value write and read of a sequence not held in a run
@@ -258,7 +260,8 @@ NinoNesting.cs               which types can hold themselves through collections
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the
                              out-of-line helper per run; Threshold and ReverseReadIsLocal of a formatter's PrefetchBytes
-NinoDictionary.cs            shared dictionary reads and reuse; its write and its fill build the entries' run (NinoRuns)
+NinoDictionary.cs            the dictionary's top layer: its entries reached, filled and linked, or pairs added and merged
+                             one at a time (Adds, the merge); at the bottom its pairs are elements of NinoRuns' loops
 NinoNullables.cs             fixed-stride nullable encoding and the host layout probe
 BclCollections.cs            runtime-owned collections using their checked views, gathered: SortedSet's tree, LinkedList's
                              ring (Ring) and its nodes linked as read (Links)

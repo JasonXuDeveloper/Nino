@@ -20,8 +20,8 @@ namespace Nino.UnitTests
     }
 
     /// <summary>
-    /// Strings, raw values and blocks, in any pairing, are written and read by one pair loop and one element loop over
-    /// it, their data, position and end in registers (<see cref="NinoCursor"/>, #347): the bytes of the formatters'
+    /// Strings, raw values and blocks, and pairs of them in any pairing, are written and read by one cursor loop over
+    /// values, a pair one value whose formatter composes its items, their data, position and end in registers (<see cref="NinoCursor"/>, #347): the bytes of the formatters'
     /// own writes, every collection that reaches the loops (arrays, lists, sets, dictionaries and the pairs of sorted
     /// and concurrent ones), new and reused, and the checks of hostile data per pair.
     /// </summary>
@@ -35,7 +35,7 @@ namespace Nino.UnitTests
 
         private static string Text(int i) => Texts[i % Texts.Length] is { } s ? s + (i / Texts.Length) : null;
 
-        /// <summary>What the pair loop must write: the count, then each key and value through its formatter.</summary>
+        /// <summary>What the cursor loop must write: the count, then each key and value through its formatter.</summary>
         private static byte[] Expected<TKey, TValue, TKeyFormatter, TValueFormatter>(
             ICollection<KeyValuePair<TKey, TValue>> pairs)
             where TKeyFormatter : struct, INinoFormatter<TKey>
@@ -82,7 +82,7 @@ namespace Nino.UnitTests
             where TKeyFormatter : struct, INinoFormatter<TKey>
             where TValueFormatter : struct, INinoFormatter<TValue>
         {
-            Assert.IsTrue(NinoRuns.CursorPairs<TKey, TValue, TKeyFormatter, TValueFormatter>());
+            Assert.IsTrue(NinoCursor.Pairs<TKey, TValue, TKeyFormatter, TValueFormatter>());
             var dictionary = new Dictionary<TKey, TValue>();
             for (int i = 0; i < count + (holes ? 3 : 0); i++)
                 dictionary[key(i)] = value(i);

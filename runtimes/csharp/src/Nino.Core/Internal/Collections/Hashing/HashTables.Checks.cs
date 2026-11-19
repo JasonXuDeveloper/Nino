@@ -29,12 +29,12 @@ namespace Nino.Core.Internal
             var set = new HashSet<long>();
             set.EnsureCapacity(values.Length);
             // Filled as a read fills it (its entries, then Link), with this hashing.
-            if (ObjectFields.At<object>(set, SetBuckets) is not int[] || !Empty(set, values.Length))
+            if (ObjectFields.At<object>(set, SetFields.Buckets) is not int[] || !Empty(set, values.Length))
                 return false;
             var entries = Entries(set);
             for (int i = 0; i < values.Length; i++)
                 entries[i].Value = values[i];
-            Link(set, values.Length, mask, bias);
+            Link<long, long>(set, SetFields, true, values.Length, mask, bias);
             if (set.Count != values.Length)
                 return false;
             int index = 0;
@@ -60,7 +60,7 @@ namespace Nino.Core.Internal
             var keys = CheckValues();
             var dictionary = new Dictionary<long, int>(keys.Length);
             // As CheckSet.
-            if (ObjectFields.At<object>(dictionary, MapBuckets) is not int[] || !Empty(dictionary, keys.Length))
+            if (ObjectFields.At<object>(dictionary, MapFields.Buckets) is not int[] || !Empty(dictionary, keys.Length))
                 return false;
             var entries = Entries(dictionary);
             for (int i = 0; i < keys.Length; i++)
@@ -69,7 +69,7 @@ namespace Nino.Core.Internal
                 entries[i].Value = i;
             }
 
-            Link(dictionary, keys.Length, mask, bias);
+            Link<long, int>(dictionary, MapFields, false, keys.Length, mask, bias);
             if (dictionary.Count != keys.Length)
                 return false;
             int index = 0;
@@ -195,11 +195,11 @@ namespace Nino.Core.Internal
             var dictionary = new Dictionary<object, string>();
             for (int i = 0; i < keys.Length; i++)
                 dictionary.Add(keys[i], values[i] = "v" + i);
-            if (ObjectFields.At<int>(dictionary, MapBound) != keys.Length ||
-                !(ObjectFields.At<object>(dictionary, MapEntries) is Array { Length: var length }) || length < keys.Length)
+            if (ObjectFields.At<int>(dictionary, MapFields.Bound) != keys.Length ||
+                !(ObjectFields.At<object>(dictionary, MapFields.Entries) is Array { Length: var length }) || length < keys.Length)
                 return false;
             var entries = Unsafe.As<CollectionFields.MapEntry<object, string>[]>(
-                ObjectFields.At<object>(dictionary, MapEntries));
+                ObjectFields.At<object>(dictionary, MapFields.Entries));
             var next = new int[keys.Length];
             for (int i = 0; i < keys.Length; i++)
             {
@@ -217,10 +217,10 @@ namespace Nino.Core.Internal
             var set = new HashSet<object>();
             foreach (var item in items)
                 set.Add(item);
-            if (ObjectFields.At<int>(set, SetBound) != items.Length ||
-                !(ObjectFields.At<object>(set, SetEntries) is Array { Length: var length }) || length < items.Length)
+            if (ObjectFields.At<int>(set, SetFields.Bound) != items.Length ||
+                !(ObjectFields.At<object>(set, SetFields.Entries) is Array { Length: var length }) || length < items.Length)
                 return false;
-            var entries = Unsafe.As<CollectionFields.SetEntry<object>[]>(ObjectFields.At<object>(set, SetEntries));
+            var entries = Unsafe.As<CollectionFields.SetEntry<object>[]>(ObjectFields.At<object>(set, SetFields.Entries));
             var next = new int[items.Length];
             for (int i = 0; i < items.Length; i++)
             {

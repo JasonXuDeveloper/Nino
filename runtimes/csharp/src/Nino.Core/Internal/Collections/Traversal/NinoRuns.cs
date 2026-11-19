@@ -7,20 +7,23 @@ namespace Nino.Core.Internal
 {
     /// <summary>
     /// The loops over a run of a collection's storage (<see cref="NinoRun"/>), one per element kind
-    /// (<see cref="NinoKind"/>) and direction: every contiguous collection writes its elements through these, and
-    /// reads them into its storage through the same view (#355). A run of values in a row (an array, a list, a span,
-    /// each half of a ring) is <see cref="Write{T,TFormatter}(NinoRun, ref Writer)"/> and
-    /// <see cref="Read{T,TFormatter}(NinoRun, ref Reader, bool)"/>; the entries of a set are
-    /// <see cref="WriteSet{T,TFormatter}"/> and <see cref="ReadSet{T,TFormatter}"/>, and of a dictionary, whose element
-    /// is the pair, <see cref="WritePairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/> and
-    /// <see cref="ReadPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/> (new entries, which the caller links after:
-    /// <see cref="HashTables"/>). In each:
+    /// (<see cref="NinoKind"/>) and direction, over <c>&lt;T, TFormatter&gt;</c> only: every contiguous collection writes
+    /// its elements through these, and reads them into its storage through the same view (#355). A run of values in a
+    /// row (an array, a list, a span, each half of a ring) is <see cref="Write{T,TFormatter}(NinoRun, ref Writer)"/>
+    /// and <see cref="Read{T,TFormatter}(NinoRun, ref Reader, bool)"/>; the entries of a set and of a dictionary are
+    /// <see cref="WriteSet{T,TFormatter}"/> and <see cref="ReadSet{T,TFormatter}"/> (new entries, which the caller links
+    /// after: <see cref="HashTables"/>). A dictionary's element is its pair, one value of a composite whose formatter
+    /// composes its key and value (<see cref="KeyValuePairFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/>, or
+    /// the entry's, <see cref="CollectionFields.MapEntryFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/>): never
+    /// a loop shape of its own. In each:
     /// <list type="bullet">
     /// <item>raw elements and blocks: one block, copied, or gathered out of the entries by the block kernels through
     /// the entries' one block formatter (<see cref="CollectionFields.EntryBlock{TEntry,TItems}"/>);</item>
     /// <item>slots: one block, through the slot kernels;</item>
     /// <item>a polymorphic base's values: its generated loop over the run (<see cref="INinoFormatter.WriteRun"/>),
-    /// the dispatch inline and the writer in a local;</item>
+    /// the dispatch inline and the writer in a local; a pair of them, its value formatter's loop over the run of its
+    /// values with their keys (<see cref="WritePairRun{TKey,TValue,TKeyFormatter,TValueFormatter}"/>);</item>
+    /// <item>values with the cursor form (strings, pairs holding them): the cursor loop;</item>
     /// <item>others: value by value through the formatter, a constrained call.</item>
     /// </list>
     /// Entries a set or a dictionary freed are skipped (<see cref="NinoRun.Skips"/>); the kinds moved as one block take
@@ -68,19 +71,21 @@ namespace Nino.Core.Internal
             // writes a collection of its own type (a tree), which added a call per level (SelfTree serialize 0.86x on
             // EPYC 9V74, runner A/B of the rc.10 review head against main 51a7bd18).
             // A polymorphic base: its generated loop over the run, with the dispatch inline, a constrained call on the
-            // formatter on every target. Only classes have one.
-            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Runs)
+            // formatter on every target; a pair of them, its value's loop (KeyValuePairFormatter). The intrinsic itself,
+            // not NinoUnsafe's: one inlinee more in this method, inlined into every collection's write, left the writer of
+            // block arrays' top-level writes in memory (asm.py: ByteIntPairs32 10 to 38 stack accesses).
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoKind<TFormatter>.Runs)
             {
                 if (count != 0)
                     default(TFormatter).WriteRun(run, ref writer);
                 return;
             }
 
-            // Values with the cursor form (strings): the element loop, the pair loop without keys.
+            // Values with the cursor form (strings, pairs holding them): the cursor loop.
             if (NinoCursor.Own<T, TFormatter>())
             {
                 if (count != 0)
-                    WriteCursors<T, TFormatter>(run, ref writer);
+                    writer = WriteCursors<T, TFormatter>(run, writer);
                 return;
             }
 
@@ -139,20 +144,25 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Runs)
+            // Through a copy of the writer, as the dictionaries' did: the writer's address never reaches the generated
+            // loop, a call, so the caller keeps its fields in registers. The intrinsic itself, as in Write.
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoKind<TFormatter>.Runs)
             {
                 writer.WriteLength(count);
-                default(TFormatter).WriteRun(run, ref writer);
+                Writer copy = default;
+                writer.CopyTo(ref copy);
+                default(TFormatter).WriteRun(run, ref copy);
+                copy.CopyTo(ref writer);
                 return;
             }
 
-            // Values whose formatter has the cursor form (strings): the element loop. Raw values and blocks with free
-            // entries between them go value by value, as before: the loop's setup in every set's write cost more code
-            // and stack than it saves them (asm.py: HashSet<NinoNullable<int>> 61 to 91 stack accesses).
+            // Values whose formatter has the cursor form (strings, pairs holding them): the cursor loop. Raw values and
+            // blocks with free entries between them go value by value, as before: the loop's setup in every set's write
+            // cost more code and stack than it saves them (asm.py: HashSet<NinoNullable<int>> 61 to 91 stack accesses).
             if (NinoCursor.Own<T, TFormatter>())
             {
                 writer.WriteLength(count);
-                WriteCursors<T, TFormatter>(run, ref writer);
+                writer = WriteCursors<T, TFormatter>(run, writer);
                 return;
             }
 
@@ -190,7 +200,7 @@ namespace Nino.Core.Internal
         /// passed by reference would be kept in memory, the caller's too.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteEach<T, TFormatter>(NinoRun run, int count, Writer writer)
+        internal static Writer WriteEach<T, TFormatter>(NinoRun run, int count, Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
             WriteEach<T, TFormatter>(run, count, ref writer);
@@ -213,10 +223,10 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The <see cref="NinoRun.Key"/> (without its offset) that a polymorphic value's generated loop writes the keys
-        /// of a dictionary's run with: a string in the default encoding, or a key whose memory is its wire form (raw
-        /// without padding, or a block that is its memory, <see cref="NinoBlockPlan{T,TFormatter}.IsMemory"/>) as its
-        /// bytes; else <see cref="NinoRun.NoKey"/>, and the dictionary is written value by value. A JIT-time constant
-        /// for strings and keys with references.
+        /// of a pair's run with: a string in the default encoding, or a key whose memory is its wire form (raw without
+        /// padding, or a block that is its memory, <see cref="NinoBlockPlan{T,TFormatter}.IsMemory"/>) as its bytes;
+        /// else <see cref="NinoRun.NoKey"/>, and the pairs are written value by value. A JIT-time constant for strings
+        /// and keys with references.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int KeyOf<TKey, TKeyFormatter>() where TKeyFormatter : struct, INinoFormatter<TKey> =>
@@ -239,189 +249,88 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Writes the count (<paramref name="count"/>, not 0: the dictionary's) and the pairs of
-        /// <paramref name="run"/>, a dictionary's entries (<see cref="CollectionFields.Run{TKey,TValue}"/>, its key
-        /// <see cref="KeyOf{TKey,TKeyFormatter}"/> where the values have <see cref="INinoFormatter.HasRunLoop"/>). The
-        /// pair is written as its formatter writes it: key, then value.
+        /// Whether a pair of <typeparamref name="TKey"/> and <typeparamref name="TValue"/> writes a run in one loop
+        /// (<see cref="INinoFormatter.HasRunLoop"/> of a pair's formatter): its values are a polymorphic base's with a
+        /// run loop, and its keys are written by that loop (<see cref="KeyOf{TKey,TKeyFormatter}"/>).
         /// </summary>
-        // Inlined, with the loops out of line: the writer's address never reaches a call that is not inlined (blocks
-        // are written into one reservation taken here; other pairs go through a copy of the writer), so the caller
-        // keeps the writer's fields in registers.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, int count,
+        internal static bool PairRuns<TKey, TValue, TKeyFormatter, TValueFormatter>()
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+            where TValueFormatter : struct, INinoFormatter<TValue> =>
+            !typeof(TValue).IsValueType && NinoKind<TValueFormatter>.Runs &&
+            KeyOf<TKey, TKeyFormatter>() != NinoRun.NoKey;
+
+        /// <summary>
+        /// Writes a run of pairs (<see cref="PairRuns{TKey,TValue,TKeyFormatter,TValueFormatter}"/>; the count is the
+        /// caller's), each value at <paramref name="value"/> bytes from its pair and its key at <paramref name="key"/>:
+        /// the value's generated loop over the run of the values (<see cref="NinoRun.Values"/>), each written after its
+        /// key. A pair's formatter composes onto its value's: the one place a key is written apart from its value.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void WritePairRun<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, int value, int key,
             ref Writer writer)
             where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
-        {
-            var keyKind = NinoKind.Of<TKey, TKeyFormatter>();
-            var valueKind = NinoKind.Of<TValue, TValueFormatter>();
-            if (keyKind is NinoElementKind.Raw or NinoElementKind.Block &&
-                valueKind is NinoElementKind.Raw or NinoElementKind.Block && run.InUse == NinoRun.AllInUse)
-            {
-                // A pair of raw items or blocks is a block (KeyValuePairFormatter's): several entries at a time where
-                // the CPU permutes vectors, each key and value packed out of its entry.
-                int size = NinoKind.Stride<TKey, TKeyFormatter>() + NinoKind.Stride<TValue, TValueFormatter>();
-                WritePairBlocks<TKey, TValue, TKeyFormatter, TValueFormatter>(run, ref writer.ReserveCounted(count, size),
-                    count, size);
-                return;
-            }
-
-            // A polymorphic value whose key the run says how to write: the base's generated loop over the run.
-            if (!typeof(TValue).IsValueType && NinoKind<TValueFormatter>.Runs && run.Key != NinoRun.NoKey)
-            {
-                writer.WriteLength(count);
-                Writer pairs = default;
-                writer.CopyTo(ref pairs);
-                default(TValueFormatter).WriteRun(run, ref pairs);
-                pairs.CopyTo(ref writer);
-                return;
-            }
-
-            // Keys and values with the cursor form, a string among them (raw values and blocks alone are blocks, or with
-            // free entries value by value, as for sets): the pair loop.
-            if (CursorPairs<TKey, TValue, TKeyFormatter, TValueFormatter>())
-            {
-                writer.WriteLength(count);
-                writer = WriteCursors<TKey, TValue, TKeyFormatter, TValueFormatter>(run, MapKey<TKey, TValue>(), writer);
-                return;
-            }
-
-            Writer copy = default;
-            writer.CopyTo(ref copy);
-            WritePairsEach<TKey, TValue, TKeyFormatter, TValueFormatter>(run, count, ref copy);
-            copy.CopyTo(ref writer);
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WritePairBlocks<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run,
-            ref byte pairs, int count, int size)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
             where TValueFormatter : struct, INinoFormatter<TValue> =>
-            NinoBlockCollections.WriteAll<CollectionFields.MapEntry<TKey, TValue>,
-                CollectionFields.EntryBlock<CollectionFields.MapEntry<TKey, TValue>,
-                    CollectionFields.MapPair<TKey, TValue, TKeyFormatter, TValueFormatter>>>(ref pairs,
-                ref CollectionFields.MapEntryOf<TKey, TValue>(ref run.First), count, size);
-
-        /// <summary>The count and the pairs one by one, each key and value through its formatter.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WritePairsEach<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, int count,
-            ref Writer target)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
-        {
-            // A local writer, so its fields stay in registers inside the loop.
-            Writer writer = default;
-            target.CopyTo(ref writer);
-            writer.WriteLength(count);
-            ref byte value = ref run.First;
-            int stride = run.Stride, inUse = run.InUse;
-            nint key = MapKey<TKey, TValue>();
-            for (int left = run.Count; left > 0; left--, value = ref NinoRun.Next(ref value, stride))
-            {
-                if (NinoRun.Skips(ref value, inUse))
-                    continue;
-                default(TKeyFormatter).Serialize(Unsafe.As<byte, TKey>(ref Unsafe.AddByteOffset(ref value, key)), ref writer);
-                default(TValueFormatter).Serialize(Unsafe.As<byte, TValue>(ref value), ref writer);
-            }
-
-            writer.CopyTo(ref target);
-        }
+            default(TValueFormatter).WriteRun(run.Values(value, key, KeyOf<TKey, TKeyFormatter>()), ref writer);
 
         /// <summary>
-        /// Whether a dictionary's pairs take the pair loop: keys and values with the cursor form
-        /// (<see cref="NinoCursor.Has{T,TFormatter}"/>), one of them a formatter's own (a string). A JIT-time constant.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool CursorPairs<TKey, TValue, TKeyFormatter, TValueFormatter>()
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue> =>
-            (NinoCursor.Own<TKey, TKeyFormatter>() || NinoCursor.Own<TValue, TValueFormatter>()) &&
-            NinoCursor.Has<TKey, TKeyFormatter>() && NinoCursor.Has<TValue, TValueFormatter>();
-
-        /// <summary>The offset of a dictionary entry's key from its value (<see cref="CollectionFields.MapLayout{TKey,TValue}"/>).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static nint MapKey<TKey, TValue>() =>
-            CollectionFields.MapLayout<TKey, TValue>.Key - CollectionFields.MapLayout<TKey, TValue>.Value;
-
-        /// <summary>
-        /// Writes the values of <paramref name="run"/> (the count is the caller's) through their cursor form: the
-        /// element loop, the pair loop without keys.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteCursors<T, TFormatter>(NinoRun run, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T> =>
-            writer = WriteCursors<NinoCursor.None, T, NinoCursor.NoneFormatter, TFormatter>(run, 0, writer);
-
-        /// <summary>
-        /// Writes the pairs of <paramref name="run"/> (the count is the caller's), each key at <paramref name="key"/>
-        /// bytes from its value, through the pair loop
-        /// (<see cref="WriteCursors{TKey,TValue,TKeyFormatter,TValueFormatter}(NinoRun, nint, int, ref byte, int)"/>)
-        /// into the free part of the buffer, which grows when a pair does not fit and the loop goes on from it. Only
-        /// the free space goes to the loop, never the writer. Out of line with the writer by value and returned, as
+        /// Writes the values of <paramref name="run"/> (the count is the caller's) through their cursor form
+        /// (<see cref="WriteCursors{T,TFormatter}(NinoRun, int, ref byte, int)"/>) into the free part of the buffer,
+        /// which grows when a value does not fit and the loop goes on from it. Only the free space goes to the loop,
+        /// never the writer. Out of line with the writer by value and returned, as
         /// <see cref="WriteOnLocal{T,TFormatter}"/>: a reference to it would keep the caller's in memory, and this
         /// driver inline cost every caller more than the call (asm.py: AppData's lookups 117 to 301 stack accesses
         /// with the whole driver inline; string arrays' callers 15 to 47 with only the first pass inline, against 29
         /// out of line).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteCursors<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, nint key,
-            Writer writer)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
+        internal static Writer WriteCursors<T, TFormatter>(NinoRun run, Writer writer)
+            where TFormatter : struct, INinoFormatter<T>
         {
             int next = 0;
             while (true)
             {
-                ulong left = WriteCursors<TKey, TValue, TKeyFormatter, TValueFormatter>(run, key, next,
-                    ref writer.FreeSpace(out int available), available);
+                ulong left = WriteCursors<T, TFormatter>(run, next, ref writer.FreeSpace(out int available), available);
                 writer.Commit(available - (int)left);
                 int entries = (int)(left >> 32);
                 if (entries == 0)
                     return writer;
                 next = run.Count - entries;
-                writer.Ensure(CursorSize<TKey, TValue, TKeyFormatter, TValueFormatter>(run, key, next));
+                writer.Ensure(CursorSize<T, TFormatter>(run, next));
             }
         }
 
         /// <summary>
-        /// The pair loop of writes: from the entry at <paramref name="next"/> on, each entry of <paramref name="run"/>
-        /// in use, its key (at <paramref name="key"/> bytes from the value; none where <typeparamref name="TKey"/> is
-        /// <see cref="NinoCursor.None"/>) then its value, each in its cursor form (<see cref="NinoCursor"/>), into the
-        /// <paramref name="available"/> bytes at <paramref name="destination"/>, the free part of the buffer. The data,
-        /// position and end are locals in registers. Returns the bytes left (low half) and the entries left (high
-        /// half): 0 when every pair was written, else from the first whose longest form did not fit.
-        /// The loop of strings, UTF-8 strings, raw values and blocks in any pairing, in sets, arrays, lists and
-        /// dictionaries alike (#347; it replaces the string pair loop, which wrote raw keys and strings, or strings and
-        /// raw values, only, and gave up on the whole dictionary when one did not fit).
+        /// The cursor loop of writes: from the entry at <paramref name="next"/> on, each value of <paramref name="run"/>
+        /// in use, in its cursor form (<see cref="NinoCursor"/>; a pair's key then value, composed by its formatter),
+        /// into the <paramref name="available"/> bytes at <paramref name="destination"/>, the free part of the buffer.
+        /// The data, position and end are locals in registers. Returns the bytes left (low half) and the entries left
+        /// (high half): 0 when every value was written, else from the first whose longest form did not fit. The loop of
+        /// strings, UTF-8 strings, raw values and blocks, and pairs of them in any pairing, in sets, arrays, lists and
+        /// dictionaries alike (#347).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static ulong WriteCursors<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, nint key,
-            int next, ref byte destination, int available)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
+        internal static ulong WriteCursors<T, TFormatter>(NinoRun run, int next, ref byte destination, int available)
+            where TFormatter : struct, INinoFormatter<T>
         {
             // Twice from one body: runs without free entries (arrays, lists, most sets and dictionaries) with the
-            // in-use test folded away, which leaves their loop's six values (the entry, the end, the stride, the
-            // destination, the bytes left, a dictionary's key offset) the registers that hold them through the string
-            // kernels' calls; with the test's rule too, the bytes left went to the stack (asm.py).
+            // in-use test folded away, which leaves their loop's values (the entry, the end, the stride, the
+            // destination, the bytes left) the registers that hold them through the string kernels' calls; with the
+            // test's rule too, the bytes left went to the stack (asm.py).
             return run.InUse == NinoRun.AllInUse
-                ? WriteCursors<TKey, TValue, TKeyFormatter, TValueFormatter>(run, key, next, ref destination, available,
-                    NinoRun.AllInUse)
-                : WriteCursors<TKey, TValue, TKeyFormatter, TValueFormatter>(run, key, next, ref destination, available,
-                    run.InUse);
+                ? WriteCursors<T, TFormatter>(run, next, ref destination, available, NinoRun.AllInUse)
+                : WriteCursors<T, TFormatter>(run, next, ref destination, available, run.InUse);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong WriteCursors<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, nint key,
-            int next, ref byte destination, int available, int inUse)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
+        private static ulong WriteCursors<T, TFormatter>(NinoRun run, int next, ref byte destination, int available,
+            int inUse)
+            where TFormatter : struct, INinoFormatter<T>
         {
             // Few values across the string kernels' calls, where x64 has five callee-saved registers for them: a
             // moving destination and the bytes left (not a start, a size and a position), and the entry against the
             // run's end (not an index and a count, which the caller works out). With nine, the position and the entry
-            // were kept on the stack (asm.py); now a run of values in a row keeps all five in registers, a dictionary's
-            // pairs all but the bytes left (its key's offset is the sixth).
+            // were kept on the stack (asm.py).
             int stride = run.Stride;
             ref byte value = ref Unsafe.Add(ref run.First, (nint)next * stride);
             ref byte last = ref Unsafe.Add(ref run.First, (nint)run.Count * stride);
@@ -431,17 +340,11 @@ namespace Nino.Core.Internal
             {
                 if (NinoRun.Skips(ref value, inUse))
                     continue;
-                ref TKey item = ref Unsafe.As<byte, TKey>(ref Unsafe.AddByteOffset(ref value, key));
-                ref TValue element = ref Unsafe.As<byte, TValue>(ref value);
-                // Room for the longest form of both, so a pair is never split across two buffers.
-                if ((ulong)(uint)NinoCursor.MaxSize<TKey, TKeyFormatter>(in item) +
-                    (uint)NinoCursor.MaxSize<TValue, TValueFormatter>(in element) > (uint)left)
+                ref T element = ref Unsafe.As<byte, T>(ref value);
+                // Room for the longest form, so a value (a pair) is never split across two buffers.
+                if ((uint)NinoCursor.MaxSize<T, TFormatter>(in element) > (uint)left)
                     break;
-                // Past each item as it is written: a sum of the two would live across the value's write.
-                int size = NinoCursor.WriteAt<TKey, TKeyFormatter>(ref cursor, in item);
-                cursor = ref Unsafe.Add(ref cursor, (nint)(uint)size);
-                left -= size;
-                size = NinoCursor.WriteAt<TValue, TValueFormatter>(ref cursor, in element);
+                int size = NinoCursor.WriteAt<T, TFormatter>(ref cursor, in element);
                 cursor = ref Unsafe.Add(ref cursor, (nint)(uint)size);
                 left -= size;
             }
@@ -455,20 +358,12 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// The room the pair at <paramref name="next"/> of a run needs for its longest form (negative: more than an
-        /// <c>int</c> holds, which the writer rejects), out of line: the pair loop's rare stop.
+        /// The room the value at <paramref name="next"/> of a run needs for its longest form (negative: more than an
+        /// <c>int</c> holds, which the writer rejects), out of line: the cursor loop's rare stop.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int CursorSize<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, nint key, int next)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
-        {
-            ref byte value = ref Unsafe.Add(ref run.First, (nint)next * run.Stride);
-            ulong size = (ulong)(uint)NinoCursor.MaxSize<TKey, TKeyFormatter>(
-                             in Unsafe.As<byte, TKey>(ref Unsafe.AddByteOffset(ref value, key))) +
-                         (uint)NinoCursor.MaxSize<TValue, TValueFormatter>(in Unsafe.As<byte, TValue>(ref value));
-            return size > int.MaxValue ? -1 : (int)size;
-        }
+        private static int CursorSize<T, TFormatter>(NinoRun run, int next) where TFormatter : struct, INinoFormatter<T> =>
+            NinoCursor.MaxSize<T, TFormatter>(in Unsafe.As<byte, T>(ref Unsafe.Add(ref run.First, (nint)next * run.Stride)));
 
         /// <summary>Reads into the elements of <paramref name="values"/>, reusing the existing values.</summary>
         /// <param name="prechecked">The collection length already proved its entire fixed-stride payload fits.</param>
@@ -537,8 +432,8 @@ namespace Nino.Core.Internal
             if (count == 0)
                 return;
 
-            // Values whose formatter has the cursor form (strings): the element loop, the pair loop without keys. Raw
-            // values and blocks that reach here are read one by one with their checks, as before.
+            // Values whose formatter has the cursor form (strings, pairs holding them): the cursor loop. Raw values and
+            // blocks that reach here are read one by one with their checks, as before.
             if (NinoCursor.Own<T, TFormatter>())
             {
                 ReadCursors<T, TFormatter>(run, ref reader);
@@ -549,55 +444,42 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Reads the values of <paramref name="run"/> in place through their cursor form (the element loop:
-        /// <see cref="ReadCursors{TKey,TValue,TKeyFormatter,TValueFormatter,TStore}"/> without keys). The data and the
-        /// bytes left go to the call, not the reader, which stays in the caller's registers.
+        /// Reads the values of <paramref name="run"/> in place through their cursor form
+        /// (<see cref="ReadCursors{T,TFormatter,TStore}"/>). The data and the bytes left go to the call, not the reader,
+        /// which stays in the caller's registers.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void ReadCursors<T, TFormatter>(scoped NinoRun run, ref Reader reader)
             where TFormatter : struct, INinoFormatter<T> =>
-            reader.UnsafeAdvance((int)ReadCursors<NinoCursor.None, T, NinoCursor.NoneFormatter, TFormatter,
-                NinoCursor.Entries>(run, ref reader.Peek(), reader.Remaining, default));
+            reader.UnsafeAdvance(ReadCursors<T, TFormatter, NinoCursor.InPlace<T>>(run, ref reader.Peek(),
+                reader.Remaining, default));
 
         /// <summary>
-        /// The pair loop of reads: <paramref name="run"/>'s count of pairs from the data at <paramref name="data"/>
-        /// (<paramref name="end"/> bytes), each key (none where <typeparamref name="TKey"/> is
-        /// <see cref="NinoCursor.None"/>) then value in its cursor form (<see cref="NinoCursor"/>), into the places
-        /// <paramref name="store"/> gives and then handed to it: the entries of the run (a new dictionary's, filled then
-        /// linked; an array's, a list's or a new set's values: <see cref="NinoCursor.Entries"/>), a dictionary's adds
-        /// (<see cref="NinoCursor.Adds"/>), or its merge into the pairs there (<see cref="NinoCursor.Merges"/>). The
-        /// data, position and end are locals in registers. Returns the bytes read (low half) and, for a merge, the keys
-        /// already there (high half). The store comes by value: by reference its address and a copy back kept two
-        /// registers through the loop and its caller's store in memory (asm.py). Strings, UTF-8 strings, raw values
-        /// and blocks in any pairing (#347; it replaces the string loops, which read strings in a row, raw keys and
-        /// strings, and pairs of strings, only).
+        /// The cursor loop of reads: <paramref name="run"/>'s count of values from the data at <paramref name="data"/>
+        /// (<paramref name="end"/> bytes), each in its cursor form (<see cref="NinoCursor"/>; a pair's key then value,
+        /// composed by its formatter) into its entry, then handed to <paramref name="store"/>
+        /// (<see cref="NinoCursor.IStore{T}"/>): read in place (an array's, a list's, a new set's or a new dictionary's
+        /// entries, filled then linked), or added one at a time by a dictionary's own layer, which reads each into the
+        /// one pair of a run with no stride. The data, position and end are locals in registers. Returns the bytes
+        /// read. The store comes by value: by reference its address and a copy back kept two registers through the
+        /// loop and its caller's store in memory (asm.py). Strings, UTF-8 strings, raw values and blocks, and pairs of
+        /// them in any pairing (#347).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static ulong ReadCursors<TKey, TValue, TKeyFormatter, TValueFormatter, TStore>(scoped NinoRun run,
-            ref byte data, int end, TStore store)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
-            where TStore : struct
+        internal static int ReadCursors<T, TFormatter, TStore>(scoped NinoRun run, ref byte data, int end, TStore store)
+            where TFormatter : struct, INinoFormatter<T>
+            where TStore : struct, NinoCursor.IStore<T>
         {
-            nint keyAt = NinoCursor.KeyAt(ref store);
             ref byte entry = ref run.First;
             int stride = run.Stride, pos = 0;
             for (int left = run.Count; left > 0; left--, entry = ref NinoRun.Next(ref entry, stride))
             {
-                ref TKey key = ref Unsafe.As<byte, TKey>(ref Unsafe.AddByteOffset(ref entry, keyAt));
-                pos += NinoCursor.ReadAt<TKey, TKeyFormatter>(ref Unsafe.Add(ref data, (nint)(uint)pos), end - pos,
-                    ref key);
-                ref TValue value = ref NinoCursor.ValueAt<TKey, TValue, TStore>(ref store, ref entry, ref key);
-                pos += NinoCursor.ReadAt<TValue, TValueFormatter>(ref Unsafe.Add(ref data, (nint)(uint)pos), end - pos,
-                    ref value);
-                NinoCursor.Stored<TKey, TValue, TStore>(ref store, ref key, ref value);
+                ref T value = ref Unsafe.As<byte, T>(ref entry);
+                pos += NinoCursor.ReadAt<T, TFormatter>(ref Unsafe.Add(ref data, (nint)(uint)pos), end - pos, ref value);
+                store.Stored(ref value);
             }
 
-            // Only a merge counts anything.
-            ulong matched = typeof(TStore) == typeof(NinoCursor.Merges)
-                ? (uint)Unsafe.As<TStore, NinoCursor.Merges>(ref store).Matched
-                : 0;
-            return (matched << 32) | (uint)pos;
+            return pos;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -633,8 +515,8 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Whether a set's or a dictionary's entries take <typeparamref name="T"/>'s values as one block, scattered
-        /// into them by the block kernels (<see cref="CollectionFields.EntryBlock{TEntry,TItems}"/>): raw values (their
+        /// Whether a set's or a dictionary's entries take <typeparamref name="T"/>'s values (a dictionary's pairs) as
+        /// one block, scattered into them by the block kernels (<see cref="CollectionFields.EntryBlock{TEntry,TItems}"/>): raw values (their
         /// checks made first on the block, <see cref="TakeSet{T,TFormatter}"/>) and blocks read as one
         /// (<see cref="NinoBlockCollections.ReadSize{T,TFormatter}"/>; not in Untrusted mode where their fields need
         /// checks). Their item bytes are <see cref="NinoKind.Stride{T,TFormatter}"/>. A JIT-time constant.
@@ -672,23 +554,6 @@ namespace Nino.Core.Internal
             return ref source;
         }
 
-        /// <summary>
-        /// As <see cref="TakeSet{T,TFormatter}"/>, for the pairs of a dictionary whose keys and values are both
-        /// <see cref="ScattersItems{T,TFormatter}"/>: each pair the key's item bytes, then the value's.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ref byte TakePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(ref Reader reader, int count)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
-        {
-            int keySize = NinoKind.Stride<TKey, TKeyFormatter>();
-            int size = keySize + NinoKind.Stride<TValue, TValueFormatter>();
-            ref byte source = ref reader.ReadElements(count, size);
-            CheckRaw<TKey, TKeyFormatter>(ref source, count, size);
-            CheckRaw<TValue, TValueFormatter>(ref Unsafe.Add(ref source, keySize), count, size);
-            return ref source;
-        }
-
         // Raw values the block moves without a look: a bool other than 0 or 1, and in Untrusted mode other values no
         // constructor makes, are invalid data (NinoLayout<T>.CopiesAsIs, a constant).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -700,7 +565,7 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Reads a value of a block <see cref="TakeSet{T,TFormatter}"/> or <see cref="TakePairs"/> took at
+        /// Reads a value of a block <see cref="TakeSet{T,TFormatter}"/> took at
         /// <paramref name="source"/>: a set or dictionary that is not filled through its entries adds them one by one.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -714,8 +579,8 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Reads the values of <paramref name="run"/>, a set's new entries (every one in use, <see cref="CollectionFields
-        /// .Run{T}(CollectionFields.SetEntry{T}[], int)"/>), from the data: the values a set takes as one block
+        /// Reads the values of <paramref name="run"/>, a set's or a dictionary's new entries (every one in use,
+        /// <see cref="CollectionFields.Run{T}(CollectionFields.SetEntry{T}[], int)"/>), from the data: the values a set takes as one block
         /// (<see cref="ScattersSet{T,TFormatter}"/>) scattered into the entries by the block kernels, the others value by
         /// value into their places. The entries' hash codes and links are the caller's
         /// (<see cref="HashTables.Link{T}(System.Collections.Generic.HashSet{T}, int)"/>).
@@ -764,77 +629,13 @@ namespace Nino.Core.Internal
         /// <see cref="ReadEach{T,TFormatter}"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadSetEach<T, TFormatter>(NinoRun run, Reader reader)
+        internal static Reader ReadSetEach<T, TFormatter>(NinoRun run, Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
             ref byte value = ref run.First;
             int stride = run.Stride;
             for (int left = run.Count; left > 0; left--, value = ref NinoRun.Next(ref value, stride))
                 NinoElements.ReadOne<T, TFormatter>(ref reader, ref Unsafe.As<byte, T>(ref value));
-            return reader;
-        }
-
-        /// <summary>
-        /// Reads the pairs of <paramref name="run"/>, a dictionary's new entries (every one in use,
-        /// <see cref="CollectionFields.Run{TKey,TValue}(CollectionFields.MapEntry{TKey,TValue}[], int)"/>), from the data,
-        /// as its formatter wrote them, key then value: pairs whose keys and values are both
-        /// <see cref="ScattersItems{T,TFormatter}"/> scattered into the entries by the block kernels, the others pair by
-        /// pair into their places. The entries' hash codes and links are the caller's
-        /// (<see cref="HashTables.Link{TKey,TValue}(System.Collections.Generic.Dictionary{TKey,TValue}, int)"/>).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, ref Reader reader)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
-        {
-            if (ScattersItems<TKey, TKeyFormatter>() && ScattersItems<TValue, TValueFormatter>())
-            {
-                ScatterPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(run,
-                    ref TakePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(ref reader, run.Count));
-                return;
-            }
-
-            reader = ReadPairsEach<TKey, TValue, TKeyFormatter, TValueFormatter>(run, reader);
-        }
-
-        /// <summary>
-        /// The pairs of <see cref="TakePairs"/>' block at <paramref name="source"/> scattered into a dictionary's
-        /// entries: the gather of <see cref="WritePairBlocks"/> the other way. A caller that takes the block itself
-        /// passes it here, as with <see cref="ScatterSet{T,TFormatter}"/>.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void ScatterPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run,
-            ref byte source)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue> =>
-            NinoBlockCollections.ReadAll<CollectionFields.MapEntry<TKey, TValue>,
-                CollectionFields.EntryBlock<CollectionFields.MapEntry<TKey, TValue>,
-                    CollectionFields.MapPair<TKey, TValue, TKeyFormatter, TValueFormatter>>>(ref source,
-                ref CollectionFields.MapEntryOf<TKey, TValue>(ref run.First), run.Count,
-                NinoKind.Stride<TKey, TKeyFormatter>() + NinoKind.Stride<TValue, TValueFormatter>());
-
-        /// <summary>
-        /// The pairs of a dictionary's run one by one into their entries, each key and value through its formatter
-        /// with nothing else in the loop. A key added one at a time (HashTables.Insert, a call per pair that loaded
-        /// the table's fields again each time) read a <c>Dictionary&lt;int, IFoo&gt;</c> of 100 pairs about 10 %
-        /// slower than LuminPack, which fills the entries this way (#320). The reader by value and returned: its
-        /// address reaching no call, its fields stay in registers in the loop.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadPairsEach<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, Reader reader)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
-        {
-            ref byte value = ref run.First;
-            int stride = run.Stride;
-            nint key = MapKey<TKey, TValue>();
-            for (int left = run.Count; left > 0; left--, value = ref NinoRun.Next(ref value, stride))
-            {
-                default(TKeyFormatter).Deserialize(ref reader,
-                    ref Unsafe.As<byte, TKey>(ref Unsafe.AddByteOffset(ref value, key)));
-                default(TValueFormatter).Deserialize(ref reader, ref Unsafe.As<byte, TValue>(ref value));
-            }
-
             return reader;
         }
     }

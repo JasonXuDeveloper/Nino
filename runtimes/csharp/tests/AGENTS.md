@@ -70,7 +70,8 @@ Serialization/               round trips of the public API: private members, cus
 Collections/                 arrays, BCL and user collections, empty ones, Stack/Queue through their arrays, the
                              runs every contiguous collection writes through (RunTests: every collection with every
                              element kind, free entries, the polymorphic run loop's keys and bytes, composites'
-                             dispatch bit), the pair loop and its element loop over values with the cursor form
+                             dispatch bit, pairs in lists and arrays taking a dictionary's paths, hostile pairs on every
+                             dictionary read), the cursor loop over values with the cursor form, pairs of them composed
                              (CursorTests: every string, UTF-8, raw and block pairing, [NinoUtf8] members, sorted and
                              concurrent dictionaries, merges and hostile pairs), the prefetch of long top-level arrays
                              and lists of scattered objects and the

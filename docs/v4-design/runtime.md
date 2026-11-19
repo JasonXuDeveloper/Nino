@@ -71,15 +71,22 @@ public interface INinoFormatter                               // what does not d
 ```
 
 Every contiguous collection (arrays, lists, spans, `Memory<T>`, `ArraySegment<T>`, `ImmutableArray<T>`, each half of
-a `Queue<T>`'s ring, `Stack<T>`, and the entries of `HashSet<T>` and `Dictionary<TKey, TValue>`, whose element is the
-pair) writes its elements as a run (`NinoRun`): the first value, the count, the stride between entries, where the key
-of a dictionary's entry is and how it is written, and how a free entry is told apart (a set and a dictionary that
-removed elements; the rule is found at startup). One loop per element kind writes a run (`NinoRuns`): raw elements and
-blocks as one block (gathered out of the entries by the block kernels through one entry block formatter), slots
-through the slot kernels, others value by value; a polymorphic base's values through its generated `WriteRun`, the
-compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep path are Nino.Core's. The
-member is not generic, so one serves every collection and every key written as its bytes or a string; any other key
-goes value by value (#355). Reads fill the same runs, one loop per element kind: a run of values in a row (an array,
+a `Queue<T>`'s ring, `Stack<T>`, and the entries of `HashSet<T>` and `Dictionary<TKey, TValue>`) writes its elements as
+a run (`NinoRun`): the first value, the count, the stride between entries and how a free entry is told apart (a set and
+a dictionary that removed elements; the rule is found at startup). One loop per element kind writes a run
+(`NinoRuns`), over `<T, TFormatter>` only: raw elements and blocks as one block (gathered out of the entries by the
+block kernels through one entry block formatter), slots through the slot kernels, values with the cursor form through
+the cursor loop, others value by value; a polymorphic base's values through its generated `WriteRun`, the compare chain
+of its subtypes inline in a loop whose steps, in-use test, key write and deep path are Nino.Core's. A pair (a
+`KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes its items (block, cursor form,
+dispatch bit), never a loop of its own. A dictionary is special only at the top: it reaches its entries, then fills and
+links them; at the bottom they are a run of `KeyValuePair<TKey, TValue>` with the entry's stride where a startup check
+per pair of types proves the entry holds key and value as the pair does (a `HashSet`'s entry of the pair: pairs of
+values on CoreCLR), else a run of the entries themselves, each the pair composed at the entry's offsets (pairs with
+references, which CoreCLR moves first in the entry). A pair of a polymorphic value composes onto its value's
+`WriteRun`: the run of its values, each key at an offset from its value (`NinoRun.Key`) and written by the loop, the one
+place a key is written apart from its value. The member is not generic, so one serves every collection and every key
+written as its bytes or a string; any other key goes value by value (#355). Reads fill the same runs, one loop per element kind: a run of values in a row (an array,
 the backing array of a list, whose count is set once it is filled, a ring from its start, a span) through the copy,
 slot and block kernels or value by value, and the entries of a new `HashSet<T>` or `Dictionary<TKey, TValue>`: raw
 values and blocks read as one block and scattered into the entries by the block kernels (the entry block formatter's
@@ -106,17 +113,18 @@ one go, still read the whole count into a rented array first.
 Strings (the default encoding and UTF-8), raw values, blocks and pairs of them have a cursor form of their write and
 read (`NinoCursor`, #347): a value written at a reference into free space once its longest form fits (`MaxSize`,
 `WriteAt`), read from a reference and the bytes left (`ReadAt`), each returning the bytes it took. Raw values and
-blocks have it through their kind; the string formatters and `KeyValuePairFormatter` (where both items have it)
-through internal members of `INinoFormatter<T>`, asked once (`HasCursor`). One pair loop per direction runs over them
-(`NinoRuns.WriteCursors`, `ReadCursors`) with only the data, the position and the end in registers, never the writer or
+blocks have it through their kind; the string formatters and the pair formatters (`KeyValuePairFormatter`, a
+dictionary's entry; where both items have it, composed by `NinoCursor`'s pair helpers) through internal members of
+`INinoFormatter<T>`, asked once (`HasCursor`). One cursor loop per direction runs over them (`NinoRuns.WriteCursors`,
+`ReadCursors`, over `<T, TFormatter>`) with only the data, the position and the end in registers, never the writer or
 the reader: the write takes the free part of the buffer and returns where it stopped, the caller grows the buffer and
-goes on; the read fills the places a store gives (`NinoCursor.Entries`: a run's entries in place, `Adds`: a
-dictionary's adds one pair at a time, `Merges`: its merge into the pairs there; plain structs the loop dispatches on
-by type, so nothing is called per pair). The element loop is the pair loop without keys
-(`NinoCursor.None`). So strings in a row, a set's strings, and every pairing of strings, UTF-8 strings, raw values and
-blocks in a dictionary (`Dictionary<string, int>` among them), and the pairs of a sorted or concurrent dictionary (a
-chunk of the gather above, or a rented array of a tree's pairs), go through the same two loops, with the per-pair checks of the per-value ones: a null or
-repeated key, hash flooding through `HashTables`, every length checked before allocating.
+goes on; the read fills each value in place and hands it to a store (`NinoCursor.InPlace`: a run's entries; a
+dictionary's adds: each pair read into one pair of locals, a run with no stride, and added by the dictionary's own
+layer). A dictionary read again merges in its own layer, each key read before its value's place is known. So strings
+in a row, a set's strings, and every pairing of strings, UTF-8 strings, raw values and blocks in a list of pairs or a
+dictionary (`Dictionary<string, int>` among them), and the pairs of a sorted or concurrent dictionary (a chunk of the
+gather above, or a rented array of a tree's pairs), go through the same two loops, with the per-pair checks of the
+per-value ones: a null or repeated key, hash flooding through `HashTables`, every length checked before allocating.
 
 A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members
 too (generated formatters of fixed-size and block structs, of class bodies and of polymorphic bases, the tuple and

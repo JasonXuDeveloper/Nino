@@ -128,14 +128,25 @@ says which CPUs and cases moved.
   inside a polymorphic `WriteRun`. Why: steps 3-5 carried the key down as its own shape (`NinoRun.Key`, loops over
   `<TKey, TValue, TKeyFormatter, TValueFormatter>`, `NinoCursor.Pair` duplicating `KeyValuePair`, `NinoCursor.None` to
   turn the pair loop back into the element loop), so only `Dictionary` got that loop and `List<KeyValuePair<K, V>>`,
-  `(K, V)[]` and a user's generic struct took another; the refactor after step 6 removes it. Add no generic member to `INinoFormatter<T>`: Unity
+  `(K, V)[]` and a user's generic struct took another; the refactor after step 6 (`claude/pairs-elements`) removed it.
+  Where no `KeyValuePair` view exists, the entry itself is the element, composed at its offsets by
+  `CollectionFields.MapEntryFormatter` with the same pair helpers (`NinoCursor`'s pair overloads,
+  `NinoRuns.PairRuns`/`WritePairRun`): CoreCLR moves references first in a struct, so a pair holding one never sits in
+  its entry as `KeyValuePair` lays it out (`Dictionary<string, int>`'s entry: key 0, hash 8, next 12, value 16; the
+  pair's: key 0, value 8), and value by value there would have lost `Dictionary<string, int>`'s cursor loop and
+  `Dictionary<int, Base>`'s run loop. A merge reads its key before its value's place is known, so a refill's merge reads
+  the two items in the dictionary's top layer. The entries' write (`NinoDictionary.WriteEntries`: the run, then the
+  loop) is out of line with the writer by value, one call per dictionary: inlined, its tests (`PairRuns`, the cursor
+  pair test, the run) spent the budget of a generated body holding two dictionaries, which then called it with the
+  writer by ref and compiled both loops of the other (asm.py: a `Lookup`'s top-level write 107 to 189 stack accesses,
+  149 out of line, in 27 % less code). Only `KeyValuePair` runs in their entries (pairs of values) stay inline. Add no generic member to `INinoFormatter<T>`: Unity
   2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`). The
   view is one cursor, `NinoRun` (#355 PR 3: the first value, count, stride, the in-use test of free entries, whose rule
   each runtime proves at startup), and the loops are `NinoRuns`, one per kind:
   every contiguous collection builds a run and calls them, never a loop of its own. Reads take the same view (#355
   step 4): `NinoRuns.Read` fills a run of values in a row (arrays, a list's backing array before its count is
-  published, spans, `Memory`, rings from 0, multi-dimensional arrays, lookups), `ReadSet`/`ReadPairs` fill the new
-  entries of a set or a dictionary (raw values and blocks scattered by `ReadAll` through the entries' one
+  published, spans, `Memory`, rings from 0, multi-dimensional arrays, lookups), `ReadSet` fills the new
+  entries of a set or a dictionary (a dictionary's pairs its elements) (raw values and blocks scattered by `ReadAll` through the entries' one
   `EntryBlock`, the gather of the writes the other way; others value by value), and `HashTables.Link` links them. A polymorphic base's values go
   through its generated `WriteRun`, whose body is Nino.Core's pieces with the base's compare chain inside (a step
   carried into a Core loop lost: dispatch.md). A composite carries `NinoBodyTraits.Dispatches` where an item's
