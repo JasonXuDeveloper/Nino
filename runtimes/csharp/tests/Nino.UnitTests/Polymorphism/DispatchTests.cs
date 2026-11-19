@@ -169,7 +169,7 @@ namespace Nino.UnitTests
         public void PolymorphicDictionaryWithAKeyTwiceIsInvalidData()
         {
             // A dictionary's bytes are its count and its pairs, as a list of pairs writes them. Five pairs: from four on
-            // the pairs are read into the entries and linked after (NinoRuns.ReadSet, HashTables.Link), so a rejected read
+            // the pairs are read into the entries and linked after (NinoEntries, HashTables.Link), so a rejected read
             // leaves the dictionary empty; below four each pair is inserted as it is read.
             var pairs = new List<KeyValuePair<int, DispatchRoot>>
             {
