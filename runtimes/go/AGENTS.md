@@ -69,6 +69,7 @@ marshal.go                   Marshal / Unmarshal through the tag plans
 block_test.go                block sizes and ReadBlock / WriteBlock against element-by-element reads; BenchmarkBlocks
                              (checked blocks: dates, decimals, bools, raw structs with a bool; Guids as the copy alone)
 raw_test.go                  bool blocks, raw struct blocks and padded structs
+copy_fresh_test.go           byte-array copy ownership and serializer A/B across hot and rotating source data
 nullable_test.go             NinoNullable blocks against NinoNullableAt on each element, NullableSlot blocks byte by
                              byte; BenchmarkNinoNullables and BenchmarkNullableSlots (the block against the element
                              loop and the []*T it replaced), BenchmarkSlotSets (a set of slots against a set of ints)
