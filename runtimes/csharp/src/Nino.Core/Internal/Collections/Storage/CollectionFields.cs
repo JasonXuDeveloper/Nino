@@ -127,7 +127,8 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The offsets in a <see cref="SetEntry{T}"/> (the runtime may move the fields: references first), and the
-        /// <see cref="NinoRun.InUse"/> of its runs with free entries (from the value).
+        /// <see cref="NinoRun.InUse"/> of its runs with free entries (from the entry's start, as
+        /// <see cref="MapLayout{TKey,TValue}"/>'s).
         /// </summary>
         internal static class SetLayout<T>
         {
@@ -139,11 +140,10 @@ namespace Nino.Core.Internal
 
             public static readonly int Value = NinoBlocks.Offset(ref s_entry, ref s_entry.Value);
 
-            public static readonly int InUse = InUseAt(CollectionViews.SetFree, HashCode, Next, Value);
+            public static readonly int InUse = InUseAt(CollectionViews.SetFree, HashCode, Next, 0);
         }
 
-        /// <summary>As <see cref="SetLayout{T}"/>, for a <see cref="MapEntry{TKey,TValue}"/> (its in-use test from the
-        /// entry's start).</summary>
+        /// <summary>As <see cref="SetLayout{T}"/>, for a <see cref="MapEntry{TKey,TValue}"/>.</summary>
         internal static class MapLayout<TKey, TValue>
         {
             private static MapEntry<TKey, TValue> s_entry;
@@ -317,15 +317,20 @@ namespace Nino.Core.Internal
             if (entries == null || bound > entries.Length || bound < count ||
                 bound != count && CollectionViews.SetFree == CollectionViews.FreeEntries.Unknown)
                 return false;
+            // The value's offset read only for a run with free entries: a class a set without them never
+            // initializes, whose field in every write was a helper call (asm.py: HashSet<int>).
             run = new NinoRun(ref Unsafe.As<T, byte>(ref entries[0].Value), bound, Unsafe.SizeOf<SetEntry<T>>(),
-                NinoRun.NoKey, bound == count ? NinoRun.AllInUse : SetLayout<T>.InUse);
+                NinoRun.NoKey, bound == count ? NinoRun.AllInUse : NinoRun.Rebase(SetLayout<T>.InUse, SetLayout<T>.Value));
             return true;
         }
 
         /// <summary>
         /// As <see cref="Run{T}(HashSet{T}, int, out NinoRun)"/>, for a dictionary: the run of its pairs, each a
         /// <see cref="KeyValuePair{TKey,TValue}"/> in its entry where <see cref="PairLayout{TKey,TValue}.InEntries"/>,
-        /// else the entry (<see cref="PairLayout{TKey,TValue}.Start"/>).
+        /// else the entry (<see cref="PairLayout{TKey,TValue}.Start"/>). The check is the set's, written out again: a
+        /// helper of both, generic over the entry, was not inlined in code shared over a class, and its out values
+        /// kept a dictionary's write in memory (asm.py: a generated body holding a Dictionary&lt;string, string&gt;
+        /// 26 to 56 stack accesses).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Run<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count, out NinoRun run)
@@ -339,15 +344,24 @@ namespace Nino.Core.Internal
             if (entries == null || bound > entries.Length || bound < count ||
                 bound != count && CollectionViews.MapFree == CollectionViews.FreeEntries.Unknown)
                 return false;
-            // 0 without a lookup for pairs with references (the entry), whose code may be shared over a class.
+            // 0 without a lookup for pairs with references (the entry), whose code may be shared over a class; written
+            // out, not through a helper, one inlinee fewer in every dictionary's write.
             int start = RuntimeHelpers.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
                 ? 0
                 : PairLayout<TKey, TValue>.Start;
-            run = new NinoRun(ref Unsafe.Add(ref Unsafe.As<MapEntry<TKey, TValue>, byte>(ref entries[0]), start),
-                bound, Unsafe.SizeOf<MapEntry<TKey, TValue>>(), NinoRun.NoKey,
+            run = new NinoRun(ref Unsafe.Add(ref Unsafe.As<MapEntry<TKey, TValue>, byte>(ref entries[0]), start), bound,
+                Unsafe.SizeOf<MapEntry<TKey, TValue>>(), NinoRun.NoKey,
                 bound == count ? NinoRun.AllInUse : NinoRun.Rebase(MapLayout<TKey, TValue>.InUse, start));
             return true;
         }
+
+        // Where a dictionary run's element starts in its entry: 0 without a lookup for pairs with references (the
+        // entry), whose code may be shared over a class.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Start<TKey, TValue>() =>
+            RuntimeHelpers.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
+                ? 0
+                : PairLayout<TKey, TValue>.Start;
 
         /// <summary>
         /// The run of the first <paramref name="count"/> (not 0) of a new set's <paramref name="entries"/>, which a read
@@ -362,10 +376,8 @@ namespace Nino.Core.Internal
         /// (<see cref="Run{TKey,TValue}(Dictionary{TKey,TValue}, int, out NinoRun)"/>).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static NinoRun Run<TKey, TValue>(MapEntry<TKey, TValue>[] entries, int count) =>
-            new(ref Unsafe.Add(ref Unsafe.As<MapEntry<TKey, TValue>, byte>(ref entries[0]),
-                    RuntimeHelpers.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
-                        ? 0
-                        : PairLayout<TKey, TValue>.Start), count, Unsafe.SizeOf<MapEntry<TKey, TValue>>(), NinoRun.NoKey,
+            new(ref Unsafe.Add(ref Unsafe.As<MapEntry<TKey, TValue>, byte>(ref entries[0]), Start<TKey, TValue>()),
+                count, Unsafe.SizeOf<MapEntry<TKey, TValue>>(), NinoRun.NoKey,
                 NinoRun.AllInUse);
 
         /// <summary>The entry whose value <paramref name="value"/> is (a run's <see cref="NinoRun.First"/>).</summary>
