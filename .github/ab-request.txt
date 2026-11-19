@@ -1293,9 +1293,9 @@ typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions, Node
 # done (run 44451141322): rust 63ef558b 63ef558b ^(UnionArray|TaggedUnionArray)/deserialize/(nino|postcard|bincode)$ NINO_BENCH_CASES=UnionArray|TaggedUnionArray NINO_BENCH_CASES=UnionArray|TaggedUnionArray # 387 Rust against runners' competitors
 
 # Real Go, Rust, and TypeScript union codecs with same-revision controls.
-go#8 63ef558b 7a829645 ^Benchmark(Serialize|Deserialize)$/^(UnionArray|TaggedUnionArray)$/^Nino$ # 387 Go pointer cases
-go#8 63ef558b 63ef558b ^Benchmark(Serialize|Deserialize)$/^(UnionArray|TaggedUnionArray)$/^Nino$ # 387 Go unboxing floor
-rust 63ef558b 07c4f36c ^(UnionArray|TaggedUnionArray)/(serialize|deserialize)/nino$ NINO_BENCH_CASES=UnionArray|TaggedUnionArray NINO_BENCH_CASES=UnionArray|TaggedUnionArray # 387 Rust inline class
-rust 63ef558b 63ef558b ^(UnionArray|TaggedUnionArray)/(serialize|deserialize)/nino$ NINO_BENCH_CASES=UnionArray|TaggedUnionArray NINO_BENCH_CASES=UnionArray|TaggedUnionArray # 387 Rust unboxing floor
-typescript 63ef558b 2b715410 UnionArray|TaggedUnionArray # 387 TypeScript only ambiguous cases wrapped
-typescript 63ef558b 63ef558b UnionArray|TaggedUnionArray # 387 TypeScript unboxing floor
+# done (run 44458051073): go#8 63ef558b 7a829645 ^Benchmark(Serialize|Deserialize)$/^(UnionArray|TaggedUnionArray)$/^Nino$ # 387 Go pointer cases
+# done (run 44458051073): go#8 63ef558b 63ef558b ^Benchmark(Serialize|Deserialize)$/^(UnionArray|TaggedUnionArray)$/^Nino$ # 387 Go unboxing floor
+# done (run 44458051073): rust 63ef558b 07c4f36c ^(UnionArray|TaggedUnionArray)/(serialize|deserialize)/nino$ NINO_BENCH_CASES=UnionArray|TaggedUnionArray NINO_BENCH_CASES=UnionArray|TaggedUnionArray # 387 Rust inline class
+# done (run 44458051073): rust 63ef558b 63ef558b ^(UnionArray|TaggedUnionArray)/(serialize|deserialize)/nino$ NINO_BENCH_CASES=UnionArray|TaggedUnionArray NINO_BENCH_CASES=UnionArray|TaggedUnionArray # 387 Rust unboxing floor
+# done (run 44458051073): typescript 63ef558b 2b715410 UnionArray|TaggedUnionArray # 387 TypeScript only ambiguous cases wrapped
+# done (run 44458051073): typescript 63ef558b 63ef558b UnionArray|TaggedUnionArray # 387 TypeScript unboxing floor
