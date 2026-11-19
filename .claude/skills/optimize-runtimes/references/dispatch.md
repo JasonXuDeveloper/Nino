@@ -86,3 +86,12 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   `UnionValueInt64`, `UnionValueUnionPoint`, `UnionTaggedInt32` and `UnionTaggedInt16`. Go's small-integer
   conversion table can still supply some of those boxes. The string wrapper has a single pointer field and fits
   directly in an interface. Returning pointers into a typed slice would change what callers' type assertions accept.
+- Allocate existing pointer class cases in small typed blocks owned by one union sequence decode. A retained class
+  pointer keeps its block of up to eight slots alive, and a later read cannot reuse them. On
+  [44451141322](https://github.com/JasonXuDeveloper/Nino/actions/runs/44451141322), Go `UnionArray` dropped from
+  808 to 636 allocations on x64 and Arm64. The Neoverse-N2 read took 7 % less time and its same-revision control
+  shifted less than 1 %. The allocated bytes rose by 0.4 %, and tagged reads and the write controls stayed on par.
+- Keep value wrappers on the direct Go path. In the same runner batch, staging wrappers in immutable typed arrays
+  and extracting them through reflection cut the tagged probe's allocations from 581 to 54. Tagged reads took
+  19–27 % more time on the sampled x64 CPUs and 11 % more on Neoverse-N2. This is a diagnostic for preserving
+  the concrete dynamic value type and its allocation cost.
