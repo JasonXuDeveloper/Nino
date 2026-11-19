@@ -536,7 +536,7 @@ namespace Nino.Codegen.Tests
             StringAssert.Contains(go, "func ReadPick(r *nino.Reader) Pick {");
             var (rust, _) = Run("rust", "nino_types.rs");
             StringAssert.Contains(rust, "pub enum Pick {\n    /// The empty union.\n    #[default]\n    Empty,");
-            StringAssert.Contains(rust, "    EmptyCase(Option<Box<Empty>>),");
+            StringAssert.Contains(rust, "    EmptyCase(Option<Empty>),");
             StringAssert.Contains(rust, "    Byte(u8),");
         }
     }

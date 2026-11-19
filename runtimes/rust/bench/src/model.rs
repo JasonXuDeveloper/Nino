@@ -9099,7 +9099,7 @@ pub enum UnionValue {
     /// `Nino.Benchmark.UnionPoint`.
     UnionPoint(UnionPoint),
     /// `Nino.Benchmark.UnionItem`.
-    UnionItem(Option<Box<UnionItem>>),
+    UnionItem(Option<UnionItem>),
 }
 impl UnionValue {
     /// The value of the case it holds, where a body deferred inside it is put in place.
@@ -9127,7 +9127,7 @@ impl UnionValue {
             791437675 => Self::UnionPoint(r.read()?),
             635318394 => {
                 let mark = r.defer_mark();
-                let value: Option<Box<UnionItem>> = r.read()?;
+                let value: Option<UnionItem> = r.read()?;
                 if value.is_none() {
                     return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
                 }

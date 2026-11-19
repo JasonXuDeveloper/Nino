@@ -158,6 +158,43 @@ namespace Nino.Codegen.Targets
         }
 
         /// <summary>
+        /// A small, flat sealed class can live in the union. Its nullable presence header and deferrals are
+        /// the same with or without the box.
+        /// </summary>
+        internal RustShape ShapeUnionCase(TypeModel union, ValueModel value)
+        {
+            var shape = ShapeIn(union, value);
+            if (shape.Kind != "class" || shape.Type!.IsGeneric || shape.Type.Elements != null)
+                return shape;
+
+            // An enum's largest case sets its array stride. Limit the class body to five 64-bit words, charging
+            // one word per small scalar (including alignment) and three for an owned string handle. Only these
+            // flat fields qualify, so this cannot introduce a recursive inline layout.
+            const int MaxInlineWords = 5;
+            int words = 0;
+            foreach (var member in shape.Type.Members)
+            {
+                switch (member.Value.Kind)
+                {
+                    case ValueKind.Primitive when member.Value.Size is > 0 and <= 8:
+                        words += 1;
+                        break;
+                    case ValueKind.String:
+                    case ValueKind.Utf8:
+                        words += 3;
+                        break;
+                    default:
+                        return shape;
+                }
+
+                if (words > MaxInlineWords)
+                    return shape;
+            }
+
+            return new RustShape("inlineclass") { Type = shape.Type, MayDefer = shape.MayDefer };
+        }
+
+        /// <summary>
         /// The names of a generic definition's slot parameters (<see cref="TypeModel.SlotParameters"/>): type parameters
         /// after its own, bound to the enum of each slot where it is closed (<c>S0</c>, <c>S1</c>, ...).
         /// </summary>

@@ -253,7 +253,7 @@ namespace Nino.Codegen.Targets
         /// named <c>Empty</c>, the empty union's variant).
         /// </summary>
         public List<RustCase> Cases => Model.Cases.Select(c => new RustCase(
-            c.Name == "Empty" ? "EmptyCase" : c.Name, c, _target.ShapeIn(Model, c.Value))).ToList();
+            c.Name == "Empty" ? "EmptyCase" : c.Name, c, _target.ShapeUnionCase(Model, c.Value))).ToList();
 
         /// <summary>
         /// Whether a variant's name starts or ends with the enum's (<c>UnionTreeArray</c> of <c>UnionTree</c>), which

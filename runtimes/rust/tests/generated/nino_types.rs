@@ -2247,7 +2247,7 @@ pub enum Choice {
     /// `System.String`.
     String(Option<nino::WideString>),
     /// `Conformance.Point`.
-    Point(Option<Box<Point>>),
+    Point(Option<Point>),
     /// `Conformance.Animal`.
     Animal(Option<AnimalRef>),
     /// `System.Collections.Generic.List<System.Int32>`.
@@ -2280,7 +2280,7 @@ impl Choice {
             }
             -1773443910 => {
                 let mark = r.defer_mark();
-                let value: Option<Box<Point>> = r.read()?;
+                let value: Option<Point> = r.read()?;
                 if value.is_none() {
                     return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
                 }

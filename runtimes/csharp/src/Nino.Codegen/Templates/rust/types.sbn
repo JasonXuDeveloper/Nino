@@ -82,6 +82,8 @@ func rtype(s)
     ret "Option<Box<" + generic(s) + ">>"
   when "class"
     ret "Option<Box<" + name(s.type) + ">>"
+  when "inlineclass"
+    ret "Option<" + name(s.type) + ">"
   when "shared"
     ret "Option<nino::Shared<" + name(s.type) + ">>"
   when "slot"

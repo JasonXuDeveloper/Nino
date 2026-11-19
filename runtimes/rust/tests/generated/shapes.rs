@@ -2099,7 +2099,7 @@ pub enum Pick {
     #[default]
     Empty,
     /// `Shapes.Empty`.
-    EmptyCase(Option<Box<Empty>>),
+    EmptyCase(Option<Empty>),
     /// `Shapes.PickPair`.
     PickPair(PickPair),
     /// `System.Byte`.
@@ -2119,7 +2119,7 @@ impl Pick {
         Ok(match id {
             334101194 => {
                 let mark = r.defer_mark();
-                let value: Option<Box<Empty>> = r.read()?;
+                let value: Option<Empty> = r.read()?;
                 if value.is_none() {
                     return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
                 }
