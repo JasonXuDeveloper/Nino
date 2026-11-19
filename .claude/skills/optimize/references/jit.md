@@ -117,12 +117,12 @@ where that is so, and its x64 sizes are listings, not throughput.
   accesses to 10, TolerantClass's from 174 to 10. Look for `Reader:...:this` and `Writer:...:this` calls in a listing.
   A loop that may outgrow the buffer takes only the free space (`ref writer.FreeSpace(out int available)`, the bytes
   left) and returns where it stopped; its driver, which grows the buffer and goes on, is out of line with the writer
-  by value (#347's pair loop, `NinoRuns.WriteCursors`): that loop then keeps the value, end, stride, cursor and bytes
+  by value (#347's pair loop, now `NinoStringRuns.Write`): that loop then keeps the value, end, stride, cursor and bytes
   left in five callee-saved registers with only the string kernels' slow paths as calls (Tier1 x64, the
   all-in-use body; with free entries the in-use test takes a sixth and the bytes left go to the stack). The driver
   inline cost AppData's lookups 117 to 301 stack accesses, its first pass inline alone 15 to 47 in a string array's
   caller, against 29 out of line (the writer and the `NinoRun` argument copied once per collection). A read loop
-  takes the data and its end, and its store by value, returning what it counts (`ReadCursors`' merge: the keys
+  takes the data and its end, and its store by value, returning what it counts (`NinoDictionary.MergeCursors`: the keys
   already there in the high half): the store by reference, copied back, kept its address in a register and the
   caller's store in memory.
   The same rule keeps multi-segment input a copy: a `ReadOnlySequence<byte>` read across segments in place would need
@@ -160,7 +160,7 @@ where that is so, and its x64 sizes are listings, not throughput.
   (#355 PR 3, `asm.py compare`).
 
 - Read a collection whose shape repeats into its existing instance with a loop of its own over the data, as the fresh
-  read does: since #347 the pair loop `NinoRuns.ReadCursors` with the `NinoCursor.Merges` store (every pairing of
+  read does: since #347 the pair loop `NinoDictionary.MergeCursors` (every pairing of
   strings, UTF-8 strings, raw values and blocks into an existing `Dictionary`, the position and the end in registers,
   the value read over the current one through `ReadAt` with the compare its only call; before it
   `Reader.RefillStringPairs`, raw keys and strings only, measured below) instead of the general merge, whose
@@ -182,7 +182,7 @@ where that is so, and its x64 sizes are listings, not throughput.
   every CPU (runs 41534216283, 41576130603). The
   same test inline in `ReadString(current)` pushed callers past the inlining budget (the `Lazy<string>` read left
   `Reader.Skip` a call, 7 stack accesses to 22) and read the pooled class in 277-295 ns; inlined into
-  `RefillStringPairs`' loop (now `ReadCursors`) it made that loop slower (a pooled class with only the dictionary 179-206 ns against
+  `RefillStringPairs`' loop (now `MergeCursors`) it made that loop slower (a pooled class with only the dictionary 179-206 ns against
   139-162, `NinoDeserializePooled` 275-307); added before `RefillStringPairs` existed, the dictionary merge's general
   loop, which reads each value through `ReadStringOver`, read the pooled class in 284-293 ns against 256-265 without it
   (round 123).

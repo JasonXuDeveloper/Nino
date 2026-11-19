@@ -138,20 +138,21 @@ says which CPUs and cases moved.
   per element: each is an indirect call the JIT never inlines (a struct's method needs the exact type's context), and
   a static of the generic struct a helper call; reach an entry's fields from the concrete entry type in the top layer.
   A set of values with references moves its values at the entries' stride (`CollectionFields.Values`,
-  `NinoStorage.Items`: `HashSet<string>` write 932 to 843 bytes); a dictionary of entries with references takes its
-  own element formatter (`NinoDictionary.Entries`: `entry.Key`, `entry.Value` into `NinoCursor`'s pair overloads), as
-  the storage element's `MapFields` accessors cost two indirect calls per pair in each of `MaxSize` and `WriteAt`
-  (`Dictionary<string, string>` written 1.9 times as long, local) and offsets kept in its statics a
-  `CORINFO_HELP_GET_NONGCSTATIC_BASE` call each (still 1.2 times); the hash table is the cursor loop's store itself
-  (`INinoHashTable.Adding`), as a store wrapping it made two indirect calls per entry; and a set whose values neither
-  insert nor walk (`HashTables.Plan`: strings) adds them in an inline loop in `HashSetFormatter` (through
-  `NinoEntries` 1.2 to 1.3 times as long, local). The dictionary's out-of-line write computes the key and value
-  offsets from `MapEntry` and calls the by-value loops (`NinoRuns.WriteEach`/`WriteCursors`, writer by value and
-  returned): the shared `NinoRuns.WriteEntries` inlined its loop on that method's writer parameter, which then lived
-  in memory (`Dictionary<string, int>` WriteEntries 36 to 54 stack accesses; by value 36 to 30). Compute an in-use
-  test from the entry's own fields' distances (`CollectionFields.InUse`), never from a static of a generic class: one
-  not initialized when Tier1 compiles the caller is a helper call that spilled the set's write (`HashSet<int>`
-  serialize 958 to 1,120 bytes, 40 to 57 stack accesses). Decide the cursor loop in the caller from the item
+  `NinoStorage.Items`: `HashSet<string>` write 932 to 843 bytes); a set or dictionary whose items hold a string goes
+  to the string run kernels (`NinoStringRuns`, below), which replaced #426's three workarounds for it: an entry
+  formatter of its own over `NinoCursor`'s pair overloads (the storage element's `MapFields` accessors had cost two
+  indirect calls per pair in each of `MaxSize` and `WriteAt`, `Dictionary<string, string>` written 1.9 times as long,
+  local, and offsets in its statics a `CORINFO_HELP_GET_NONGCSTATIC_BASE` call each, still 1.2 times), the hash table
+  as the cursor loop's store (`INinoHashTable.Adding`, as a store wrapping it made two indirect calls per entry) and an
+  inline add loop for a set whose values neither insert nor walk (`HashTables.Plan`: strings; through `NinoEntries`
+  1.2 to 1.3 times as long, local). `NinoDictionary.Entries` stays for entries holding another class. The dictionary's
+  out-of-line write computes the key and value offsets from `MapEntry` and calls the by-value loops
+  (`NinoRuns.WriteEach`, `NinoStringRuns.WritePairs`, writer by value and returned): the shared `NinoRuns.WriteEntries`
+  inlined its loop on that method's writer parameter, which then lived in memory (`Dictionary<string, int>` WriteEntries
+  36 to 54 stack accesses; by value 36 to 30). Compute an in-use test from the entry's own fields' distances
+  (`CollectionFields.InUse`), never from a static of a generic class: one not initialized when Tier1 compiles the caller
+  is a helper call that spilled the set's write (`HashSet<int>` serialize 958 to 1,120 bytes, 40 to 57 stack accesses).
+  Decide the string run kernels' path in the caller from the item
   formatters (`NinoCursor.Own<T, TFormatter>()`, `CursorPairs`), never inside the shared loop from the element
   formatter (`NinoCursor.Own<TEntry, ...>`: `HashSet<int>` 1,046 bytes and 66 stack accesses, `HashSet<int?>` 1,234
   and 86; reverted). In the read, a shared entry formatter's block test costs nothing more: `NinoKind.Of` is behind
@@ -171,17 +172,33 @@ says which CPUs and cases moved.
   step 4): `NinoRuns.Read` fills a run of values in a row (arrays, a list's backing array before its count is
   published, spans, `Memory`, rings from 0, multi-dimensional arrays, lookups), `NinoEntries` fills the new
   entries of a set or a dictionary (each entry the element: raw items and blocks scattered by `ReadAll` through the
-  storage element's block map, in Untrusted mode too where `ReadSize` keeps the checks; the cursor loop; others value
+  storage element's block map, in Untrusted mode too where `ReadSize` keeps the checks; strings through the string run kernels; others value
   by value), and `HashTables.Link` links them. A polymorphic base's values go
   through its generated `WriteRun`, whose body is Nino.Core's pieces with the base's compare chain inside (a step
   carried into a Core loop lost: dispatch.md). A composite carries `NinoBodyTraits.Dispatches` where an item's
   formatter does (`NinoBlocks.Dispatches`: pairs, tuples, generated generic structs). Strings, UTF-8 strings and composites
-  holding them take one cursor loop per direction (#347, #355 step 5: `NinoRuns.WriteCursors`/`ReadCursors` over each
-  element's cursor form, `NinoCursor`: `MaxSize`, `WriteAt`, `ReadAt` returning byte counts; a pair's form is
-  `KeyValuePairFormatter`'s, composed from its items), never a string loop of its own. Keep that loop's state in registers: give it only the free space
-  (a reference and the bytes left) or the data and its end, return what it took, and let the caller commit, grow and
-  go on; the stores it fills (`Entries`, `Adds`, `Merges`) are plain structs it dispatches on by `typeof`. Three
-  traps cost iterations there (`asm.py`, the listings in references/jit.md): a `static readonly` field of
+  holding them are a bottom-layer kind with kernels of their own, one per direction (#355: `NinoStringRuns.Write`,
+  `Read`), as raw values have the block kernels, never a string loop in a top layer: the top layers call them once per
+  run under `NinoKind<TFormatter>.Strings` (`NinoRuns.WriteStrings`/`ReadStrings`, `HashSetFormatter`,
+  `NinoDictionary`, `KeyValuePairFormatter`'s `WriteStrings`/`ReadStrings`). Their items (`INinoRunItem`:
+  `NinoUtf16Item`, `NinoUtf8Item`, `NinoValueItem`; `MaxSize`, `WriteAt`, `Measure`, `ReadAt` returning byte counts)
+  are not generic over a class and a pair is composed from two (`NinoItemPair`, generic over its items only), so the
+  kernels are never shared code. Keep their state in registers, five values at most across the string kernels' and
+  the stores' calls (x64's callee-saved registers): the write takes only the free space (a reference and the bytes
+  left), checks each element's longest form against it and returns where it stopped, its driver growing the buffer
+  and going on; the read measures the whole run's lengths first in a loop of its own (`Measure`, out of line), then
+  reads with a moving source, the bytes left, the elements left and the element. Measured slower, so not retried
+  blind: a first pass that summed the run's longest forms to reserve them once (1,000 strings written 1.3 to 1.4
+  times as long, local quick runs); an offset in each string item (a register more in a run of strings alone:
+  `string[]` written 1.2 times as long; a pair places its items, `NinoItemPair`'s offsets); the measure loop inside
+  the read's method and a store whose fields or add were in the loop (its position, count and element on the stack:
+  `HashSet<string>` read 1.3 to 1.5 times as long). A store that hands each element on (`INinoRunStore.OneSlot`: a
+  set's or dictionary's adds into one entry) has its `Stored` out of line, called on its home on the stack, and its
+  items are read fresh (`ReadAt`'s `fresh`, written even when null: the one entry still holds the previous string,
+  a set read a null after a string as a duplicate). The dispatch to the kernels inline in `NinoRuns.Write`/`Read`,
+  inlined into every collection, spent their callers' budgets (KeyValuePairs, NullableGridInts, BlockingCollection
+  serialized with their writers in memory): keep it one out-of-line call there. Three traps cost iterations
+  (`asm.py`, the listings in references/jit.md): a `static readonly` field of
   `NinoKind<TFormatter>` read in code shared over a class element (`__Canon`) is a constant only when the class was
   initialized before Tier1 compiled the method, and a path that returns before reading it (raw, block) leaves it a
   helper call with the loop compiled in (`HashSet<NinoNullable<int>>` 811 to 1,174 bytes), so gate it behind the kind
