@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Nino.Codegen.Model;
@@ -7,32 +8,34 @@ namespace Nino.Codegen.Targets
     public sealed partial class TypeScriptTarget
     {
         /// <summary>
-        /// A C# union's cases as TypeScript writes them: a plain union of the cases' types (<c>number | string</c>)
-        /// when a writer can tell every case's values apart at run time (<see cref="RuntimeTest"/>), each case with its
-        /// test, class cases most derived first; otherwise a union tagged with each case's name (<c>{ case, value }</c>).
-        /// A C# union is a struct wrapping one value whose case is the value's runtime type, which a plain TypeScript
-        /// union expresses exactly where TypeScript keeps the types apart; where it does not (an <c>int</c> and a
-        /// <c>long</c> are both numbers, two lists both arrays, an interface has no constructor), the case is a tag.
+        /// A C# union's cases as TypeScript writes them. Use the value itself for the first case that a runtime test
+        /// identifies. Other cases sharing that test, or without a runtime test of their own, keep a case tag.
         /// </summary>
-        internal (bool Tagged, List<TsCase> Cases) UnionForm(TypeModel union)
+        internal List<TsCase> UnionCases(TypeModel union)
         {
-            var cases = union.Cases.Select(c => (Model: c, Shape: ShapeIn(union, c.Value))).ToList();
-            var tests = cases.Select(c => RuntimeTest(c.Shape)).ToList();
-            bool tagged = tests.Any(t => t == null) ||
-                          tests.Select(t => t!.Value.Key).Distinct(System.StringComparer.Ordinal).Count() != tests.Count;
-            var list = cases.Select((c, i) => new TsCase(c.Model, c.Shape) { Test = tests[i]?.Test }).ToList();
-            if (tagged)
-                return (true, list);
-            // A subclass before its base, so that its values take its own case (.NET's writer tries the exact type
-            // first too): the class cases are reordered among their own places, the others keep theirs.
-            var places = Enumerable.Range(0, list.Count)
-                .Where(i => tests[i]!.Value.Key.StartsWith("class:", System.StringComparison.Ordinal)).ToList();
-            var classes = places.OrderByDescending(i => list[i].Model.Clr.IsValueType ? 0 : Depth(list[i].Model.Clr))
-                .ThenBy(i => i).Select(i => list[i]).ToList();
-            var ordered = list.ToList();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var cases = new List<TsCase>(union.Cases.Count);
+            var places = new List<int>();
+            foreach (var model in union.Cases)
+            {
+                var shape = ShapeIn(union, model.Value);
+                var test = RuntimeTest(shape);
+                var result = new TsCase(model, shape);
+                if (test is { } t && seen.Add(t.Key))
+                {
+                    result.Test = t.Test;
+                    if (t.Key.StartsWith("class:", StringComparison.Ordinal))
+                        places.Add(cases.Count);
+                }
+                cases.Add(result);
+            }
+
+            // A subclass before its base, so its values take its own case. Only reorder the direct class cases.
+            var classes = places.OrderByDescending(i => cases[i].Model.Clr.IsValueType ? 0 : Depth(cases[i].Model.Clr))
+                .Select(i => cases[i]).ToList();
             for (int i = 0; i < places.Count; i++)
-                ordered[places[i]] = classes[i];
-            return (false, ordered);
+                cases[places[i]] = classes[i];
+            return cases;
         }
 
         private static int Depth(System.Type type)

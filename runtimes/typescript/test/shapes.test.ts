@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import { deserializeExact, deserializeInto, NinoError, serialize, type NinoNullable, type NullableSlot } from "../src/nino.ts";
 import { Grid, GridCodec } from "./generated/Nino.Conformance.ts";
 import {
-  Box, Flags, HoldsNinoNullable, HoldsWideNinoNullable, NinoNullableArgs, NinoNullableArgsCodec, NinoNullableRaw,
+  Box, Flags, HoldsNinoNullable, HoldsWideNinoNullable, Measure, MeasureCodec, NinoNullableArgs, NinoNullableArgsCodec, NinoNullableRaw,
   NinoNullableRawCodec, NinoNullableRawWide, NinoNullableRawWideCodec, NullableGrids, NullableGridsCodec,
   NullableSlots, NullableSlotsCodec, Strides,
   StridesCodec, TupleCell, TupleInside,
@@ -16,6 +16,22 @@ function hex(bytes: Uint8Array): string {
 }
 
 describe("Shapes", () => {
+  it("keeps the first case direct and preserves distinct wire ids for equal case values", () => {
+    assert.equal(Measure.Int32(1), 1);
+    assert.deepEqual(Measure.ListInt32([]), []);
+    const cases = [
+      [Measure.Int32(1), "a4a2972001000000"],
+      [Measure.Double(1), "1ba766b5000000000000f03f"],
+      [Measure.ListInt32([]), "1ba30ff300000000"],
+      [Measure.ListString([]), "84a3849400000000"],
+      [null, "00000000"],
+    ] as const;
+    for (const [value, expected] of cases) {
+      const bytes = serialize(MeasureCodec, value);
+      assert.equal(hex(bytes), expected);
+      assert.deepEqual(deserializeExact(MeasureCodec, bytes), value);
+    }
+  });
   it("writes T?[] of a raw struct at the stride .NET writes", () => {
     // TupleCell is aligned to 4 by the auto layout of the (byte, short) it holds: the flag, three bytes of padding,
     // then the value; as a member and as a type argument.

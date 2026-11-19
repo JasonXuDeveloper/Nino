@@ -78,16 +78,51 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   and the tagged union is the faster form (12.1 µs serialize, 7.5 deserialize against 23.1 and 13.0 on EPYC 9V45, with
   fewer and smaller values); Go deserializes in about three times its serialize time (35.7 against 11.9 µs, EPYC
   9V74) with an allocation per non-int case (808 for UnionArray). The gaps are #387.
+- Use direct TypeScript values for the first case of each runtime test. Keep the tag on later cases sharing that
+  test and cases without one. An int and a short can hold the same number, so choose the direct case by declaration
+  order and keep the other case's tag even when its value lies in both ranges. The official tagged array reads
+  333 tagged objects for 1,000 elements. In [44458051073](https://github.com/JasonXuDeveloper/Nino/actions/runs/44458051073),
+  its write took 14–16 % less time on the sampled x64 CPUs and 20 % less on Neoverse-N2. Tagged reads took about
+  12 % less time on the AMD CPUs and 17 % less on Neoverse-N2. The Xeon read and ordinary union cases stayed on par.
+  V8 inlines the 124-byte tagged reader and 235-byte tagged writer into their collection loops.
 - Construct the Rust union variant directly in its read, and record a deferred trail only for cases that can open
   deferred bodies. Against 44d49866 on runtime A/B 44333395182, `UnionArray` / `TaggedUnionArray` deserialize
   medians fell 38 % / 51 % on EPYC 9V74, 43 % / 55 % on Xeon 6975P-C and 33 % / 44 % on Neoverse-N2.
   Both serialize controls stayed on par. Count struct depth around each non-null case, including a failed read.
+- Measure the whole Rust enum array before storing a boxed class inline. In the `UnionArray` probe, moving
+  the sealed class into the enum removed a box per class case and expanded the 64-bit stride from 24 to
+  40 bytes. In [44458051073](https://github.com/JasonXuDeveloper/Nino/actions/runs/44458051073), the actual read
+  took 31–33 % more time on the sampled x64 AMD CPUs and 36 % more on Neoverse-N2. The unchanged tagged read
+  stayed on par on both architectures. Keep the box for the measured class variant.
 - Reserve the case ID and fixed payload together in TypeScript union writers. Use the same offset writer and padding
   policy as other fixed shapes. On runtime A/B 44333395182, Node's `UnionArray` / `TaggedUnionArray` serialize
   medians fell 17 % / 22 % on Neoverse-N2. The plain union wrote its 1,000 values in 37.1 µs against JSON's 38.8 µs
   on that CPU, within 5 %. The sampled x64 medians fell 10–14 % / 17–23 %.
-- Treat the dynamic type of a generated Go union case as part of its API: callers assert the concrete value wrapper.
-  `go build -gcflags=-m ./model` in the Go bench module reports heap escape for `UnionValueInt32`,
-  `UnionValueInt64`, `UnionValueUnionPoint`, `UnionTaggedInt32` and `UnionTaggedInt16`. Go's small-integer
-  conversion table can still supply some of those boxes. The string wrapper has a single pointer field and fits
-  directly in an interface. Returning pointers into a typed slice would change what callers' type assertions accept.
+- Use pointer cases for generated Go union values that would allocate an interface box. Before the pointer change,
+  `go build -gcflags=-m ./model` reported escapes for `UnionValueInt32`, `UnionValueInt64`, `UnionValueUnionPoint`,
+  `UnionTaggedInt32` and `UnionTaggedInt16`. Keep one-pointer wrappers such as the string case and wrappers using
+  static storage such as byte cases as values. A case's concrete type is part of its generated Go API.
+- Allocate existing pointer class cases in small typed blocks owned by one union sequence decode. A retained class
+  pointer keeps its block of up to eight slots alive, and a later read cannot reuse them. On
+  [44451141322](https://github.com/JasonXuDeveloper/Nino/actions/runs/44451141322), Go `UnionArray` dropped from
+  808 to 636 allocations on x64 and Arm64. The Neoverse-N2 read took 7 % less time and its same-revision control
+  shifted less than 1 %. The allocated bytes rose by 0.4 %, and tagged reads and the write controls stayed on par.
+- Give a collection local typed blocks per pointer case. Allocate through the reader's capacity budget and use
+  smaller blocks for cases with variable-size payloads. The earlier experiment with immutable value blocks and
+  reflection cut the tagged probe's allocations from 581 to 54, but tagged reads took 19–27 % more time on the
+  sampled x64 CPUs and 11 % more on Neoverse-N2.
+  With typed pointers in [44458051073](https://github.com/JasonXuDeveloper/Nino/actions/runs/44458051073), the
+  official `UnionArray` and `TaggedUnionArray` cases dropped from 808 to 77 and 582 to 43 allocations. Median reads
+  took 12–15 % and 9–20 % less time on the sampled x64 CPUs, and 22 % and 16 % less on Neoverse-N2. The linked
+  benchmark readers on both architectures lost the five `runtime.convT*` calls for those cases.
+  Keep the slab's `next` as it is and its block limits at 32 fixed-size and 8 variable-size slots: after the
+  pointer cases, GC (`scanobject`, write barriers) and string reads take most of a union read's profile, not `next`.
+  A `next` that advances an index (no slice store, so no write barrier) with its growth in a `//go:noinline` method
+  measured on par locally (UnionArray 28.6 against 28.4 µs, TaggedUnionArray 18.8 against 19.2, `-count 6`), and the
+  shaped method stays out of line anyway (cost 88-89 against the budget of 80: the dictionary call). Blocks of
+  256 / 64 slots took 4-7 % longer locally (more bytes to clear and scan: 39.4 against 36.6 KB per UnionArray read).
+- Keep TypeScript's direct union cases without a tag. Every value carrying its case (a wrapper, or a class with a
+  `case` field) costs an object per number, string or array, which is the allocation #387 removed; a generated class
+  cannot carry one either, since one class can be a case of several unions. Users narrow a direct case by its runtime
+  test (`typeof`, `Array.isArray`, `instanceof`) and a tagged one by `case`; the union's generated comment lists each
+  direct case's test (docs/codegen.md, C# unions).

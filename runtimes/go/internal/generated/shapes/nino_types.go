@@ -503,6 +503,7 @@ var (
 	stampsClass                  nino.Class[Stamps]
 	stridesClass                 nino.Class[Strides]
 	thingClassClass              nino.Class[ThingClass]
+	trackedPickClass             nino.Class[TrackedPick]
 	twinAClass                   nino.Class[TwinA]
 	unhashedKeysClass            nino.Class[UnhashedKeys]
 	usesClass                    nino.Class[Uses]
@@ -568,6 +569,7 @@ func init() {
 	stampsClass = nino.Class[Stamps]{Read: readStampsBody, Write: writeStampsBody, Deferrable: true}
 	stridesClass = nino.Class[Strides]{Read: readStridesBody, Write: writeStridesBody, Deferrable: true}
 	thingClassClass = nino.Class[ThingClass]{Read: readThingClassBody, Write: writeThingClassBody, Deferrable: true}
+	trackedPickClass = nino.Class[TrackedPick]{Read: readTrackedPickBody, Write: writeTrackedPickBody, Deferrable: true}
 	twinAClass = nino.Class[TwinA]{Read: readTwinABody, Write: writeTwinABody, Deferrable: true}
 	unhashedKeysClass = nino.Class[UnhashedKeys]{Read: readUnhashedKeysBody, Write: writeUnhashedKeysBody, Deferrable: true}
 	usesClass = nino.Class[Uses]{Read: readUsesBody, Write: writeUsesBody, Deferrable: true}
@@ -1900,7 +1902,7 @@ func WriteMarked(w *nino.Writer, v Marked) {
 	writeMarked(w, v)
 }
 
-// Measure is the C# union `Shapes.Measure`: MeasureInt32, MeasureDouble, MeasureListInt32, MeasureListString, or nil for the empty union.
+// Measure is the C# union `Shapes.Measure`: *MeasureInt32, *MeasureDouble, *MeasureListInt32, *MeasureListString, or nil for the empty union.
 type Measure interface {
 	isMeasure()
 }
@@ -1910,7 +1912,7 @@ type MeasureInt32 struct {
 	Value int32 `json:"value" yaml:"value"`
 }
 
-func (MeasureInt32) isMeasure() {
+func (*MeasureInt32) isMeasure() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -1923,7 +1925,7 @@ type MeasureDouble struct {
 	Value float64 `json:"value" yaml:"value"`
 }
 
-func (MeasureDouble) isMeasure() {
+func (*MeasureDouble) isMeasure() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -1936,7 +1938,7 @@ type MeasureListInt32 struct {
 	Value []int32 `json:"value" yaml:"value"`
 }
 
-func (MeasureListInt32) isMeasure() {
+func (*MeasureListInt32) isMeasure() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -1949,7 +1951,7 @@ type MeasureListString struct {
 	Value []*string `json:"value" yaml:"value"`
 }
 
-func (MeasureListString) isMeasure() {
+func (*MeasureListString) isMeasure() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -1957,8 +1959,19 @@ func (MeasureListString) NinoUnionCase() string {
 	return "System.Collections.Generic.List<System.String>"
 }
 
+type ninoMeasureSlabs struct {
+	MeasureInt32      ninoUnionSlab[MeasureInt32]
+	MeasureDouble     ninoUnionSlab[MeasureDouble]
+	MeasureListInt32  ninoUnionSlab[MeasureListInt32]
+	MeasureListString ninoUnionSlab[MeasureListString]
+}
+
 // ReadMeasure reads a Measure: the type id of its case (0 for the empty union), then the case's value.
 func ReadMeasure(r *nino.Reader) Measure {
+	return readMeasureSlab(r, nil)
+}
+
+func readMeasureSlab(r *nino.Reader, slabs *ninoMeasureSlabs) Measure {
 	id := r.TypeID()
 	if id == nino.NullTypeID {
 		return nil
@@ -1969,18 +1982,46 @@ func ReadMeasure(r *nino.Reader) Measure {
 	var v Measure
 	switch id {
 	case 546808484:
-		v = MeasureInt32{Value: r.I32()}
+		var p *MeasureInt32
+		if slabs == nil {
+			p = new(MeasureInt32)
+		} else {
+			p = slabs.MeasureInt32.next(r, 32)
+		}
+		p.Value = r.I32()
+		v = p
 	case -1251563749:
-		v = MeasureDouble{Value: r.F64()}
+		var p *MeasureDouble
+		if slabs == nil {
+			p = new(MeasureDouble)
+		} else {
+			p = slabs.MeasureDouble.next(r, 32)
+		}
+		p.Value = r.F64()
+		v = p
 	case -217079013:
 		if value := nino.ReadPrimitives[int32](r); value != nil {
-			v = MeasureListInt32{Value: value}
+			var p *MeasureListInt32
+			if slabs == nil {
+				p = new(MeasureListInt32)
+			} else {
+				p = slabs.MeasureListInt32.next(r, 8)
+			}
+			p.Value = value
+			v = p
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
 	case -1803246716:
 		if value := readV24(r); value != nil {
-			v = MeasureListString{Value: value}
+			var p *MeasureListString
+			if slabs == nil {
+				p = new(MeasureListString)
+			} else {
+				p = slabs.MeasureListString.next(r, 8)
+			}
+			p.Value = value
+			v = p
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
@@ -2001,7 +2042,10 @@ func ReadMeasureInto(r *nino.Reader, v *Measure) {
 
 func WriteMeasure(w *nino.Writer, v Measure) {
 	switch v := v.(type) {
-	case MeasureInt32:
+	case *MeasureInt32:
+		if v == nil {
+			break
+		}
 		w.TypeID(546808484)
 		if !w.EnterStruct() {
 			return
@@ -2009,7 +2053,10 @@ func WriteMeasure(w *nino.Writer, v Measure) {
 		w.I32(v.Value)
 		w.ExitStruct()
 		return
-	case MeasureDouble:
+	case *MeasureDouble:
+		if v == nil {
+			break
+		}
 		w.TypeID(-1251563749)
 		if !w.EnterStruct() {
 			return
@@ -2017,8 +2064,8 @@ func WriteMeasure(w *nino.Writer, v Measure) {
 		w.F64(v.Value)
 		w.ExitStruct()
 		return
-	case MeasureListInt32:
-		if v.Value == nil {
+	case *MeasureListInt32:
+		if v == nil || v.Value == nil {
 			break
 		}
 		w.TypeID(-217079013)
@@ -2028,8 +2075,8 @@ func WriteMeasure(w *nino.Writer, v Measure) {
 		nino.WritePrimitives[int32](w, v.Value)
 		w.ExitStruct()
 		return
-	case MeasureListString:
-		if v.Value == nil {
+	case *MeasureListString:
+		if v == nil || v.Value == nil {
 			break
 		}
 		w.TypeID(-1803246716)
@@ -3360,7 +3407,7 @@ func (c *pairCodec[TKey, TValue]) write(w *nino.Writer, v Pair[TKey, TValue]) {
 	w.ExitStruct()
 }
 
-// Pick is the C# union `Shapes.Pick`: *Empty, PickPickPair, PickByte, or nil for the empty union.
+// Pick is the C# union `Shapes.Pick`: *Empty, *PickPickPair, PickByte, *TrackedPick, or nil for the empty union.
 type Pick interface {
 	isPick()
 }
@@ -3373,7 +3420,7 @@ type PickPickPair struct {
 	Value PickPair `json:"value" yaml:"value"`
 }
 
-func (PickPickPair) isPick() {
+func (*PickPickPair) isPick() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -3394,8 +3441,20 @@ func (PickByte) NinoUnionCase() string {
 	return "System.Byte"
 }
 
+func (*TrackedPick) isPick() {
+}
+
+type ninoPickSlabs struct {
+	Empty        ninoUnionSlab[Empty]
+	PickPickPair ninoUnionSlab[PickPickPair]
+}
+
 // ReadPick reads a Pick: the type id of its case (0 for the empty union), then the case's value.
 func ReadPick(r *nino.Reader) Pick {
+	return readPickSlab(r, nil)
+}
+
+func readPickSlab(r *nino.Reader, slabs *ninoPickSlabs) Pick {
 	id := r.TypeID()
 	if id == nino.NullTypeID {
 		return nil
@@ -3406,15 +3465,40 @@ func ReadPick(r *nino.Reader) Pick {
 	var v Pick
 	switch id {
 	case 334101194:
-		if value := ReadEmpty(r); value != nil {
+		var value *Empty
+		if slabs == nil {
+			value = ReadEmpty(r)
+		} else if r.Present() {
+			value = slabs.Empty.next(r, 8)
+			if d, ok := r.EnterBody(); ok {
+				readEmptyBody(r, value)
+				r.ExitBody(d)
+			} else {
+				nino.ReadClassInto(r, value, &emptyClass)
+			}
+		}
+		if value != nil {
 			v = value
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
 	case -2134742284:
-		v = PickPickPair{Value: readPickPair(r)}
+		var p *PickPickPair
+		if slabs == nil {
+			p = new(PickPickPair)
+		} else {
+			p = slabs.PickPickPair.next(r, 32)
+		}
+		p.Value = readPickPair(r)
+		v = p
 	case 31168724:
 		v = PickByte{Value: r.U8()}
+	case 550720032:
+		if value := ReadTrackedPick(r); value != nil {
+			v = value
+		} else {
+			r.Fail(nino.CodeInvalidData, "a union case without a value")
+		}
 	default:
 		r.UnknownType(id)
 	}
@@ -3443,7 +3527,10 @@ func WritePick(w *nino.Writer, v Pick) {
 		WriteEmpty(w, v)
 		w.ExitStruct()
 		return
-	case PickPickPair:
+	case *PickPickPair:
+		if v == nil {
+			break
+		}
 		w.TypeID(-2134742284)
 		if !w.EnterStruct() {
 			return
@@ -3457,6 +3544,17 @@ func WritePick(w *nino.Writer, v Pick) {
 			return
 		}
 		w.U8(v.Value)
+		w.ExitStruct()
+		return
+	case *TrackedPick:
+		if v == nil {
+			break
+		}
+		w.TypeID(550720032)
+		if !w.EnterStruct() {
+			return
+		}
+		WriteTrackedPick(w, v)
 		w.ExitStruct()
 		return
 	}
@@ -3490,13 +3588,15 @@ func WritePickPair(w *nino.Writer, v PickPair) {
 
 // Picks is `Shapes.Picks`.
 type Picks struct {
-	Pick    Pick    `nino:"0" json:"pick" yaml:"pick"`
-	Many    []Pick  `nino:"1" json:"many" yaml:"many"`
-	Measure Measure `nino:"2" json:"measure" yaml:"measure"`
+	Pick     Pick                      `nino:"0" json:"pick" yaml:"pick"`
+	Many     []Pick                    `nino:"1" json:"many" yaml:"many"`
+	Measure  Measure                   `nino:"2" json:"measure" yaml:"measure"`
+	ByNumber []nino.Entry[int32, Pick] `nino:"3" json:"byNumber" yaml:"byNumber"`
+	Grid     *NinoGrid[Pick]           `nino:"4" json:"grid" yaml:"grid"`
 }
 
 func (Picks) NinoLayout() string {
-	return "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x039C66DD; deferrable=true; members=Pick:Shapes.Pick:type(Shapes.Pick);Many:Shapes.Pick[]:seq(type(Shapes.Pick));Measure:Shapes.Measure:type(Shapes.Measure)"
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x039C66DD; deferrable=true; members=Pick:Shapes.Pick:type(Shapes.Pick);Many:Shapes.Pick[]:seq(type(Shapes.Pick));Measure:Shapes.Measure:type(Shapes.Measure);ByNumber:System.Collections.Generic.Dictionary<int, Shapes.Pick>:map(raw(4),type(Shapes.Pick));Grid:Shapes.Pick[,]:grid(2,type(Shapes.Pick))"
 }
 
 func (Picks) NinoTypeName() string {
@@ -3578,12 +3678,16 @@ func readPicksBody(r *nino.Reader, v *Picks) {
 	ReadPickInto(r, &v.Pick)
 	readintoV36(r, &v.Many)
 	ReadMeasureInto(r, &v.Measure)
+	v.ByNumber = readV37(r)
+	v.Grid = readV38(r)
 }
 
 func writePicksBody(w *nino.Writer, v *Picks) {
 	WritePick(w, v.Pick)
 	writeV36(w, v.Many)
 	WriteMeasure(w, v.Measure)
+	writeV37(w, v.ByNumber)
+	writeV38(w, v.Grid)
 }
 
 // RawPair is `Shapes.Generic.RawPair<T>`.
@@ -3662,7 +3766,7 @@ func ReadRecursiveInto(r *nino.Reader, v *Recursive) {
 		return
 	}
 	v.Value = r.I32()
-	readintoV37(r, &v.Children)
+	readintoV39(r, &v.Children)
 	r.ExitStruct()
 }
 
@@ -3671,7 +3775,7 @@ func WriteRecursive(w *nino.Writer, v Recursive) {
 		return
 	}
 	w.I32(v.Value)
-	writeV37(w, v.Children)
+	writeV39(w, v.Children)
 	w.ExitStruct()
 }
 
@@ -4180,7 +4284,7 @@ func readStampsBody(r *nino.Reader, v *Stamps) {
 	v.Ids = nino.ReadBlock[nino.Guid](r)
 	v.Signed = nino.ReadBlock[nino.Int128](r)
 	v.Unsigned = nino.ReadBlock[nino.UInt128](r)
-	v.Marks = readV38(r)
+	v.Marks = readV40(r)
 }
 
 func writeStampsBody(w *nino.Writer, v *Stamps) {
@@ -4191,7 +4295,7 @@ func writeStampsBody(w *nino.Writer, v *Stamps) {
 	nino.WriteBlock[nino.Guid](w, v.Ids)
 	nino.WriteBlock[nino.Int128](w, v.Signed)
 	nino.WriteBlock[nino.UInt128](w, v.Unsigned)
-	writeV38(w, v.Marks)
+	writeV40(w, v.Marks)
 }
 
 // Strides is `Shapes.Strides`.
@@ -4413,6 +4517,47 @@ func ReadThingStructInto(r *nino.Reader, v *ThingStruct) {
 
 func WriteThingStruct(w *nino.Writer, v ThingStruct) {
 	writeThingStruct(w, v)
+}
+
+// TrackedPick is `Shapes.TrackedPick`.
+type TrackedPick struct {
+	Value int32        `nino:"0" json:"value" yaml:"value"`
+	Next  *TrackedPick `nino:"1" json:"next" yaml:"next"`
+}
+
+func (TrackedPick) NinoLayout() string {
+	return "format=Positional; header=Presence; trackReferences=true; raw=false; id=0x20D35220; deferrable=true; members=Value:int:raw(4);Next:Shapes.TrackedPick:type(Shapes.TrackedPick)"
+}
+
+func (TrackedPick) NinoTypeName() string {
+	return "Shapes.TrackedPick"
+}
+
+func (*TrackedPick) NinoTypeID() int32 {
+	return 550720032
+}
+
+func ReadTrackedPick(r *nino.Reader) *TrackedPick {
+	return nino.ReadTracked(r, &trackedPickClass)
+}
+
+// ReadTrackedPickInto reads a value into *v (DeserializeInto): a tracked object is read new.
+func ReadTrackedPickInto(r *nino.Reader, v **TrackedPick) {
+	*v = ReadTrackedPick(r)
+}
+
+func WriteTrackedPick(w *nino.Writer, v *TrackedPick) {
+	nino.WriteTracked(w, v, &trackedPickClass)
+}
+
+func readTrackedPickBody(r *nino.Reader, v *TrackedPick) {
+	v.Value = r.I32()
+	v.Next = ReadTrackedPick(r)
+}
+
+func writeTrackedPickBody(w *nino.Writer, v *TrackedPick) {
+	w.I32(v.Value)
+	WriteTrackedPick(w, v.Next)
 }
 
 func (TupleCell) NinoLayout() string {
@@ -4735,13 +4880,13 @@ func readUsesBody(r *nino.Reader, v *Uses) {
 	v.Pair = codecV12.Read(r)
 	v.Nested = codecV13.Read(r)
 	v.Mixed = codecV15.Read(r)
-	readintoV39(r, &v.Boxes)
+	readintoV41(r, &v.Boxes)
 	v.Bag = codecV16.Read(r)
 	v.Chain = codecV17.Read(r)
 	v.Thing = codecV18.Read(r)
 	v.Array = codecV19.Read(r)
 	v.Complex = codecV20.Read(r)
-	v.Pairs = readV40(r)
+	v.Pairs = readV42(r)
 	v.Raw = codecV22.Read(r)
 	v.Tuple = codecV23.Read(r)
 	v.Maybe = codecV24.Read(r)
@@ -4757,13 +4902,13 @@ func writeUsesBody(w *nino.Writer, v *Uses) {
 	codecV12.Write(w, v.Pair)
 	codecV13.Write(w, v.Nested)
 	codecV15.Write(w, v.Mixed)
-	writeV39(w, v.Boxes)
+	writeV41(w, v.Boxes)
 	codecV16.Write(w, v.Bag)
 	codecV17.Write(w, v.Chain)
 	codecV18.Write(w, v.Thing)
 	codecV19.Write(w, v.Array)
 	codecV20.Write(w, v.Complex)
-	writeV40(w, v.Pairs)
+	writeV42(w, v.Pairs)
 	codecV22.Write(w, v.Raw)
 	codecV23.Write(w, v.Tuple)
 	codecV24.Write(w, v.Maybe)
@@ -4771,6 +4916,23 @@ func writeUsesBody(w *nino.Writer, v *Uses) {
 	codecV26.Write(w, v.Set)
 	codecV27.Write(w, v.IntKeys)
 	codecV28.Write(w, v.StringKeys)
+}
+
+// ninoUnionSlab gives pointer cases fresh storage in small blocks.
+type ninoUnionSlab[T any] struct {
+	slots []T
+	size  int
+}
+
+func (s *ninoUnionSlab[T]) next(r *nino.Reader, limit int) *T {
+	if len(s.slots) == 0 {
+		var z T
+		s.size = r.SliceCap(min(limit, max(1, s.size*2)), int(unsafe.Sizeof(z)))
+		s.slots = make([]T, s.size)
+	}
+	v := &s.slots[0]
+	s.slots = s.slots[1:]
+	return v
 }
 
 // readSlot0 reads a value of a slot declared as Shapes.Generic.Open<System.Int32>: a type id, then the body
@@ -4935,7 +5097,7 @@ func readV4(r *nino.Reader) []nino.NullableSlot[TupleCell] {
 	var e nino.NullableSlot[TupleCell]
 	v := make([]nino.NullableSlot[TupleCell], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 16 {
-		e = decodeV41(r, b[0:16])
+		e = decodeV43(r, b[0:16])
 		if r.Failed() {
 			return nil
 		}
@@ -4957,7 +5119,7 @@ func writeV4(w *nino.Writer, v []nino.NullableSlot[TupleCell]) {
 	}
 	for _, e := range v {
 		_ = b[15]
-		encodeV41(b[0:16], e)
+		encodeV43(b[0:16], e)
 		b = b[16:]
 	}
 }
@@ -4991,7 +5153,7 @@ func readV7(r *nino.Reader) []nino.Entry[int32, *int64] {
 	v := make([]nino.Entry[int32, *int64], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for range n {
 		k := r.I32()
-		e = nino.Entry[int32, *int64]{Key: k, Value: readV42(r)}
+		e = nino.Entry[int32, *int64]{Key: k, Value: readV44(r)}
 		if r.Failed() {
 			return nil
 		}
@@ -5008,7 +5170,7 @@ func writeV7(w *nino.Writer, v []nino.Entry[int32, *int64]) {
 	w.Length(len(v))
 	for _, e := range v {
 		w.I32(e.Key)
-		writeV42(w, e.Value)
+		writeV44(w, e.Value)
 	}
 }
 
@@ -5451,7 +5613,7 @@ func readV23(r *nino.Reader) []nino.NullableSlot[nino.Int128] {
 	var e nino.NullableSlot[nino.Int128]
 	v := make([]nino.NullableSlot[nino.Int128], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 32 {
-		e = decodeV43(r, b[0:32])
+		e = decodeV45(r, b[0:32])
 		if r.Failed() {
 			return nil
 		}
@@ -5473,7 +5635,7 @@ func writeV23(w *nino.Writer, v []nino.NullableSlot[nino.Int128]) {
 	}
 	for _, e := range v {
 		_ = b[31]
-		encodeV43(b[0:32], e)
+		encodeV45(b[0:32], e)
 		b = b[32:]
 	}
 }
@@ -5515,7 +5677,7 @@ func readV27(r *nino.Reader) []nino.Entry[int32, nino.NinoNullable[float64]] {
 	var e nino.Entry[int32, nino.NinoNullable[float64]]
 	v := make([]nino.Entry[int32, nino.NinoNullable[float64]], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 20 {
-		e = nino.Entry[int32, nino.NinoNullable[float64]]{Key: int32(le.Uint32(b)), Value: decodeV44(r, b[4:20])}
+		e = nino.Entry[int32, nino.NinoNullable[float64]]{Key: int32(le.Uint32(b)), Value: decodeV46(r, b[4:20])}
 		if r.Failed() {
 			return nil
 		}
@@ -5528,7 +5690,7 @@ func readV27(r *nino.Reader) []nino.Entry[int32, nino.NinoNullable[float64]] {
 func readV28(r *nino.Reader) NinoTuple2[uint8, nino.NinoNullable[nino.Guid]] {
 	var v NinoTuple2[uint8, nino.NinoNullable[nino.Guid]]
 	v.Item1 = r.U8()
-	v.Item2 = readV45(r)
+	v.Item2 = readV47(r)
 	return v
 }
 
@@ -5558,14 +5720,14 @@ func writeV27(w *nino.Writer, v []nino.Entry[int32, nino.NinoNullable[float64]])
 		e := &v[i]
 		_ = b[19]
 		le.PutUint32(b, uint32(e.Key))
-		encodeV44(b[4:20], e.Value)
+		encodeV46(b[4:20], e.Value)
 		b = b[20:]
 	}
 }
 
 func writeV28(w *nino.Writer, v NinoTuple2[uint8, nino.NinoNullable[nino.Guid]]) {
 	w.U8(v.Item1)
-	writeV45(w, v.Item2)
+	writeV47(w, v.Item2)
 }
 
 func readV29(r *nino.Reader) []HoldsNinoNullable {
@@ -5657,7 +5819,7 @@ func readV31(r *nino.Reader) *NinoGrid[nino.NullableSlot[int32]] {
 	}
 	for i := range g.Items {
 		_ = b[7]
-		g.Items[i] = decodeV46(r, b[0:8])
+		g.Items[i] = decodeV48(r, b[0:8])
 		if r.Failed() {
 			return nil
 		}
@@ -5677,7 +5839,7 @@ func readV32(r *nino.Reader) *NinoGrid[nino.NullableSlot[int64]] {
 	}
 	for i := range g.Items {
 		_ = b[15]
-		g.Items[i] = decodeV47(r, b[0:16])
+		g.Items[i] = decodeV49(r, b[0:16])
 		if r.Failed() {
 			return nil
 		}
@@ -5697,7 +5859,7 @@ func readV33(r *nino.Reader) *NinoGrid[nino.NullableSlot[TupleCell]] {
 	}
 	for i := range g.Items {
 		_ = b[15]
-		g.Items[i] = decodeV41(r, b[0:16])
+		g.Items[i] = decodeV43(r, b[0:16])
 		if r.Failed() {
 			return nil
 		}
@@ -5716,7 +5878,7 @@ func writeV31(w *nino.Writer, v *NinoGrid[nino.NullableSlot[int32]]) {
 	}
 	for _, e := range v.Items {
 		_ = b[7]
-		encodeV46(b[0:8], e)
+		encodeV48(b[0:8], e)
 		b = b[8:]
 	}
 }
@@ -5731,7 +5893,7 @@ func writeV32(w *nino.Writer, v *NinoGrid[nino.NullableSlot[int64]]) {
 	}
 	for _, e := range v.Items {
 		_ = b[15]
-		encodeV47(b[0:16], e)
+		encodeV49(b[0:16], e)
 		b = b[16:]
 	}
 }
@@ -5746,7 +5908,7 @@ func writeV33(w *nino.Writer, v *NinoGrid[nino.NullableSlot[TupleCell]]) {
 	}
 	for _, e := range v.Items {
 		_ = b[15]
-		encodeV41(b[0:16], e)
+		encodeV43(b[0:16], e)
 		b = b[16:]
 	}
 }
@@ -5789,7 +5951,7 @@ func readintoV35(r *nino.Reader, p *[]NinoTuple2[int32, *int32]) {
 	}
 	var e NinoTuple2[int32, *int32]
 	for range n {
-		e = readV48(r)
+		e = readV50(r)
 		if r.Failed() {
 			*p = nil
 			return
@@ -5817,7 +5979,7 @@ func writeV35(w *nino.Writer, v []NinoTuple2[int32, *int32]) {
 	}
 	w.Length(len(v))
 	for _, e := range v {
-		writeV48(w, e)
+		writeV50(w, e)
 	}
 }
 
@@ -5833,12 +5995,10 @@ func readintoV36(r *nino.Reader, p *[]Pick) {
 		var z Pick
 		v = make([]Pick, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
 	}
-	for i := range n {
-		var e Pick
-		if i < len(old) {
-			e = old[i]
-		}
-		ReadPickInto(r, &e)
+	var slabs ninoPickSlabs
+	var e Pick
+	for range n {
+		e = readPickSlab(r, &slabs)
 		if r.Failed() {
 			*p = nil
 			return
@@ -5846,6 +6006,40 @@ func readintoV36(r *nino.Reader, p *[]Pick) {
 		v = append(v, e)
 	}
 	*p = v
+}
+
+func readV37(r *nino.Reader) []nino.Entry[int32, Pick] {
+	n := r.Length(8)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[int32, Pick]
+	v := make([]nino.Entry[int32, Pick], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	var valueSlabs ninoPickSlabs
+	for range n {
+		k := r.I32()
+		e = nino.Entry[int32, Pick]{Key: k, Value: readPickSlab(r, &valueSlabs)}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.CheckUniqueKeysWith(r, v, &keyCheck2)
+}
+
+func readV38(r *nino.Reader) *NinoGrid[Pick] {
+	g := readGrid[Pick](r, 2, 4)
+	if g == nil {
+		return nil
+	}
+	var slabs ninoPickSlabs
+	for i := range g.Items {
+		g.Items[i] = readPickSlab(r, &slabs)
+		if r.Failed() {
+			return nil
+		}
+	}
+	return g
 }
 
 func writeV36(w *nino.Writer, v []Pick) {
@@ -5859,7 +6053,28 @@ func writeV36(w *nino.Writer, v []Pick) {
 	}
 }
 
-func readintoV37(r *nino.Reader, p *[]Recursive) {
+func writeV37(w *nino.Writer, v []nino.Entry[int32, Pick]) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	for _, e := range v {
+		w.I32(e.Key)
+		WritePick(w, e.Value)
+	}
+}
+
+func writeV38(w *nino.Writer, v *NinoGrid[Pick]) {
+	if !writeGrid(w, v, 2) {
+		return
+	}
+	for _, e := range v.Items {
+		WritePick(w, e)
+	}
+}
+
+func readintoV39(r *nino.Reader, p *[]Recursive) {
 	n := r.Length(8)
 	if n < 0 {
 		*p = nil
@@ -5886,7 +6101,7 @@ func readintoV37(r *nino.Reader, p *[]Recursive) {
 	*p = v
 }
 
-func writeV37(w *nino.Writer, v []Recursive) {
+func writeV39(w *nino.Writer, v []Recursive) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -5897,7 +6112,7 @@ func writeV37(w *nino.Writer, v []Recursive) {
 	}
 }
 
-func readV38(r *nino.Reader) []Marked {
+func readV40(r *nino.Reader) []Marked {
 	if v, ok := nino.TryReadRaw[Marked](r, 8, asIsMarked, []int{4}); ok {
 		return v
 	}
@@ -5922,7 +6137,7 @@ func readV38(r *nino.Reader) []Marked {
 	return v
 }
 
-func writeV38(w *nino.Writer, v []Marked) {
+func writeV40(w *nino.Writer, v []Marked) {
 	if nino.TryWriteRaw(w, v, 8, asIsMarked, []int{4}, nil) {
 		return
 	}
@@ -5942,7 +6157,7 @@ func writeV38(w *nino.Writer, v []Marked) {
 	}
 }
 
-func readintoV39(r *nino.Reader, p *[]*Box[int32]) {
+func readintoV41(r *nino.Reader, p *[]*Box[int32]) {
 	n := r.Length(1)
 	if n < 0 {
 		*p = nil
@@ -5966,7 +6181,7 @@ func readintoV39(r *nino.Reader, p *[]*Box[int32]) {
 	*p = v
 }
 
-func readV40(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
+func readV42(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
 	n := r.Length(9)
 	if n < 0 {
 		return nil
@@ -5984,7 +6199,7 @@ func readV40(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
 	return nino.CheckUniqueKeysWith(r, v, &keyCheck0)
 }
 
-func writeV39(w *nino.Writer, v []*Box[int32]) {
+func writeV41(w *nino.Writer, v []*Box[int32]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -5995,7 +6210,7 @@ func writeV39(w *nino.Writer, v []*Box[int32]) {
 	}
 }
 
-func writeV40(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
+func writeV42(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -6007,7 +6222,7 @@ func writeV40(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
 	}
 }
 
-func decodeV41(r *nino.Reader, b []byte) nino.NullableSlot[TupleCell] {
+func decodeV43(r *nino.Reader, b []byte) nino.NullableSlot[TupleCell] {
 	_ = b[15]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[TupleCell]{}
@@ -6015,7 +6230,7 @@ func decodeV41(r *nino.Reader, b []byte) nino.NullableSlot[TupleCell] {
 	return nino.NullableSlot[TupleCell]{HasValue: true, Value: decodeTupleCell(r, b[4:16])}
 }
 
-func encodeV41(b []byte, v nino.NullableSlot[TupleCell]) {
+func encodeV43(b []byte, v nino.NullableSlot[TupleCell]) {
 	_ = b[15]
 	if v.HasValue {
 		b[0] = 1
@@ -6038,7 +6253,7 @@ func readintoV6(r *nino.Reader, p *[][]nino.NullableSlot[int64]) {
 	}
 	var e []nino.NullableSlot[int64]
 	for range n {
-		e = readV49(r)
+		e = readV51(r)
 		if r.Failed() {
 			*p = nil
 			return
@@ -6048,7 +6263,7 @@ func readintoV6(r *nino.Reader, p *[][]nino.NullableSlot[int64]) {
 	*p = v
 }
 
-func readV42(r *nino.Reader) *int64 {
+func readV44(r *nino.Reader) *int64 {
 	if !r.Present() {
 		return nil
 	}
@@ -6056,7 +6271,7 @@ func readV42(r *nino.Reader) *int64 {
 	return &x
 }
 
-func writeV42(w *nino.Writer, v *int64) {
+func writeV44(w *nino.Writer, v *int64) {
 	w.Present(v != nil)
 	if v != nil {
 		w.I64(*v)
@@ -6080,7 +6295,7 @@ func encodeV26(b []byte, v nino.NinoNullable[TupleCell]) {
 	}
 }
 
-func decodeV43(r *nino.Reader, b []byte) nino.NullableSlot[nino.Int128] {
+func decodeV45(r *nino.Reader, b []byte) nino.NullableSlot[nino.Int128] {
 	_ = b[31]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[nino.Int128]{}
@@ -6088,7 +6303,7 @@ func decodeV43(r *nino.Reader, b []byte) nino.NullableSlot[nino.Int128] {
 	return nino.NullableSlot[nino.Int128]{HasValue: true, Value: nino.Int128{Lo: le.Uint64(b[16:]), Hi: le.Uint64(b[24:])}}
 }
 
-func encodeV43(b []byte, v nino.NullableSlot[nino.Int128]) {
+func encodeV45(b []byte, v nino.NullableSlot[nino.Int128]) {
 	_ = b[31]
 	if v.HasValue {
 		b[0] = 1
@@ -6130,7 +6345,7 @@ func decodeV25(r *nino.Reader, b []byte) nino.NinoNullable[Flags] {
 	return nino.NinoNullable[Flags]{HasValue: true, Value: Flags(int64(le.Uint64(b[8:])))}
 }
 
-func decodeV44(r *nino.Reader, b []byte) nino.NinoNullable[float64] {
+func decodeV46(r *nino.Reader, b []byte) nino.NinoNullable[float64] {
 	_ = b[15]
 	if !r.NinoNullableAt(b[0:8], b[8:16]) {
 		return nino.NinoNullable[float64]{}
@@ -6138,10 +6353,10 @@ func decodeV44(r *nino.Reader, b []byte) nino.NinoNullable[float64] {
 	return nino.NinoNullable[float64]{HasValue: true, Value: math.Float64frombits(le.Uint64(b[8:]))}
 }
 
-func readV45(r *nino.Reader) nino.NinoNullable[nino.Guid] {
+func readV47(r *nino.Reader) nino.NinoNullable[nino.Guid] {
 	var v nino.NinoNullable[nino.Guid]
 	if b := r.Take(32); len(b) == 32 {
-		v = decodeV45(r, b)
+		v = decodeV47(r, b)
 	}
 	return v
 }
@@ -6155,7 +6370,7 @@ func encodeV25(b []byte, v nino.NinoNullable[Flags]) {
 	}
 }
 
-func encodeV44(b []byte, v nino.NinoNullable[float64]) {
+func encodeV46(b []byte, v nino.NinoNullable[float64]) {
 	_ = b[15]
 	if v.HasValue {
 		b[0] = 1
@@ -6164,13 +6379,13 @@ func encodeV44(b []byte, v nino.NinoNullable[float64]) {
 	}
 }
 
-func writeV45(w *nino.Writer, v nino.NinoNullable[nino.Guid]) {
+func writeV47(w *nino.Writer, v nino.NinoNullable[nino.Guid]) {
 	if b := w.ExtendZero(32); len(b) == 32 {
-		encodeV45(b, v)
+		encodeV47(b, v)
 	}
 }
 
-func decodeV46(r *nino.Reader, b []byte) nino.NullableSlot[int32] {
+func decodeV48(r *nino.Reader, b []byte) nino.NullableSlot[int32] {
 	_ = b[7]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[int32]{}
@@ -6178,7 +6393,7 @@ func decodeV46(r *nino.Reader, b []byte) nino.NullableSlot[int32] {
 	return nino.NullableSlot[int32]{HasValue: true, Value: int32(le.Uint32(b[4:]))}
 }
 
-func decodeV47(r *nino.Reader, b []byte) nino.NullableSlot[int64] {
+func decodeV49(r *nino.Reader, b []byte) nino.NullableSlot[int64] {
 	_ = b[15]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[int64]{}
@@ -6186,7 +6401,7 @@ func decodeV47(r *nino.Reader, b []byte) nino.NullableSlot[int64] {
 	return nino.NullableSlot[int64]{HasValue: true, Value: int64(le.Uint64(b[8:]))}
 }
 
-func encodeV46(b []byte, v nino.NullableSlot[int32]) {
+func encodeV48(b []byte, v nino.NullableSlot[int32]) {
 	_ = b[7]
 	if v.HasValue {
 		b[0] = 1
@@ -6195,7 +6410,7 @@ func encodeV46(b []byte, v nino.NullableSlot[int32]) {
 	}
 }
 
-func encodeV47(b []byte, v nino.NullableSlot[int64]) {
+func encodeV49(b []byte, v nino.NullableSlot[int64]) {
 	_ = b[15]
 	if v.HasValue {
 		b[0] = 1
@@ -6204,23 +6419,23 @@ func encodeV47(b []byte, v nino.NullableSlot[int64]) {
 	}
 }
 
-func readV48(r *nino.Reader) NinoTuple2[int32, *int32] {
+func readV50(r *nino.Reader) NinoTuple2[int32, *int32] {
 	var v NinoTuple2[int32, *int32]
 	v.Item1 = r.I32()
 	v.Item2 = readV11(r)
 	return v
 }
 
-func writeV48(w *nino.Writer, v NinoTuple2[int32, *int32]) {
+func writeV50(w *nino.Writer, v NinoTuple2[int32, *int32]) {
 	w.I32(v.Item1)
 	writeV11(w, v.Item2)
 }
 
-func readV49(r *nino.Reader) []nino.NullableSlot[int64] {
+func readV51(r *nino.Reader) []nino.NullableSlot[int64] {
 	return keyCheck4.Values(r, nino.ReadNullableSlots[int64](r))
 }
 
-func decodeV45(r *nino.Reader, b []byte) nino.NinoNullable[nino.Guid] {
+func decodeV47(r *nino.Reader, b []byte) nino.NinoNullable[nino.Guid] {
 	_ = b[31]
 	if !r.NinoNullableAt(b[0:16], b[16:32]) {
 		return nino.NinoNullable[nino.Guid]{}
@@ -6228,7 +6443,7 @@ func decodeV45(r *nino.Reader, b []byte) nino.NinoNullable[nino.Guid] {
 	return nino.NinoNullable[nino.Guid]{HasValue: true, Value: nino.Guid(b[16:32])}
 }
 
-func encodeV45(b []byte, v nino.NinoNullable[nino.Guid]) {
+func encodeV47(b []byte, v nino.NinoNullable[nino.Guid]) {
 	_ = b[31]
 	if v.HasValue {
 		b[0] = 1
@@ -6452,6 +6667,8 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadThingClass, ReadThingClassInto, WriteThingClass), true
 	case "Shapes.ThingStruct":
 		return codecOf(ReadThingStruct, ReadThingStructInto, WriteThingStruct), true
+	case "Shapes.TrackedPick":
+		return codecOf(ReadTrackedPick, ReadTrackedPickInto, WriteTrackedPick), true
 	case "Shapes.TupleCell":
 		return codecOf(ReadTupleCell, ReadTupleCellInto, WriteTupleCell), true
 	case "Shapes.Generic.TwinA":
