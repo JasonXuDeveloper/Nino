@@ -165,7 +165,7 @@ Reader.References.cs         back references (ReadReference, SetReference) and t
 Reader.Regions.cs            slices and length-prefixed regions, deferred bodies and the sections after them
 Reader.Values.cs             position, blocks, unmanaged values, lengths checked before allocating, presence, raw bytes
 Reader.Strings.cs            strings (Latin-1 or UTF-16 through NinoStrings, UTF-8), shared or reused; ReadUtf8At, the
-                             cursor form of a UTF-8 read, and MeasureUtf8, its lengths checked without reading it
+                             cursor form of a UTF-8 read
 Writer.cs                    ref struct Writer (partial, as Reader): writes into a NinoArrayBufferWriter (Flush when
                              done); its fields, the cursor, Flush and reserving buffer space (growing it)
 Writer.References.cs         back references (WriteReference) and the depth of struct bodies (EnterStruct)
@@ -376,14 +376,14 @@ NinoUnload.cs                hooks that forget an unloaded assembly's types (Nin
 ### Internal/Text/
 
 ```
-NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString,
-                             Measure (a string's bytes, its header checked, without reading it); UTF-8 ([NinoUtf8]) is
-                             in Reader / Writer
+NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString;
+                             UTF-8 ([NinoUtf8]) is in Reader / Writer
 NinoStringRuns.cs            the string run kernels (#355): a run of strings, or of pairs holding one, at their offsets
-                             in each element, written into the free space with one check per element and read after
-                             every length was measured; items not generic over a class (NinoUtf16Item, NinoUtf8Item,
-                             NinoValueItem, NinoItemPair), the pairs' dispatch by the formatters' types (WritePairs,
-                             ReadPairs), stores (InPlace, a set's and a dictionary's adds) and a set's read (ReadSet)
+                             in each element, written into the free space with one check per element and read with
+                             each string's lengths checked before it is allocated; items not generic over a class
+                             (NinoUtf16Item, NinoUtf8Item, NinoValueItem, NinoItemPair), the pairs' dispatch by the
+                             formatters' types (WritePairs, ReadPairs), stores (InPlace, a set's and a dictionary's adds)
+                             and a set's read (ReadSet, with an add loop of its own where the set guards its buckets)
 NinoStrings.Latin1.cs        Latin-1 chars narrowed, widened, appended and compared (the scalar and word paths; the
                              vector kernels are NinoSimd.Text)
 ```

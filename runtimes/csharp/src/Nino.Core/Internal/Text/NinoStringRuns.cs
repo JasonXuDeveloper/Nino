@@ -6,7 +6,7 @@ namespace Nino.Core.Internal
 {
     /// <summary>
     /// An item of a run's element, at the reference it is given, in the cursor form: the bytes it takes at most,
-    /// written at a reference, measured and then read from the data (#355). The items of strings are not generic
+    /// written at a reference, and read from the data (#355). The items of strings are not generic
     /// (<see cref="NinoUtf16Item"/>, <see cref="NinoUtf8Item"/>), and the other item of a pair holding one is a value
     /// without references (<see cref="NinoValueItem{T,TFormatter}"/>), so a loop over them
     /// (<see cref="NinoStringRuns"/>) is never code shared over a class: each call is direct and inlined, and no
@@ -23,15 +23,9 @@ namespace Nino.Core.Internal
         int WriteAt(ref byte destination, ref byte element);
 
         /// <summary>
-        /// The bytes the item at <paramref name="source"/> takes (<paramref name="available"/> bytes there), every
-        /// length in it checked against them, without allocating: what <see cref="ReadAt"/> then reads. A length out of
-        /// range is invalid data (<see cref="NinoDataException"/>).
-        /// </summary>
-        int Measure(ref byte source, int available);
-
-        /// <summary>
-        /// Reads the item at <paramref name="source"/> (<paramref name="available"/> bytes, measured) into the item of
-        /// <paramref name="element"/>; returns the bytes read. An existing string is kept when the data holds the
+        /// Reads the item at <paramref name="source"/> (<paramref name="available"/> bytes) into the item of
+        /// <paramref name="element"/>; returns the bytes read. Every length is checked against the bytes before
+        /// anything is allocated for it: a length out of range is invalid data (<see cref="NinoDataException"/>). An existing string is kept when the data holds the
         /// same, unless <paramref name="fresh"/> (a constant: the one element of a store that hands each read on,
         /// <see cref="INinoRunStore.OneSlot"/>), where the item is written without looking at it.
         /// </summary>
@@ -67,9 +61,6 @@ namespace Nino.Core.Internal
         public int WriteAt(ref byte destination, ref byte element) => NinoStrings.Write(ref destination, At(ref element));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Measure(ref byte source, int available) => NinoStrings.Measure(ref source, available);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadAt(ref byte source, int available, ref byte element, bool fresh)
         {
             // An unchanged string (a read into an existing collection) is not stored again: no write barrier. A fresh
@@ -94,9 +85,6 @@ namespace Nino.Core.Internal
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int WriteAt(ref byte destination, ref byte element) => Writer.WriteUtf8At(ref destination, At(ref element));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Measure(ref byte source, int available) => Reader.MeasureUtf8(ref source, available);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadAt(ref byte source, int available, ref byte element, bool fresh)
@@ -131,17 +119,10 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Measure(ref byte source, int available)
-        {
-            int size = NinoKind.Stride<T, TFormatter>();
-            if ((uint)available < (uint)size)
-                NinoThrow.EndOfData();
-            return size;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadAt(ref byte source, int available, ref byte element, bool fresh)
         {
+            if ((uint)available < (uint)NinoKind.Stride<T, TFormatter>())
+                NinoThrow.EndOfData();
             NinoBlocks.ReadItem<T, TFormatter>(ref At(ref element), ref source);
             return NinoKind.Stride<T, TFormatter>();
         }
@@ -183,13 +164,6 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Measure(ref byte source, int available)
-        {
-            int size = default(TA).Measure(ref source, available);
-            return size + default(TB).Measure(ref Unsafe.Add(ref source, (nint)(uint)size), available - size);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadAt(ref byte source, int available, ref byte element, bool fresh)
         {
             int size = default(TA).ReadAt(ref source, available, ref Unsafe.AddByteOffset(ref element, _a), fresh);
@@ -203,10 +177,9 @@ namespace Nino.Core.Internal
     /// values (#355): a run (<see cref="NinoRun"/>: its first element, count, stride and in-use test) of strings in
     /// the default encoding or UTF-8, or of pairs holding one (a dictionary's entries, a list's pairs), each item at
     /// its offset in the element. Writes transcode each string with the SIMD kernels into the free part of the
-    /// buffer, one check of its longest form against the bytes left; reads measure every length of the run against
-    /// the data
-    /// first, then allocate and transcode, storing each element in place or handing it to a store (a set's or a
-    /// dictionary's adds). The string items are not generic, and a pair's other item is a value without references,
+    /// buffer, one check of its longest form against the bytes left; reads check each string's lengths against the
+    /// bytes left, then allocate and transcode it, storing each element in place or handing it to a store (a set's
+    /// or a dictionary's adds). The string items are not generic, and a pair's other item is a value without references,
     /// so these loops are never compiled as code shared over a class: a collection of strings, which is shared code
     /// over its element, calls them once and pays no indirect call and no generic lookup per string. The writer and
     /// the reader never reach them: they take the writer by value and return it, or the data and its end.
@@ -392,39 +365,26 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The read: <paramref name="run"/>'s count of elements (every one in use) from the data at
-        /// <paramref name="data"/> (<paramref name="end"/> bytes): every item's length measured against the data
-        /// first (<see cref="Measure{TItem}"/>), so nothing is allocated for data that ends early or holds a length
-        /// out of range, then each element read and handed to <paramref name="store"/> (<see cref="ReadMeasured"/>).
-        /// Returns the bytes read.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int Read<TItem, TStore>(scoped NinoRun run, TItem item, ref byte data, int end, TStore store)
-            where TItem : struct, INinoRunItem
-            where TStore : struct, INinoRunStore
-        {
-            int size = Measure(item, run.Count, ref data, end);
-            ReadMeasured(run, item, ref data, size, store);
-            return size;
-        }
-
-        /// <summary>
-        /// The read loop over the <paramref name="size"/> bytes at <paramref name="data"/> that
-        /// <see cref="Measure{TItem}"/> found <paramref name="run"/>'s items in. Few values across the string
-        /// kernels' and the stores' calls, where x64 has five callee-saved registers for them: a moving source and the
-        /// bytes left, the elements left, the element and its stride (none for a store of one slot, which keeps its
-        /// fields in its home on the stack: its call takes their address, <see cref="SetAdds"/>). With the data, the
-        /// position and the end, and the store's fields in registers, a set's read kept its position, count and
-        /// element on the stack and read 1,000 strings 1.3 to 1.5 times as long (asm.py, local quick runs).
+        /// <paramref name="data"/> (<paramref name="end"/> bytes), each read and handed to <paramref name="store"/>;
+        /// returns the bytes read. Each item checks its lengths against the bytes left before it allocates
+        /// (<see cref="INinoRunItem.ReadAt"/>), and the caller sized the run by the data (a count of at least a byte
+        /// each), so a rejected read has allocated in proportion to the bytes it read. A first pass that measured every
+        /// length of the run before reading any took longer (a chain of dependent loads, one per string: 1,000
+        /// strings read 1.1 to 1.3 times as long, local quick runs). Few values across the string kernels' and the
+        /// stores' calls, where x64 has five callee-saved registers for them: a moving source and the bytes left, the
+        /// elements left, the element and its stride (none for a store of one slot, which keeps its fields in its home
+        /// on the stack: its call takes their address, <see cref="SetAdds"/>). With the data, the position and the end,
+        /// and the store's fields in registers, a set's read kept its position, count and element on the stack and
+        /// read 1,000 strings 1.3 to 1.5 times as long (asm.py, local quick runs).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadMeasured<TItem, TStore>(scoped NinoRun run, TItem item, ref byte data, int size,
-            TStore store)
+        internal static int Read<TItem, TStore>(scoped NinoRun run, TItem item, ref byte data, int end, TStore store)
             where TItem : struct, INinoRunItem
             where TStore : struct, INinoRunStore
         {
             ref byte source = ref data;
             ref byte element = ref run.First;
-            int stride = store.OneSlot ? 0 : run.Stride, available = size;
+            int stride = store.OneSlot ? 0 : run.Stride, available = end;
             for (int left = run.Count; left > 0; left--)
             {
                 int read = item.ReadAt(ref source, available, ref element, store.OneSlot);
@@ -434,6 +394,8 @@ namespace Nino.Core.Internal
                 if (!store.OneSlot)
                     element = ref NinoRun.Next(ref element, stride);
             }
+
+            return end - available;
         }
 
         /// <summary>
@@ -442,7 +404,7 @@ namespace Nino.Core.Internal
         /// top layer for strings, the steps of <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>. Into the values of
         /// its entries and linked where it takes them (<see cref="HashTables.CanInsert{T}"/>, from
         /// <see cref="HashTables.FillFrom"/> on: the set left empty if the data is rejected part way), else each added
-        /// (<see cref="SetAdds"/>). Returns the bytes read. Not generic: a set of strings is code shared over its
+        /// (<see cref="Add{TItem}"/>, or <see cref="SetAdds"/> where the set inserts or walks). Returns the bytes read. Not generic: a set of strings is code shared over its
         /// element, and this is its one call.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -452,12 +414,46 @@ namespace Nino.Core.Internal
             if (insert && length >= HashTables.FillFrom)
                 return FillSet(set, length, ref data, end, utf8);
 
+            // A set that guards its own buckets (strings on .NET: neither inserted nor walked): each string added
+            // through the set's Add.
+            if (!insert && !HashTables.Plan<string>.Walks)
+                return utf8
+                    ? Add<NinoUtf8Item>(set, length, ref data, end)
+                    : Add<NinoUtf16Item>(set, length, ref data, end);
+
             string value = null;
             var run = new NinoRun(ref Unsafe.As<string, byte>(ref value), length, 0, NinoRun.NoKey, NinoRun.AllInUse);
             var adds = new SetAdds(set, insert, HashTables.Plan<string>.Walks);
             return utf8
                 ? Read(run, default(NinoUtf8Item), ref data, end, adds)
                 : Read(run, default(NinoUtf16Item), ref data, end, adds);
+        }
+
+        /// <summary>
+        /// <see cref="ReadSet"/>'s adds into a set that guards its own buckets: <paramref name="length"/> strings, each
+        /// <typeparamref name="TItem"/>, from the data at <paramref name="data"/> (<paramref name="end"/> bytes), each
+        /// added through the set (a repeated one is invalid data); returns the bytes read. A loop of its own beside
+        /// <see cref="Read{TItem,TStore}"/>'s: the set's Add inline after each read, where that loop's store
+        /// (<see cref="SetAdds"/>, an out-of-line call that adds) read 1,000 strings 1.1 times as long (local quick
+        /// runs).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int Add<TItem>(HashSet<string> set, int length, ref byte data, int end)
+            where TItem : struct, INinoRunItem
+        {
+            ref byte source = ref data;
+            int available = end;
+            for (int left = length; left > 0; left--)
+            {
+                string value = null;
+                int read = default(TItem).ReadAt(ref source, available, ref Unsafe.As<string, byte>(ref value), true);
+                source = ref Unsafe.Add(ref source, (nint)(uint)read);
+                available -= read;
+                if (!set.Add(value))
+                    NinoThrow.DuplicateKey(set.GetType());
+            }
+
+            return end - available;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -477,23 +473,6 @@ namespace Nino.Core.Internal
                 HashTables.Unlink(set);
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Checks that the data at <paramref name="data"/> (<paramref name="end"/> bytes) holds
-        /// <paramref name="count"/> items, every length in range, without allocating
-        /// (<see cref="INinoRunItem.Measure"/>; throws otherwise); returns the bytes they take. Out of line, so that
-        /// its position and count stay in registers: in the read loop's method, whose stores' calls take them, both
-        /// went to the stack (asm.py).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int Measure<TItem>(TItem item, int count, ref byte data, int end)
-            where TItem : struct, INinoRunItem
-        {
-            int pos = 0;
-            for (; count > 0; count--)
-                pos += item.Measure(ref Unsafe.Add(ref data, (nint)(uint)pos), end - pos);
-            return pos;
         }
 
         /// <summary>The elements read in place (an array's, a list's, a new set's or dictionary's entries, filled then

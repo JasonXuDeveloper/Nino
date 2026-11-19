@@ -48,7 +48,7 @@ namespace Nino.Fuzz
             },
             new() {
                 Name = "string-run", What = "a string[] of 1,000,000 two-char strings whose last length runs past the data",
-                Run = () => RejectedBeforeStrings(1_000_000),
+                Run = () => RejectedInProportion(1_000_000),
             },
             // Nesting through each kind of member, 100,000 levels on a 1 MB stack (a Windows or Unity thread):
             // Nino's depth limit must reject it before the stack runs out.
@@ -145,9 +145,11 @@ namespace Nino.Fuzz
                    $"the BCL adding the colliding keys one by one: {sw.Elapsed.TotalMilliseconds:F0} ms)";
         }
 
-        // The string run kernels measure every length of a run before they allocate a string: the read is rejected
-        // having allocated the array and nothing near the n strings it would have held (24 bytes and more each).
-        static string RejectedBeforeStrings(int n)
+        // The string run kernels check each string's lengths against the bytes left before they allocate it: the read
+        // is rejected at the last string having allocated the array and the strings before it, in proportion to the
+        // data (a string of two chars, 32 bytes at most, for every 3 bytes), never the last string, whose 63 chars the
+        // one byte left cannot hold.
+        static string RejectedInProportion(int n)
         {
             var data = Cat(Ints(n), Rep(new byte[] { 5, (byte)'a', (byte)'b' }, n - 1), new byte[] { 0x7F, (byte)'c' });
             long before = GC.GetAllocatedBytesForCurrentThread();
@@ -164,7 +166,7 @@ namespace Nino.Fuzz
                 return "unexpected " + e.GetType().Name + ": " + e.Message.Split('\n')[0] + " at " + Executor.TopFrame(e);
             }
 
-            long allocated = GC.GetAllocatedBytesForCurrentThread() - before, limit = (long)n * IntPtr.Size + (1 << 20);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before, limit = (long)n * (IntPtr.Size + 32) + (1 << 20);
             return allocated <= limit ? null : $"allocated {allocated:N0} bytes before rejecting (limit {limit:N0})";
         }
 

@@ -129,11 +129,13 @@ a block read as one) as the other, each item at its offset in the element, is mo
 layers call once per run under a constant test of the formatter's type (`NinoKind<TFormatter>.Strings`). The write
 transcodes each string with the SIMD kernels into the free part of the buffer after one check of its longest form
 against the bytes left, growing the buffer only where one does not fit (a first pass that summed the run's longest forms
-to reserve them once took longer); the read measures every length of the run against the data first (a header out of
-range or not minimal, a length past the data, a UTF-8 string of more chars than bytes), so nothing is allocated for data
-it rejects, then allocates and transcodes each string into its place (an unchanged one kept, `ReadAt`) or hands the
-element to a store (a set's or a dictionary's adds, every element read into the one entry the store hands on, whose
-fields stay in its home on the stack). Their items (`NinoUtf16Item`, `NinoUtf8Item`, `NinoValueItem`, composed by
+to reserve them once took longer); the read checks each string's lengths against the bytes left (a header out of range
+or not minimal, a length past the data, a UTF-8 string of more chars than bytes) before it allocates the string, so a
+rejected read has allocated in proportion to the bytes it read (the run itself was sized by the data: a byte a string at
+least), then transcodes it into its place (an unchanged one kept, `ReadAt`) or hands the element to a store (a
+dictionary's adds, every element read into the one entry the store hands on, whose fields stay in its home on the stack;
+a set that guards its own buckets adds each string in a loop of its own). A first pass that measured every length of
+the run before reading any took longer (a chain of dependent loads per string). Their items (`NinoUtf16Item`, `NinoUtf8Item`, `NinoValueItem`, composed by
 `NinoItemPair`) and stores are not generic over a class, so the kernels are never shared code: a collection of strings
 is compiled once for every class (`__Canon`), and there a method of a struct type parameter is an indirect call the JIT
 does not inline and a static of a generic class a helper call, where the kernels pay none per string. A pair kernel is

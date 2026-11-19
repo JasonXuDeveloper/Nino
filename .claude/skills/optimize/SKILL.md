@@ -145,7 +145,7 @@ says which CPUs and cases moved.
   local, and offsets in its statics a `CORINFO_HELP_GET_NONGCSTATIC_BASE` call each, still 1.2 times), the hash table
   as the cursor loop's store (`INinoHashTable.Adding`, as a store wrapping it made two indirect calls per entry) and an
   inline add loop for a set whose values neither insert nor walk (`HashTables.Plan`: strings; through `NinoEntries`
-  1.2 to 1.3 times as long, local). `NinoDictionary.Entries` stays for entries holding another class. The dictionary's
+  1.2 to 1.3 times as long, local); that last one lives on in the kernels as `NinoStringRuns.Add<TItem>` (below). `NinoDictionary.Entries` stays for entries holding another class. The dictionary's
   out-of-line write computes the key and value offsets from `MapEntry` and calls the by-value loops
   (`NinoRuns.WriteEach`, `NinoStringRuns.WritePairs`, writer by value and returned): the shared `NinoRuns.WriteEntries`
   inlined its loop on that method's writer parameter, which then lived in memory (`Dictionary<string, int>` WriteEntries
@@ -186,16 +186,24 @@ says which CPUs and cases moved.
   kernels are never shared code. Keep their state in registers, five values at most across the string kernels' and
   the stores' calls (x64's callee-saved registers): the write takes only the free space (a reference and the bytes
   left), checks each element's longest form against it and returns where it stopped, its driver growing the buffer
-  and going on; the read measures the whole run's lengths first in a loop of its own (`Measure`, out of line), then
-  reads with a moving source, the bytes left, the elements left and the element. Measured slower, so not retried
-  blind: a first pass that summed the run's longest forms to reserve them once (1,000 strings written 1.3 to 1.4
-  times as long, local quick runs); an offset in each string item (a register more in a run of strings alone:
+  and going on; the read checks each item's lengths against the bytes left as it reads it (`ReadAt`, before it allocates)
+  with a moving source, the bytes left, the elements left and the element; the run was sized by the data (a byte an
+  element at least), so a rejected read has allocated in proportion to the bytes it read. Measured slower, so not
+  retried blind: a first pass that measured every length of the run before reading any (`Measure`, out of line, as
+  #427 first had it: a chain of dependent loads per string, and for UTF-8 a call per string; without it, local quick
+  runs of 1,000 strings: `string[]` read 1.2 to 1.3 times faster, `Utf8MixedStrings` 1.2, `Dictionary<string,
+  string>` 1.15, `HashSet<string>` 1.1; inlining the UTF-8 measure's one-byte counts alone only brought
+  `Utf8MixedStrings` from 1.14 times the base's time to on par); a first pass that summed the run's longest forms to
+  reserve them once (1,000 strings written 1.3 to 1.4 times as long, local quick runs); an offset in each string item (a register more in a run of strings alone:
   `string[]` written 1.2 times as long; a pair places its items, `NinoItemPair`'s offsets); the measure loop inside
   the read's method and a store whose fields or add were in the loop (its position, count and element on the stack:
   `HashSet<string>` read 1.3 to 1.5 times as long). A store that hands each element on (`INinoRunStore.OneSlot`: a
-  set's or dictionary's adds into one entry) has its `Stored` out of line, called on its home on the stack, and its
+  dictionary's adds into one entry) has its `Stored` out of line, called on its home on the stack, and its
   items are read fresh (`ReadAt`'s `fresh`, written even when null: the one entry still holds the previous string,
-  a set read a null after a string as a duplicate). The dispatch to the kernels inline in `NinoRuns.Write`/`Read`,
+  a set read a null after a string as a duplicate). A set that guards its own buckets (strings on .NET) adds in a
+  loop of its own over the item (`NinoStringRuns.Add<TItem>`: a local read fresh, then `HashSet<string>.Add`, which
+  the JIT inlines there): through the store (`SetAdds`, its `Stored` an out-of-line call around the add) the 1,000
+  strings of `StringSet` read 1.1 times as long as the base's inline loop, through `Add` on par (local quick runs). The dispatch to the kernels inline in `NinoRuns.Write`/`Read`,
   inlined into every collection, spent their callers' budgets (KeyValuePairs, NullableGridInts, BlockingCollection
   serialized with their writers in memory): keep it one out-of-line call there. Three traps cost iterations
   (`asm.py`, the listings in references/jit.md): a `static readonly` field of

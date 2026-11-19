@@ -316,9 +316,10 @@ namespace Nino.UnitTests
 
         /// <summary>
         /// Whether <paramref name="data"/>, a run of strings, is rejected as an array, a list and a set, and read into
-        /// an existing array of its count without changing it: every length is checked before any string is read.
+        /// an existing array of its count without changing the elements from <paramref name="bad"/> on: each string's
+        /// lengths are checked before it is read, and the read stops at the first that is out of range.
         /// </summary>
-        private static void RejectedBeforeReading<TFormatter>(byte[] data, int count, string what)
+        private static void Rejected<TFormatter>(byte[] data, int count, int bad, string what)
             where TFormatter : struct, INinoFormatter<string>
         {
             Assert.ThrowsExactly<NinoDataException>(() => Read<string[], ArrayFormatter<string, TFormatter>>(data),
@@ -331,17 +332,18 @@ namespace Nino.UnitTests
             var before = (string[])existing.Clone();
             Assert.ThrowsExactly<NinoDataException>(() =>
                 Read<string[], ArrayFormatter<string, TFormatter>>(data, existing), what);
-            for (int i = 0; i < count; i++)
-                Assert.AreSame(before[i], existing[i], $"{what}: [{i}] read before the run was measured");
+            for (int i = bad; i < count; i++)
+                Assert.AreSame(before[i], existing[i], $"{what}: [{i}] read past the rejected string");
         }
 
         /// <summary>
         /// A length out of range at the first, a middle and the last string of a run (one past the data, a header
-        /// byte no write makes, a header that a shorter one holds) is rejected before any string of the run is read,
-        /// in both encodings; so is a count the data cannot hold, and a UTF-8 string of more chars than bytes.
+        /// byte no write makes, a header that a shorter one holds) is rejected before that string is allocated, and
+        /// nothing after it is read, in both encodings; so is a count the data cannot hold (before any string is
+        /// read), and a UTF-8 string of more chars than bytes.
         /// </summary>
         [TestMethod]
-        public void BadLengthsAnywhereInARunAreRejectedFirst()
+        public void BadLengthsAnywhereInARunAreRejected()
         {
             var values = Enumerable.Range(0, 5).Select(i => "abc" + i).ToArray();
             byte[] data = Run<StringFormatter>(values);
@@ -349,11 +351,11 @@ namespace Nino.UnitTests
             {
                 // Each string is a header (9: Latin-1, 4 chars) then 4 bytes, after the 4-byte count.
                 int at = 4 + 5 * index;
-                RejectedBeforeReading<StringFormatter>(With(data, at, 0x7F), 5, $"past the data at [{index}]");
-                RejectedBeforeReading<StringFormatter>(With(data, at, 0x82), 5, $"header out of range at [{index}]");
-                RejectedBeforeReading<StringFormatter>(With(data, at, 0x80, 0x10, 0x00), 5,
+                Rejected<StringFormatter>(With(data, at, 0x7F), 5, index, $"past the data at [{index}]");
+                Rejected<StringFormatter>(With(data, at, 0x82), 5, index, $"header out of range at [{index}]");
+                Rejected<StringFormatter>(With(data, at, 0x80, 0x10, 0x00), 5, index,
                     $"header not minimal at [{index}]");
-                RejectedBeforeReading<StringFormatter>(data.AsSpan(0, at + 3).ToArray(), 5, $"cut in [{index}]");
+                Rejected<StringFormatter>(data.AsSpan(0, at + 3).ToArray(), 5, index, $"cut in [{index}]");
             }
 
             // UTF-8: the char count plus one (5), the byte count (4), the bytes.
@@ -361,16 +363,16 @@ namespace Nino.UnitTests
             foreach (int index in new[] { 0, 2, 4 })
             {
                 int at = 4 + 6 * index;
-                RejectedBeforeReading<Utf8StringFormatter>(With(utf8, at + 1, 0x7F), 5, $"UTF-8 past the data [{index}]");
-                RejectedBeforeReading<Utf8StringFormatter>(With(utf8, at, 0x7F), 5, $"UTF-8 more chars [{index}]");
-                RejectedBeforeReading<Utf8StringFormatter>(With(utf8, at + 1, 0x80, 0x10, 0x00), 5,
+                Rejected<Utf8StringFormatter>(With(utf8, at + 1, 0x7F), 5, index, $"UTF-8 past the data [{index}]");
+                Rejected<Utf8StringFormatter>(With(utf8, at, 0x7F), 5, index, $"UTF-8 more chars [{index}]");
+                Rejected<Utf8StringFormatter>(With(utf8, at + 1, 0x80, 0x10, 0x00), 5, index,
                     $"UTF-8 count not minimal [{index}]");
-                RejectedBeforeReading<Utf8StringFormatter>(utf8.AsSpan(0, at + 4).ToArray(), 5, $"UTF-8 cut [{index}]");
+                Rejected<Utf8StringFormatter>(utf8.AsSpan(0, at + 4).ToArray(), 5, index, $"UTF-8 cut [{index}]");
             }
 
             // A count of 2^28 strings with 25 bytes after it.
-            RejectedBeforeReading<StringFormatter>(With(data, 0, 0x00, 0x00, 0x00, 0x10), 5, "huge count");
-            RejectedBeforeReading<Utf8StringFormatter>(With(utf8, 0, 0x00, 0x00, 0x00, 0x10), 5, "UTF-8 huge count");
+            Rejected<StringFormatter>(With(data, 0, 0x00, 0x00, 0x00, 0x10), 5, 0, "huge count");
+            Rejected<Utf8StringFormatter>(With(utf8, 0, 0x00, 0x00, 0x00, 0x10), 5, 0, "UTF-8 huge count");
         }
 
         /// <summary>
@@ -409,7 +411,7 @@ namespace Nino.UnitTests
         /// <summary>
         /// A key repeated in a set of strings or in a dictionary with strings among its pairs (its fill and its adds,
         /// both encodings, either side) is invalid data; and a pair's length out of range at the first, a middle or
-        /// the last pair is rejected before the dictionary is filled.
+        /// the last pair is rejected, the pairs after it left as they were.
         /// </summary>
         [TestMethod]
         public void RepeatedKeysAndBadPairsAreRejected()
@@ -449,7 +451,8 @@ namespace Nino.UnitTests
                     .ToArray();
                 var before = (KeyValuePair<string, int>[])existing.Clone();
                 Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bad, ref existing));
-                CollectionAssert.AreEqual(before, existing, $"pairs read before the run was measured, [{index}]");
+                CollectionAssert.AreEqual(before.Skip(index).ToArray(), existing.Skip(index).ToArray(),
+                    $"pairs read past the rejected one, [{index}]");
             }
         }
 
