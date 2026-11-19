@@ -8,8 +8,9 @@ namespace Nino.Core
 {
     /// <summary>
     /// <c>PriorityQueue&lt;TElement, TPriority&gt;</c>: count (-1 = null), then (element, priority) pairs in the
-    /// queue's unordered (heap) order. An existing queue is cleared and refilled. Only on .NET 6+ builds of Nino.Core
-    /// (the netstandard2.1 build, used by Unity, has no <c>PriorityQueue</c>).
+    /// queue's unordered (heap) order, each as a <c>(TElement, TPriority)</c> tuple is written. An existing queue is
+    /// cleared and refilled. Only on .NET 6+ builds of Nino.Core (the netstandard2.1 build, used by Unity, has no
+    /// <c>PriorityQueue</c>).
     /// </summary>
     public struct PriorityQueueFormatter<TElement, TPriority, TElementFormatter, TPriorityFormatter>
         : INinoFormatter<PriorityQueue<TElement, TPriority>>
@@ -21,67 +22,33 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            // As HashSetFormatter's: an empty queue skips the call, and elements or priorities with references go
-            // through the writer parameter.
+            // As HashSetFormatter's: an empty queue skips the call.
             if (value.Count == 0)
             {
                 writer.WriteLength(0);
                 return;
             }
 
-            if (NinoElements.WritesOnLocal<TElement>() && NinoElements.WritesOnLocal<TPriority>())
-                writer = WriteEach(value, writer);
-            else
-                WriteEach(value, ref writer);
+            writer = Write(value, writer);
         }
 
+        /// <summary>
+        /// Its heap as one run of pairs (<see cref="PriorityQueueHeap"/>, .NET 10, where its layout was checked), else
+        /// its unordered items gathered a chunk at a time; either way through the run loops, whatever the elements and
+        /// priorities are (#350).
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteRawPairs(PriorityQueue<TElement, TPriority> queue, int count, ref Writer writer)
+        private static Writer Write(PriorityQueue<TElement, TPriority> value, Writer writer)
         {
 #if NET10_0_OR_GREATER
-            if (PriorityQueueHeap.TryWrite<TElement, TPriority,
-                    ValueTupleFormatter<TElement, TPriority, TElementFormatter, TPriorityFormatter>>(
-                    queue, count, ref writer))
-                return;
+            if (PriorityQueueHeap.Usable)
+                return PriorityQueueHeap.Write<TElement, TPriority, ValueTupleFormatter<TElement, TPriority, TElementFormatter, TPriorityFormatter>>(value, writer);
 #endif
-            int elementSize = Unsafe.SizeOf<TElement>();
-            int pairSize = elementSize + Unsafe.SizeOf<TPriority>();
-            ref byte target = ref writer.ReserveCounted(count, pairSize);
-            foreach (var (element, priority) in queue.UnorderedItems)
-            {
-                if (count-- == 0)
-                    NinoThrow.ModifiedDuringWrite();
-                NinoUnsafe.WriteValueIn(ref target, 0, in element);
-                NinoUnsafe.WriteValueIn(ref target, elementSize, in priority);
-                target = ref Unsafe.Add(ref target, pairSize);
-            }
-
-            if (count != 0)
-                NinoThrow.ModifiedDuringWrite();
-        }
-
-        // The writer by value and returned, a local whose cursor stays in registers (as HashSetFormatter's).
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteEach(PriorityQueue<TElement, TPriority> value, Writer writer)
-        {
-            int count = value.Count;
-            if (count >= 8 && NinoKind.Of<TElement, TElementFormatter>() == NinoElementKind.Raw &&
-                NinoKind.Of<TPriority, TPriorityFormatter>() == NinoElementKind.Raw)
-                WriteRawPairs(value, count, ref writer);
-            else
-                WriteEach(value, ref writer);
-            return writer;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteEach(PriorityQueue<TElement, TPriority> value, ref Writer writer)
-        {
-            writer.WriteLength(value.Count);
-            foreach (var (element, priority) in value.UnorderedItems)
-            {
-                default(TElementFormatter).Serialize(element, ref writer);
-                default(TPriorityFormatter).Serialize(priority, ref writer);
-            }
+            return NinoGather.Write<(TElement, TPriority),
+                ValueTupleFormatter<TElement, TPriority, TElementFormatter, TPriorityFormatter>,
+                NinoGather.Enumerated<(TElement, TPriority),
+                    PriorityQueue<TElement, TPriority>.UnorderedItemsCollection.Enumerator>>(
+                new(value.UnorderedItems.GetEnumerator()), value.Count, writer);
         }
 
         public void Deserialize(ref Reader reader, ref PriorityQueue<TElement, TPriority> value)
@@ -110,27 +77,46 @@ namespace Nino.Core
                 queue.Clear();
             }
 
-#if NET10_0_OR_GREATER
-            if (length >= 16 && typeof(TElement) == typeof(int) && typeof(TPriority) == typeof(int) &&
-                NinoKind.Of<TElement, TElementFormatter>() == NinoElementKind.Raw &&
-                NinoKind.Of<TPriority, TPriorityFormatter>() == NinoElementKind.Raw &&
-                PriorityQueueHeap.TryAdopt(Unsafe.As<PriorityQueue<int, int>>(queue), length, ref reader))
+            if (length == 0)
                 return;
-#endif
+            reader = Read(queue, length, reader);
+        }
 
-            // 1,000 int pairs in 3.5 µs instead of 4.7.
-            Reader local = default;
-            reader.CopyTo(ref local);
-            for (int i = 0; i < length; i++)
+        /// <summary>
+        /// Read into its heap and published where the pairs are in heap order under its comparer, as Nino writes them
+        /// (<see cref="PriorityQueueHeap.Adopt"/>, .NET 10), else enqueued a chunk at a time.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader Read(PriorityQueue<TElement, TPriority> queue, int length, Reader reader)
+        {
+#if NET10_0_OR_GREATER
+            if (PriorityQueueHeap.Usable)
             {
-                TElement element = default;
-                TPriority priority = default;
-                default(TElementFormatter).Deserialize(ref local, ref element);
-                default(TPriorityFormatter).Deserialize(ref local, ref priority);
-                queue.Enqueue(element, priority);
+                // An existing queue's heap grown for them as enqueuing them would grow it (step by step, to the same
+                // capacity), unless it would take far more memory than the data.
+                if (NinoElements.Fits(length, Unsafe.SizeOf<(TElement, TPriority)>(), reader.Remaining))
+                {
+                    for (int capacity = queue.EnsureCapacity(0); capacity < length;)
+                        capacity = queue.EnsureCapacity(capacity + 1);
+                }
+                reader = PriorityQueueHeap.Adopt<TElement, TPriority, ValueTupleFormatter<TElement, TPriority, TElementFormatter, TPriorityFormatter>>(queue, length, reader, out bool adopted);
+                if (adopted)
+                    return reader;
             }
+#endif
+            var enqueues = new NinoGather.Adds<PriorityQueue<TElement, TPriority>, (TElement, TPriority), Enqueue>(queue);
+            reader = NinoGather.ReadAll<(TElement, TPriority),
+                ValueTupleFormatter<TElement, TPriority, TElementFormatter, TPriorityFormatter>,
+                NinoGather.Adds<PriorityQueue<TElement, TPriority>, (TElement, TPriority), Enqueue>>(ref enqueues,
+                length, reader);
+            return reader;
+        }
 
-            local.CopyTo(ref reader);
+        private struct Enqueue : INinoAdder<PriorityQueue<TElement, TPriority>, (TElement, TPriority)>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Add(PriorityQueue<TElement, TPriority> target, (TElement, TPriority) item) =>
+                target.Enqueue(item.Item1, item.Item2);
         }
     }
 }

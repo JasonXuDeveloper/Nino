@@ -21,35 +21,10 @@ namespace Nino.Core
             switch (value)
             {
                 case SortedSet<T> sorted:
-                    object root = SortedSetTrees.RootOf(sorted);
-#if NET8_0_OR_GREATER
-                    if (!NinoUnsafe.IsReferenceOrContainsReferences<T>())
-                    {
-                        int count = sorted.Count;
-                        if (count >= 32 && TryWritePackedTree(count, root, ref writer))
-                            return true;
-                    }
-#endif
-                    // Copied out of its tree: its enumerator keeps a stack of nodes and checks the version per
-                    // element.
-                    NinoCollections.WriteCopied<T, TFormatter>(sorted, root, ref writer);
+                    writer = WriteSorted(sorted, writer);
                     return true;
                 case LinkedList<T> linked:
-                    // Slots (raw T?): copied out of the nodes and written as one block, as an array of them is.
-                    if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                    {
-                        NinoCollections.WriteCopied<T, TFormatter>(linked, null, ref writer);
-                        return true;
-                    }
-#if NET8_0_OR_GREATER
-                    if (linked.Count >= 32 && CollectionViews.LinkedList &&
-                        NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw)
-                    {
-                        WriteLinkedRing(linked, ref writer);
-                        return true;
-                    }
-#endif
-                    WriteLinked(linked, ref writer);
+                    writer = WriteLinked(linked, writer);
                     return true;
                 case System.Collections.ObjectModel.Collection<T> wrapper:
                     // The list it wraps, written as a list is (a subclass too: reading its items runs none of its
@@ -63,18 +38,31 @@ namespace Nino.Core
             }
         }
 
-#if NET8_0_OR_GREATER
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static bool TryWritePackedTree(int count, object root, ref Writer writer)
-        {
-            if (!NinoUnsafe.Is64Bit || root == null ||
-                NinoKind.Of<T, TFormatter>() != NinoElementKind.Raw || NinoLayout<T>.HasPadding)
-                return false;
 
-            SortedSetNodes<T>.WritePacked(root, count, ref writer);
-            return true;
+        /// <summary>
+        /// Walked out of its tree a chunk at a time (its enumerator keeps a stack of nodes and checks the version per
+        /// element), else through that enumerator. Out of line, the writer by value: inlined, the walk's setup took
+        /// registers and stack from every caller (asm.py: SortedSet&lt;int&gt;'s write 55 to 76 stack accesses).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteSorted(SortedSet<T> sorted, Writer writer)
+        {
+            object root = SortedSetTrees.RootOf(sorted);
+            return root != null
+                ? NinoGather.Write<T, TFormatter, SortedSetNodes<T>.Walk>(SortedSetNodes<T>.Items(root), sorted.Count,
+                    writer)
+                : NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, SortedSet<T>.Enumerator>>(
+                    new(sorted.GetEnumerator()), sorted.Count, writer);
         }
-#endif
+
+        /// <summary>Walked along its ring of nodes a chunk at a time where its layout was checked, else its enumerator.
+        /// Out of line as <see cref="WriteSorted"/>.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteLinked(LinkedList<T> linked, Writer writer) =>
+            CollectionViews.LinkedList
+                ? NinoGather.Write<T, TFormatter, Ring>(new Ring(linked), linked.Count, writer)
+                : NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, LinkedList<T>.Enumerator>>(
+                    new(linked.GetEnumerator()), linked.Count, writer);
 
         /// <summary>
         /// Reads <paramref name="length"/> elements into <paramref name="collection"/> (empty) if it is one of these
@@ -88,7 +76,7 @@ namespace Nino.Core
                     ReadSorted(sorted, length, ref reader);
                     return true;
                 case LinkedList<T> linked:
-                    ReadLinked(linked, length, ref reader);
+                    reader = ReadLinked(linked, length, reader);
                     return true;
                 default:
                     return false;
@@ -160,167 +148,122 @@ namespace Nino.Core
             public bool Remove(T item) => throw new NotSupportedException();
         }
 
-        /// <summary>Node by node, with the writer as a local; raw elements into one reserved block.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteLinked(LinkedList<T> linked, ref Writer writer)
+        /// <summary>
+        /// The items of a <see cref="LinkedList{T}"/> along its ring of nodes (<see cref="CollectionFields.LinkedNode{T}"/>),
+        /// a chunk at a time: the list's count of them, then back at its head with its version unchanged, or it changed
+        /// during the walk.
+        /// </summary>
+        private struct Ring : INinoGatherSource<T>
         {
-            int count = linked.Count;
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw)
+            private readonly LinkedList<T> _list;
+            private readonly LinkedListNode<T> _head;
+            private LinkedListNode<T> _node;
+            private int _left;
+            private readonly int _version;
+
+            public Ring(LinkedList<T> list)
             {
-                int size = Unsafe.SizeOf<T>();
-                ref byte elements = ref writer.ReserveCounted(count, size);
-                ref byte next = ref elements;
-                for (var node = linked.First; node != null; node = node.Next)
+                _list = list;
+                _head = _node = CollectionFields.Head(list);
+                _left = list.Count;
+                _version = CollectionFields.Version(list);
+            }
+
+            public int Fill(Span<T> chunk)
+            {
+                int filled = Math.Min(_left, chunk.Length);
+                var node = _node;
+                ref T at = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(chunk);
+                for (int i = 0; i < filled; i++)
                 {
-                    if (--count < 0)
+                    if (node == null)
                         NinoThrow.ModifiedDuringWrite();
-#if NET8_0_OR_GREATER
-                    // The value in place, not a copy of it.
-                    Unsafe.WriteUnaligned(ref next, node.ValueRef);
-#else
-                    NinoUnsafe.Write(ref next, node.Value);
-#endif
-                    next = ref Unsafe.Add(ref next, size);
+                    var fields = Unsafe.As<CollectionFields.LinkedNode<T>>(node);
+                    Unsafe.Add(ref at, i) = fields.item;
+                    node = fields.next;
                 }
 
-                NinoLayout<T>.ClearPadding(ref elements, linked.Count);
-                return;
+                _node = node;
+                _left -= filled;
+                return filled;
             }
 
-            Writer local = default;
-            writer.CopyTo(ref local);
-            local.WriteLength(count);
-            for (var node = linked.First; node != null; node = node.Next)
-                NinoElements.WriteOne<T, TFormatter>(node.Value, ref local);
-            local.CopyTo(ref writer);
-        }
-
-#if NET8_0_OR_GREATER
-        // Inline the node helper from the first call.
-        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
-        private static void WriteLinkedRing(LinkedList<T> linked, ref Writer writer)
-        {
-            int version = CollectionFields.Version(linked);
-            int count = linked.Count;
-            int size = Unsafe.SizeOf<T>();
-            ref byte first = ref writer.ReserveCounted(count, size);
-            ref byte destination = ref first;
-            var head = linked.First;
-            var node = head;
-            int left = count;
-            for (; left >= 2; left -= 2)
+            public void End()
             {
-                node = WriteLinkedNode(node, ref destination);
-                node = WriteLinkedNode(node, ref Unsafe.Add(ref destination, size));
-                destination = ref Unsafe.Add(ref destination, 2 * size);
+                if (_node != _head || CollectionFields.Version(_list) != _version)
+                    NinoThrow.ModifiedDuringWrite();
             }
-            if (left != 0)
-                node = WriteLinkedNode(node, ref destination);
-
-            if (node != head || CollectionFields.Version(linked) != version)
-                NinoThrow.ModifiedDuringWrite();
-            NinoLayout<T>.ClearPadding(ref first, count);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static LinkedListNode<T> WriteLinkedNode(LinkedListNode<T> node, ref byte destination)
-        {
-            var fields = Unsafe.As<CollectionFields.LinkedNode<T>>(node);
-            var next = fields.next;
-            NinoUnsafe.WriteIn(ref destination, in fields.item);
-            return next;
-        }
-#endif
-
-        /// <summary>
-        /// Each node linked as it is read, and the list's fields set once at the end, where its layout was checked:
-        /// AddLast checks the node, links it in and bumps the count and the version per element (a third of the time
-        /// a list of ints takes to build).
-        /// </summary>
-        private static void ReadLinked(LinkedList<T> linked, int length, ref Reader reader)
-        {
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot && length != 0)
-            {
-                ReadLinkedSlots(linked, length, ref reader);
-                return;
-            }
-
-            if (!CollectionViews.LinkedList || length == 0 || linked.Count != 0)
-            {
-                reader = AddEach(linked, length, reader);
-                return;
-            }
-
-            Reader local = default;
-            reader.CopyTo(ref local);
-            LinkedListNode<T> first = null, last = null;
-            for (int i = 0; i < length; i++)
-            {
-                T item = default;
-                NinoElements.ReadOne<T, TFormatter>(ref local, ref item);
-                var node = new LinkedListNode<T>(item);
-                CollectionFields.Append(linked, node, last);
-                if (last == null)
-                    first = node;
-                last = node;
-            }
-
-            CollectionFields.Close(first, last);
-            CollectionFields.Head(linked) = first;
-            CollectionFields.Count(linked) = length;
-            CollectionFields.Version(linked)++;
-            local.CopyTo(ref reader);
         }
 
         /// <summary>
-        /// Slots (raw <c>T?</c>): read as an array is, as one block into a rented array, then linked node by node
-        /// as <see cref="ReadLinked"/> links them.
+        /// Each chunk's items linked as new nodes, and the list's fields set once at the end (<see cref="Close"/>), where
+        /// its layout was checked: AddLast checks the node, links it in and bumps the count and the version per element
+        /// (a third of the time a list of ints takes to build). Until then the list is empty: a read rejected half way
+        /// leaves no node in it.
         /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadLinkedSlots(LinkedList<T> linked, int length, ref Reader reader)
+        private struct Links : INinoGatherTarget<T>
         {
-            var items = NinoCollections.ReadRented<T, TFormatter>(length, ref reader);
-            try
-            {
-                if (!CollectionViews.LinkedList || linked.Count != 0)
-                {
-                    for (int i = 0; i < length; i++)
-                        linked.AddLast(items[i]);
-                    return;
-                }
+            private readonly LinkedList<T> _list;
+            private LinkedListNode<T> _first, _last;
+            private int _count;
 
-                LinkedListNode<T> first = null, last = null;
-                for (int i = 0; i < length; i++)
+            public Links(LinkedList<T> list)
+            {
+                _list = list;
+                _first = _last = null;
+                _count = 0;
+            }
+
+            public void Add(Span<T> chunk)
+            {
+                var last = _last;
+                foreach (var item in chunk)
                 {
-                    var node = new LinkedListNode<T>(items[i]);
-                    CollectionFields.Append(linked, node, last);
-                    if (last == null)
-                        first = node;
+                    var node = new LinkedListNode<T>(item);
+                    CollectionFields.Append(_list, node, last);
+                    _first ??= node;
                     last = node;
                 }
 
-                CollectionFields.Close(first, last);
-                CollectionFields.Head(linked) = first;
-                CollectionFields.Count(linked) = length;
-                CollectionFields.Version(linked)++;
+                _last = last;
+                _count += chunk.Length;
             }
-            finally
+
+            public void Close()
             {
-                NinoCollections.ReturnRented(items);
+                if (_last == null)
+                    return;
+                CollectionFields.Close(_first, _last);
+                CollectionFields.Head(_list) = _first;
+                CollectionFields.Count(_list) = _count;
+                CollectionFields.Version(_list)++;
             }
         }
 
-        /// <summary>Through AddLast, where the list's layout is not known.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader AddEach(LinkedList<T> linked, int length, Reader reader)
+        private struct AddLast : INinoAdder<LinkedList<T>, T>
         {
-            for (int i = 0; i < length; i++)
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Add(LinkedList<T> target, T item) => target.AddLast(item);
+        }
+
+        /// <summary>
+        /// Read a chunk at a time and linked (<see cref="Links"/>), or added through AddLast where the list's layout
+        /// is not known or it is not empty. Out of line with the reader by value: the target's fields and both calls
+        /// inlined into every read of a list took stack there (asm.py).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadLinked(LinkedList<T> linked, int length, Reader reader)
+        {
+            if (!CollectionViews.LinkedList || linked.Count != 0)
             {
-                T item = default;
-                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
-                linked.AddLast(item);
+                var adds = new NinoGather.Adds<LinkedList<T>, T, AddLast>(linked);
+                return NinoGather.ReadAll<T, TFormatter, NinoGather.Adds<LinkedList<T>, T, AddLast>>(ref adds, length,
+                    reader);
             }
 
+            var links = new Links(linked);
+            reader = NinoGather.ReadAll<T, TFormatter, Links>(ref links, length, reader);
+            links.Close();
             return reader;
         }
 

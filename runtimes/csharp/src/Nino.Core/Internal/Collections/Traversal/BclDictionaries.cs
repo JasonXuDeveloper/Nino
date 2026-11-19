@@ -22,45 +22,35 @@ namespace Nino.Core
             switch (value)
             {
                 case SortedDictionary<TKey, TValue> sorted:
-                    object root = SortedSetTrees.RootOf(sorted);
-#if NET8_0_OR_GREATER
-                    if (Unsafe.SizeOf<KeyValuePair<TKey, TValue>>() <= 8 &&
-                        !NinoUnsafe.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>() &&
-                        TryWritePackedTree(sorted.Count, root, ref writer))
-                        return true;
-#endif
-                    // Copied out of its tree, then written as an array of pairs (raw ones as one block): its
-                    // enumerator keeps a stack of nodes and checks the version per pair.
-                    NinoCollections.WriteCopiedPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(sorted,
-                        root, ref writer);
+                    writer = WriteSorted(sorted, writer);
                     return true;
                 case SortedList<TKey, TValue> list when CollectionViews.SortedList:
                     WriteSortedList(list, ref writer);
                     return true;
                 case ConcurrentDictionary<TKey, TValue> concurrent:
-                    WriteConcurrent(concurrent, ref writer);
+                    writer = WriteConcurrent(concurrent, writer);
                     return true;
                 default:
                     return false;
             }
         }
 
-#if NET8_0_OR_GREATER
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static bool TryWritePackedTree(int count, object root, ref Writer writer)
-        {
-            if (!NinoUnsafe.Is64Bit || root == null ||
-                !NinoBlockPlan<KeyValuePair<TKey, TValue>,
-                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>.IsMemory)
-                return false;
 
-            if (count == 1)
-                SortedSetNodes<KeyValuePair<TKey, TValue>>.WritePackedItem(root, ref writer);
-            else
-                SortedSetNodes<KeyValuePair<TKey, TValue>>.WritePacked(root, count, ref writer);
-            return true;
+        /// <summary>
+        /// Walked out of its tree a chunk at a time, as a SortedSet is (BclCollections), else through its enumerator; out
+        /// of line with the writer by value, as there.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteSorted(SortedDictionary<TKey, TValue> sorted, Writer writer)
+        {
+            object root = SortedSetTrees.RootOf(sorted);
+            return root != null
+                ? NinoGather.Write<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                    SortedSetNodes<KeyValuePair<TKey, TValue>>.Walk>(SortedSetNodes<KeyValuePair<TKey, TValue>>.Items(root), sorted.Count, writer)
+                : NinoGather.Write<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                    NinoGather.Enumerated<KeyValuePair<TKey, TValue>, SortedDictionary<TKey, TValue>.Enumerator>>(
+                    new(sorted.GetEnumerator()), sorted.Count, writer);
         }
-#endif
 
         /// <summary>
         /// Reads <paramref name="length"/> pairs into <paramref name="dictionary"/> (empty) if it is one of these
@@ -150,38 +140,12 @@ namespace Nino.Core
         /// bucket counted (hash flooding, <see cref="NinoSettings.MaxHashCollisions"/>). The first pair of the first
         /// dictionary of these types is added through its public API, to learn the type of its nodes.
         /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
         private static ConcurrentDictionary<TKey, TValue> CreateConcurrentBuilt(int length, ref Reader reader)
         {
-            var concurrent = ConcurrentTables.Create<TKey, TValue>(length);
-            IntPtr nodes = ConcurrentTables.Plan<TKey, TValue>.NodeType;
-            var builder = nodes != IntPtr.Zero
-                ? new ConcurrentTables.Builder<TKey, TValue>(concurrent, nodes)
-                : default;
-            Reader local = default;
-            reader.CopyTo(ref local);
-            for (int i = 0; i < length; i++)
-            {
-                TKey key = default;
-                TValue item = default;
-                default(TKeyFormatter).Deserialize(ref local, ref key);
-                default(TValueFormatter).Deserialize(ref local, ref item);
-                if (key == null)
-                    NinoThrow.NullKey(concurrent);
-                if (nodes == IntPtr.Zero)
-                {
-                    // Empty, so it cannot hold the key yet.
-                    concurrent.TryAdd(key, item);
-                    nodes = ConcurrentTables.TypeOfNodes(concurrent, key);
-                    ConcurrentTables.Plan<TKey, TValue>.NodeType = nodes;
-                    builder = new ConcurrentTables.Builder<TKey, TValue>(concurrent, nodes);
-                }
-                else if (!builder.Add(key, item))
-                    NinoThrow.DuplicateKey(concurrent.GetType());
-            }
-
-            local.CopyTo(ref reader);
-            return concurrent;
+            var builds = new Builds(ConcurrentTables.Create<TKey, TValue>(length));
+            reader = NinoGather.ReadAll<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, Builds>(ref builds,
+                length, reader);
+            return builds.Concurrent;
         }
 
         /// <summary>From its two arrays.</summary>
@@ -207,18 +171,42 @@ namespace Nino.Core
                 return;
             }
 
-            Writer local = default;
-            writer.CopyTo(ref local);
-            local.WriteLength(count);
-            ref TKey key = ref NinoUnsafe.GetArrayDataReference(keys);
-            ref TValue value = ref NinoUnsafe.GetArrayDataReference(values);
-            for (int i = 0; i < count; i++)
+            // Its two arrays zipped into pairs a chunk at a time, written by the pairs' run loop.
+            writer = NinoGather.Write<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, Zip>(new Zip(keys, values, count), count, writer);
+        }
+
+        /// <summary>A <see cref="SortedList{TKey,TValue}"/>'s keys and values, zipped into its pairs.</summary>
+        private struct Zip : INinoGatherSource<KeyValuePair<TKey, TValue>>
+        {
+            private readonly TKey[] _keys;
+            private readonly TValue[] _values;
+            private readonly int _count;
+            private int _at;
+
+            public Zip(TKey[] keys, TValue[] values, int count)
             {
-                default(TKeyFormatter).Serialize(Unsafe.Add(ref key, i), ref local);
-                default(TValueFormatter).Serialize(Unsafe.Add(ref value, i), ref local);
+                _keys = keys;
+                _values = values;
+                _count = count;
+                _at = 0;
             }
 
-            local.CopyTo(ref writer);
+            public int Fill(Span<KeyValuePair<TKey, TValue>> chunk)
+            {
+                int filled = Math.Min(_count - _at, chunk.Length);
+                // count is at most the arrays' lengths (checked by the caller).
+                ref TKey key = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(_keys), _at);
+                ref TValue value = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(_values), _at);
+                ref var pair = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(chunk);
+                for (int i = 0; i < filled; i++)
+                    Unsafe.Add(ref pair, i) = new KeyValuePair<TKey, TValue>(Unsafe.Add(ref key, i), Unsafe.Add(ref value, i));
+                _at += filled;
+                return filled;
+            }
+
+            public void End()
+            {
+            }
         }
 
         // The two arrays and the single destination reservation were checked by the caller.
@@ -283,21 +271,67 @@ namespace Nino.Core
         /// once for every dictionary with these keys and values (4x slower when a Dictionary was seen first), and
         /// without its count (which takes every lock, and may not match the pairs enumerated after it).
         /// </summary>
-        private static void WriteConcurrent(ConcurrentDictionary<TKey, TValue> concurrent, ref Writer writer)
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteConcurrent(ConcurrentDictionary<TKey, TValue> concurrent, Writer writer) =>
+            NinoGather.Write<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                NinoGather.Enumerated<KeyValuePair<TKey, TValue>, IEnumerator<KeyValuePair<TKey, TValue>>>>(new(concurrent.GetEnumerator()), -1, writer);
+
+        /// <summary>
+        /// The pairs of a new dictionary filled as its constructor from the pairs fills it, without locks
+        /// (<see cref="ConcurrentTables.Builder{TKey,TValue}"/>), each key's bucket counted. The first pair of the first
+        /// dictionary of these types is added through its public API, to learn the type of its nodes.
+        /// </summary>
+        private struct Builds : INinoGatherTarget<KeyValuePair<TKey, TValue>>
         {
-            Writer local = default;
-            writer.CopyTo(ref local);
-            int countPos = local.ReserveInt32();
-            int written = 0;
-            foreach (var pair in concurrent)
+            public readonly ConcurrentDictionary<TKey, TValue> Concurrent;
+            private IntPtr _nodes;
+            private ConcurrentTables.Builder<TKey, TValue> _builder;
+
+            public Builds(ConcurrentDictionary<TKey, TValue> concurrent)
             {
-                default(TKeyFormatter).Serialize(pair.Key, ref local);
-                default(TValueFormatter).Serialize(pair.Value, ref local);
-                written++;
+                Concurrent = concurrent;
+                _nodes = ConcurrentTables.Plan<TKey, TValue>.NodeType;
+                _builder = _nodes != IntPtr.Zero ? new ConcurrentTables.Builder<TKey, TValue>(concurrent, _nodes) : default;
             }
 
-            local.PatchInt32(countPos, written);
-            local.CopyTo(ref writer);
+            public void Add(Span<KeyValuePair<TKey, TValue>> chunk)
+            {
+                foreach (var pair in chunk)
+                {
+                    if (pair.Key == null)
+                        NinoThrow.NullKey(Concurrent);
+                    if (_nodes == IntPtr.Zero)
+                    {
+                        // Empty, so it cannot hold the key yet.
+                        Concurrent.TryAdd(pair.Key, pair.Value);
+                        _nodes = ConcurrentTables.TypeOfNodes(Concurrent, pair.Key);
+                        ConcurrentTables.Plan<TKey, TValue>.NodeType = _nodes;
+                        _builder = new ConcurrentTables.Builder<TKey, TValue>(Concurrent, _nodes);
+                    }
+                    else if (!_builder.Add(pair.Key, pair.Value))
+                        NinoThrow.DuplicateKey(Concurrent.GetType());
+                }
+            }
+        }
+
+        /// <summary>Pairs added through TryAdd, each key's bucket walked after (hash flooding).</summary>
+        private struct TryAdds : INinoGatherTarget<KeyValuePair<TKey, TValue>>
+        {
+            private readonly ConcurrentDictionary<TKey, TValue> _concurrent;
+
+            public TryAdds(ConcurrentDictionary<TKey, TValue> concurrent) => _concurrent = concurrent;
+
+            public void Add(Span<KeyValuePair<TKey, TValue>> chunk)
+            {
+                foreach (var pair in chunk)
+                {
+                    if (pair.Key == null)
+                        NinoThrow.NullKey(_concurrent);
+                    if (!_concurrent.TryAdd(pair.Key, pair.Value))
+                        NinoThrow.DuplicateKey(_concurrent.GetType());
+                    ConcurrentTables.Added(_concurrent, pair.Key);
+                }
+            }
         }
 
         /// <summary>
@@ -305,22 +339,8 @@ namespace Nino.Core
         /// </summary>
         private static void ReadConcurrent(ConcurrentDictionary<TKey, TValue> concurrent, int length, ref Reader reader)
         {
-            Reader local = default;
-            reader.CopyTo(ref local);
-            for (int i = 0; i < length; i++)
-            {
-                TKey key = default;
-                TValue item = default;
-                default(TKeyFormatter).Deserialize(ref local, ref key);
-                default(TValueFormatter).Deserialize(ref local, ref item);
-                if (key == null)
-                    NinoThrow.NullKey(concurrent);
-                if (!concurrent.TryAdd(key, item))
-                    NinoThrow.DuplicateKey(concurrent.GetType());
-                ConcurrentTables.Added(concurrent, key);
-            }
-
-            local.CopyTo(ref reader);
+            var adds = new TryAdds(concurrent);
+            reader = NinoGather.ReadAll<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, TryAdds>(ref adds, length, reader);
         }
 
         /// <summary>
@@ -350,22 +370,96 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Read as an array of pairs, then split into its two arrays when the keys come in order under its comparer
-        /// (as Nino writes them), otherwise added one by one.
+        /// Read a chunk at a time straight into its two arrays (<see cref="Split"/>), then published when the keys
+        /// come in order under its comparer (as Nino writes them), whatever the keys and values are (#350); otherwise,
+        /// or where its layout is not known or the arrays would take far more memory than the data, added one by one.
         /// </summary>
         private static void ReadSortedList(SortedList<TKey, TValue> list, int length, ref Reader reader)
         {
-            var pairs = NinoCollections.ReadPairsRented<TKey, TValue, TKeyFormatter, TValueFormatter>(length,
-                ref reader);
-            try
+            if (!CollectionViews.SortedList || length == 0 ||
+                !NinoElements.Fits(length, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>(), reader.Remaining))
             {
-                if (!CollectionViews.SortedList || !TryAdopt(list, pairs, length))
-                    AddEach(list, pairs, length);
+                var adds = new NinoGather.Adds<SortedList<TKey, TValue>, KeyValuePair<TKey, TValue>, AddUnique>(list);
+                reader = NinoGather.ReadAll<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                    NinoGather.Adds<SortedList<TKey, TValue>, KeyValuePair<TKey, TValue>, AddUnique>>(ref adds, length, reader);
+                return;
             }
-            finally
+
+            // Its own arrays when they are large enough (Clear cleared them), otherwise new ones; the list stays empty
+            // until its size is published, so a read rejected half way leaves it empty.
+            TKey[] keys = CollectionFields.Keys(list);
+            TValue[] values = CollectionFields.Values(list);
+            if (keys.Length < length)
+                CollectionFields.Keys(list) = keys = new TKey[length];
+            if (values.Length < length)
+                CollectionFields.Values(list) = values = new TValue[length];
+            var split = new Split(keys, values);
+            reader = NinoGather.ReadAll<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, Split>(ref split, length, reader);
+            if (InOrder(keys, length, CollectionFields.Comparer(list)))
             {
-                NinoCollections.ReturnRented(pairs);
+                CollectionFields.Size(list) = length;
+                CollectionFields.Version(list)++;
+                return;
             }
+
+            // Out of order under this comparer (or a null key): moved out of the arrays and added one by one.
+            var pairs = new KeyValuePair<TKey, TValue>[length];
+            for (int i = 0; i < length; i++)
+                pairs[i] = new KeyValuePair<TKey, TValue>(keys[i], values[i]);
+            Array.Clear(keys, 0, length);
+            Array.Clear(values, 0, length);
+            AddEach(list, pairs, length);
+        }
+
+        /// <summary>The pairs of each chunk split into a <see cref="SortedList{TKey,TValue}"/>'s keys and values.</summary>
+        private struct Split : INinoGatherTarget<KeyValuePair<TKey, TValue>>
+        {
+            private readonly TKey[] _keys;
+            private readonly TValue[] _values;
+            private int _at;
+
+            public Split(TKey[] keys, TValue[] values)
+            {
+                _keys = keys;
+                _values = values;
+                _at = 0;
+            }
+
+            public void Add(Span<KeyValuePair<TKey, TValue>> chunk)
+            {
+                // Every pair has its place: the arrays were sized for the count the reads stop at.
+                ref TKey key = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(_keys), _at);
+                ref TValue value = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(_values), _at);
+                if ((uint)(_at + chunk.Length) > (uint)_keys.Length || (uint)(_at + chunk.Length) > (uint)_values.Length)
+                    NinoThrow.EndOfData();
+                _at += chunk.Length;
+                ref var pair = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(chunk);
+#if NET8_0_OR_GREATER
+                // Pairs of two 4-byte values whose memory is their wire form: one vector pass.
+                if (Unsafe.SizeOf<TKey>() == 4 && Unsafe.SizeOf<TValue>() == 4 && NinoSimd.CanInterleave<int>(chunk.Length) &&
+                    NinoBlockPlan<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>.IsMemory)
+                {
+                    NinoSimd.DeinterleaveInt32(ref Unsafe.As<KeyValuePair<TKey, TValue>, byte>(ref pair), ref Unsafe.As<TKey, int>(ref key),
+                        ref Unsafe.As<TValue, int>(ref value), chunk.Length);
+                    return;
+                }
+#endif
+                for (int n = chunk.Length; n > 0; n--)
+                {
+                    key = pair.Key;
+                    value = pair.Value;
+                    pair = ref Unsafe.Add(ref pair, 1);
+                    key = ref Unsafe.Add(ref key, 1);
+                    value = ref Unsafe.Add(ref value, 1);
+                }
+            }
+        }
+
+        private struct AddUnique : INinoAdder<SortedList<TKey, TValue>, KeyValuePair<TKey, TValue>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Add(SortedList<TKey, TValue> target, KeyValuePair<TKey, TValue> item) =>
+                NinoCollections.AddUnique(target, item.Key, item.Value, target.Count);
         }
 
 #if NET8_0_OR_GREATER
@@ -476,72 +570,31 @@ namespace Nino.Core
         }
 #endif
 
-        private static bool TryAdopt(SortedList<TKey, TValue> list, KeyValuePair<TKey, TValue>[] pairs, int length)
-        {
-            if (length == 0 || !InOrder(pairs, length, CollectionFields.Comparer(list)))
-                return false;
-            // Its own arrays when they are large enough (Clear cleared them), otherwise new ones.
-            // Plain locals: a store through a ref to the field could alias the array stores below.
-            TKey[] keys = CollectionFields.Keys(list);
-            TValue[] values = CollectionFields.Values(list);
-            if (keys.Length < length)
-                CollectionFields.Keys(list) = keys = new TKey[length];
-            if (values.Length < length)
-                CollectionFields.Values(list) = values = new TValue[length];
-            // Every array holds at least length items (pairs is rented for them, keys and values were checked
-            // above): cursors, without a bounds check per item.
-            ref var pair = ref NinoUnsafe.GetArrayDataReference(pairs);
-            ref TKey key = ref NinoUnsafe.GetArrayDataReference(keys);
-            ref TValue value = ref NinoUnsafe.GetArrayDataReference(values);
-#if NET8_0_OR_GREATER
-            // Compare the staged keys first. User comparers can run arbitrary code, so the input
-            // buffer is no longer a source for the split.
-            // At 2,048 pairs, the wire, rented pairs and destination arrays occupy 48 KiB.
-            if (Unsafe.SizeOf<TKey>() == 4 && Unsafe.SizeOf<TValue>() == 4 && length is >= 64 and <= 2048 &&
-                NinoSimd.CanInterleave<int>(length) &&
-                NinoBlockPlan<KeyValuePair<TKey, TValue>,
-                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>.IsMemory)
-            {
-                NinoSimd.DeinterleaveInt32(ref Unsafe.As<KeyValuePair<TKey, TValue>, byte>(ref pair),
-                    ref Unsafe.As<TKey, int>(ref key), ref Unsafe.As<TValue, int>(ref value), length);
-            }
-            else
-#endif
-            for (int n = length; n > 0; n--)
-            {
-                key = pair.Key;
-                value = pair.Value;
-                pair = ref Unsafe.Add(ref pair, 1);
-                key = ref Unsafe.Add(ref key, 1);
-                value = ref Unsafe.Add(ref value, 1);
-            }
-
-            CollectionFields.Size(list) = length;
-            CollectionFields.Version(list)++;
-            return true;
-        }
-
         /// <summary>Whether the keys are not null and strictly ascending under <paramref name="comparer"/>.</summary>
-        /// <remarks><paramref name="count"/> is not 0 and at most the array's length (it is rented for them).</remarks>
-        private static bool InOrder(KeyValuePair<TKey, TValue>[] pairs, int count, IComparer<TKey> comparer)
+        /// <remarks><paramref name="count"/> is not 0 and at most the array's length.</remarks>
+        private static bool InOrder(TKey[] keys, int count, IComparer<TKey> comparer)
         {
-            if (HasNullKey(pairs, count))
-                return false;
-            // Indexed from the first pair, without a bounds check per pair. An index, not a cursor: a cursor bumped
+            // Indexed from the first key, without a bounds check per key. An index, not a cursor: a cursor bumped
             // around the comparer's call was kept on the stack.
-            ref var first = ref NinoUnsafe.GetArrayDataReference(pairs);
+            ref TKey first = ref NinoUnsafe.GetArrayDataReference(keys);
+            if (!typeof(TKey).IsValueType)
+            {
+                for (int i = 0; i < count; i++)
+                    if (Unsafe.Add(ref first, i) == null)
+                        return false;
+            }
+
             if (typeof(TKey).IsValueType && ReferenceEquals(comparer, Comparer<TKey>.Default))
             {
                 // Comparer<TKey>.Default devirtualized and inlined for value types.
                 for (int i = 1; i < count; i++)
-                    if (Comparer<TKey>.Default.Compare(Unsafe.Add(ref first, i - 1).Key,
-                            Unsafe.Add(ref first, i).Key) >= 0)
+                    if (Comparer<TKey>.Default.Compare(Unsafe.Add(ref first, i - 1), Unsafe.Add(ref first, i)) >= 0)
                         return false;
                 return true;
             }
 
             for (int i = 1; i < count; i++)
-                if (comparer.Compare(Unsafe.Add(ref first, i - 1).Key, Unsafe.Add(ref first, i).Key) >= 0)
+                if (comparer.Compare(Unsafe.Add(ref first, i - 1), Unsafe.Add(ref first, i)) >= 0)
                     return false;
             return true;
         }

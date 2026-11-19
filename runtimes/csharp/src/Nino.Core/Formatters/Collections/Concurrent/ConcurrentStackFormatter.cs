@@ -49,19 +49,8 @@ namespace Nino.Core
                 stack.Clear();
             }
 
-            // Slots (raw T?): read as one run, as an array of them is, then added.
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-            {
-                NinoCollections.AddSlots<ConcurrentStack<T>, T, TFormatter, Adder>(stack, length, ref reader);
-                return;
-            }
-
-            for (int i = 0; i < length; i++)
-            {
-                T item = default;
-                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
-                stack.Push(item);
-            }
+            // A chunk at a time where the run's read loop moves several, then pushed in order.
+            reader = NinoCollections.AddAll<ConcurrentStack<T>, T, TFormatter, Adder>(stack, length, reader);
         }
 
         private struct Adder : INinoAdder<ConcurrentStack<T>, T>

@@ -267,50 +267,67 @@ namespace Nino.Core.Internal
         public static object Build(T[] items, int count) =>
             SortedSetNodes.Build(items, count, SortedSetNodes.Layout, At, Type);
 
-        /// <summary>Copies the items under <paramref name="root"/> into <paramref name="array"/> in order.</summary>
-        public static void CopyTo(object root, T[] array)
-        {
-            int at = 0;
-            CopyTo(root, array, ref at, At.Item, At.Left, At.Right);
-        }
+        /// <summary>
+        /// The items under <paramref name="root"/> in order, walked into the chunks of a gather
+        /// (<see cref="NinoGather"/>) through the node fields, where the set's enumerator keeps a stack of nodes and
+        /// checks the version per item. Resumed chunk after chunk: the path to the next item is kept on a stack of
+        /// nodes (a chunk of <see cref="NinoGather{T}"/> of objects, far deeper than a red-black tree of any count).
+        /// </summary>
+        public static Walk Items(object root) => new(root);
 
-        private static void CopyTo(object node, T[] array, ref int at, int item, int left, int right)
+        internal struct Walk : INinoGatherSource<T>
         {
-            for (; node != null; node = ObjectFields.At<object>(node, right))
+            private object _node;
+            private int _depth, _deepest;
+            private readonly NinoGather<object>.Chunk _stack;
+
+            public Walk(object root)
             {
-                CopyTo(ObjectFields.At<object>(node, left), array, ref at, item, left, right);
-                array[at++] = ObjectFields.At<T>(node, item);
+                _node = root;
+                _depth = _deepest = 0;
+                _stack = NinoGather<object>.Take();
+            }
+
+            public int Fill(Span<T> chunk)
+            {
+                var at = At;
+                int item = at.Item, left = at.Left, right = at.Right;
+                object node = _node;
+                int depth = _depth;
+                object[] stack = _stack.Array;
+                int filled = 0;
+                while (filled < chunk.Length)
+                {
+                    for (; node != null; node = ObjectFields.At<object>(node, left))
+                    {
+                        // Deeper than any red-black tree: changed during the walk.
+                        if ((uint)depth >= (uint)stack.Length)
+                            NinoThrow.ModifiedDuringWrite();
+                        stack[depth++] = node;
+                    }
+
+                    if (depth > _deepest)
+                        _deepest = depth;
+
+                    if (depth == 0)
+                        break;
+                    var top = stack[--depth];
+                    chunk[filled++] = ObjectFields.At<T>(top, item);
+                    node = ObjectFields.At<object>(top, right);
+                }
+
+                _node = node;
+                _depth = depth;
+                return filled;
+            }
+
+            public void End()
+            {
+                bool more = _node != null || _depth != 0;
+                NinoGather<object>.Return(_stack, _deepest);
+                if (more)
+                    NinoThrow.ModifiedDuringWrite();
             }
         }
-
-#if NET8_0_OR_GREATER
-        /// <summary>Writes the checked tree directly when the caller has proved the packed layout.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WritePacked(object root, int count, ref Writer writer)
-        {
-            ref byte bytes = ref writer.ReserveCounted(count, Unsafe.SizeOf<T>());
-            var items = MemoryMarshal.CreateSpan(ref Unsafe.As<byte, T>(ref bytes), count);
-            int at = 0;
-            CopyTo(root, items, ref at, At.Item, At.Left, At.Right);
-            if (at != count)
-                NinoThrow.ModifiedDuringWrite();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WritePackedItem(object root, ref Writer writer)
-        {
-            ref byte bytes = ref writer.ReserveCounted(1, Unsafe.SizeOf<T>());
-            NinoUnsafe.WriteIn(ref bytes, in ObjectFields.At<T>(root, At.Item));
-        }
-
-        private static void CopyTo(object node, Span<T> items, ref int at, int item, int left, int right)
-        {
-            for (; node != null; node = ObjectFields.At<object>(node, right))
-            {
-                CopyTo(ObjectFields.At<object>(node, left), items, ref at, item, left, right);
-                items[at++] = ObjectFields.At<T>(node, item);
-            }
-        }
-#endif
     }
 }

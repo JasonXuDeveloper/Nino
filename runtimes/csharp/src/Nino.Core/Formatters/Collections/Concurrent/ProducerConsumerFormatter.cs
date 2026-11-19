@@ -23,14 +23,11 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
+            // Its enumerator's snapshot, gathered a chunk at a time (Count could describe a different one; ToArray walks
+            // it into a new array besides).
             if (value.GetType() == typeof(ConcurrentQueue<T>))
             {
-                if (NinoKind.Stride<T, TFormatter>() <= 0)
-                    WriteQueueSnapshot(value, ref writer);
-                else if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                    WriteQueueSlots(Unsafe.As<ConcurrentQueue<T>>(value), ref writer);
-                else
-                    WriteQueueBlock(Unsafe.As<ConcurrentQueue<T>>(value), ref writer);
+                writer = WriteQueue(Unsafe.As<ConcurrentQueue<T>>(value), writer);
                 return;
             }
 
@@ -43,44 +40,9 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteQueueBlock(ConcurrentQueue<T> value, ref Writer writer) =>
-            NinoCollections.WriteSpan<T, TFormatter>(value.ToArray(), ref writer);
-
-        /// <summary>
-        /// Slots (raw <c>T?</c>): the enumerator's snapshot gathered in a rented array, then written as one run.
-        /// Walking the queue is what a write of it costs, and <c>ToArray</c> walks it into a new array besides
-        /// (1,000 <c>int?</c>: 5,000 ns against 3,700 for the enumerator, local).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteQueueSlots(ConcurrentQueue<T> value, ref Writer writer)
-        {
-            var pool = ArrayPool<T>.Shared;
-            // Sized by Count: started small and grown instead, the write took 4,500 ns where it takes 4,200 (1,000
-            // int?, local).
-            var rented = pool.Rent(Math.Max(value.Count, 16));
-            try
-            {
-                int count = 0;
-                foreach (var item in value)
-                {
-                    if (count == rented.Length)
-                    {
-                        var larger = pool.Rent(checked(count * 2));
-                        Array.Copy(rented, larger, count);
-                        pool.Return(rented);
-                        rented = larger;
-                    }
-
-                    rented[count++] = item;
-                }
-
-                NinoCollections.WriteSpan<T, TFormatter>(new ReadOnlySpan<T>(rented, 0, count), ref writer);
-            }
-            finally
-            {
-                pool.Return(rented);
-            }
-        }
+        private static Writer WriteQueue(ConcurrentQueue<T> value, Writer writer) =>
+            NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, IEnumerator<T>>>(new(value.GetEnumerator()), -1,
+                writer);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void WriteOtherSnapshot(TCollection value, ref Writer writer)
@@ -91,11 +53,6 @@ namespace Nino.Core
                 Array.Reverse(items);
             NinoCollections.WriteSpan<T, TFormatter>(items, ref writer);
         }
-
-        // The queue enumerator takes its own snapshot; Count could describe a different one.
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteQueueSnapshot(TCollection value, ref Writer writer) =>
-            NinoCollections.WriteEnumerated<T, TFormatter>(value, -1, ref writer);
 
         public void Deserialize(ref Reader reader, ref TCollection value)
         {
@@ -115,19 +72,8 @@ namespace Nino.Core
             var collection = value ??= NinoActivator<TCollection>.Create();
             NinoRecycler.DrainAndDiscard(collection);
 
-            // Slots (raw T?): read as one run, as an array of them is, then added.
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-            {
-                NinoCollections.AddSlots<TCollection, T, TFormatter, Adder>(collection, length, ref reader);
-                return;
-            }
-
-            for (int i = 0; i < length; i++)
-            {
-                T item = default;
-                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
-                collection.TryAdd(item);
-            }
+            // A chunk at a time where the run's read loop moves several, then added.
+            reader = NinoCollections.AddAll<TCollection, T, TFormatter, Adder>(collection, length, reader);
         }
 
         private struct Adder : INinoAdder<TCollection, T>

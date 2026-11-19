@@ -13,7 +13,7 @@ using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
-    /// <summary>How a collection takes one element read for it (<see cref="NinoCollections.AddSlots"/>).</summary>
+    /// <summary>How a collection takes one element read for it (<see cref="NinoCollections.AddAll"/>).</summary>
     internal interface INinoAdder<TTarget, T>
     {
         void Add(TTarget target, T item);
@@ -56,7 +56,7 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The fewest elements of a collection of elements written one by one that are copied out of it before they
-        /// are written (<see cref="RentCopied{T}"/>) rather than enumerated: strings through a ReadOnlyCollection,
+        /// are written (<see cref="NinoGather.WriteCopied{T,TFormatter}"/>) rather than enumerated: strings through a ReadOnlyCollection,
         /// locally against the enumerator, 20% slower at 4 elements, 25% faster at 16, 40% at 1,000.
         /// </summary>
         internal const int CopiedFrom = 16;
@@ -82,49 +82,24 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            // A collection that can copy its elements out is written from a rented array, as an array is, instead of
-            // through two interface calls per element and an enumerator (ReadOnlyCollection<T>, Collection<T>, ...):
-            // always for elements of a fixed size (NinoKind.Stride, a constant: one block), from CopiedFrom elements on
-            // for the others, where renting the array costs more than it saves below.
-            if (values is ICollection<T> collection &&
+            // Gathered and written through the run loops (#355): a collection that fits one chunk copied into it by
+            // its CopyTo, one call where an enumerator makes two interface calls per element (ReadOnlyCollection<T>,
+            // Collection<T>, ...), for elements of a fixed size (NinoKind.Stride, a constant: one block) and from
+            // CopiedFrom elements on, where the copy costs more than it saves below; else, or larger, through its
+            // enumerator a chunk at a time.
+            if (values is ICollection<T> collection && count <= NinoGather<T>.Length &&
                 (NinoKind.Stride<T, TFormatter>() > 0 || count >= CopiedFrom))
-            {
-                WriteCopied<T, TFormatter>(collection, null, ref writer);
-                return;
-            }
-
-            if (NinoElements.WritesOnLocal<T, TFormatter>())
-                writer = WriteEnumerated<T, TFormatter>(values, count, writer);
+                NinoGather.WriteCopied<T, TFormatter>(collection, count, ref writer);
             else
-                WriteEnumerated<T, TFormatter>(values, count, ref writer);
+                writer = WriteEnumerated<T, TFormatter>(values, count, writer);
         }
 
-        // The writer by value and returned, a local whose cursor stays in registers across the enumerator's calls (as
-        // HashSetFormatter's).
+        // Out of line with the writer by value, the enumerator taken there: one call in the caller.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteEnumerated<T, TFormatter>(IEnumerable<T> values, int count, Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            WriteEnumerated<T, TFormatter>(values, count, ref writer);
-            return writer;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void WriteEnumerated<T, TFormatter>(IEnumerable<T> values, int count, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            int countPos = writer.ReserveInt32();
-            int written = 0;
-            foreach (var item in values)
-            {
-                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
-                written++;
-            }
-
-            if (count >= 0 && count != written)
-                NinoThrow.ModifiedDuringWrite();
-            writer.PatchInt32(countPos, written);
-        }
+            where TFormatter : struct, INinoFormatter<T> =>
+            NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, IEnumerator<T>>>(new(values.GetEnumerator()),
+                count, writer);
 
         /// <summary>
         /// Writes a collection declared as an interface: count (-1 = null), then the elements. Lists and arrays
@@ -194,47 +169,16 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Writes the count of <paramref name="source"/>, then its elements in the order
-        /// <see cref="ICollection{T}.CopyTo"/> puts them, as an array is written (raw elements as one block): copied
-        /// out of the <see cref="SortedSet{T}"/> tree under <paramref name="root"/> when it is not null.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteCopied<T, TFormatter>(ICollection<T> source, object root, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            var array = RentCopied(source, root, out int count);
-            try
-            {
-                WriteSpan<T, TFormatter>(new ReadOnlySpan<T>(array, 0, count), ref writer);
-            }
-            finally
-            {
-                ReturnRented(array);
-            }
-        }
-
-        /// <summary>
         /// The elements of <paramref name="source"/> in a rented array (give it back with <see cref="ReturnRented{T}"/>),
-        /// in the order <see cref="ICollection{T}.CopyTo"/> puts them, or copied out of the <see cref="SortedSet{T}"/>
-        /// tree under <paramref name="root"/> when it is not null.
+        /// in the order <see cref="ICollection{T}.CopyTo"/> puts them.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T[] RentCopied<T>(ICollection<T> source, object root, out int count)
+        public static T[] RentCopied<T>(ICollection<T> source, out int count)
         {
             count = source.Count;
             var array = ArrayPool<T>.Shared.Rent(count);
-            CopyOut(source, root, array);
+            source.CopyTo(array, 0);
             return array;
-        }
-
-        // Out of line: in the caller, the branch keeps the writer in memory.
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void CopyOut<T>(ICollection<T> source, object root, T[] array)
-        {
-            if (root != null)
-                SortedSetNodes<T>.CopyTo(root, array);
-            else
-                source.CopyTo(array, 0);
         }
 
         /// <summary>
@@ -297,40 +241,19 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// <see cref="WriteCopied{T,TFormatter}"/> for pairs, as
-        /// <see cref="KeyValuePairFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/> writes them.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteCopiedPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(
-            ICollection<KeyValuePair<TKey, TValue>> source, object root, ref Writer writer)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue> =>
-            WriteCopied<KeyValuePair<TKey, TValue>,
-                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(
-                source, root, ref writer);
-
-        /// <summary>
-        /// Reads <paramref name="length"/> slots (<see cref="NinoElementKind.Slot"/>: a raw
-        /// <c>T?</c>) as one run into a rented array, checked and converted by the run's kernels, and gives each to
-        /// <typeparamref name="TAdder"/>: what a collection that takes its elements one at a time reads slots
-        /// through. A slot read alone goes through the run's kernel once an element (1,000 <c>int?</c> into a
-        /// <c>Collection</c>: 10,486 ns, against 4,552 before slots; a <c>HashSet</c> 12,174 against 4,842, local).
+        /// Reads <paramref name="length"/> elements and gives each to <typeparamref name="TAdder"/>: what a collection
+        /// that takes its elements one at a time reads through. Raw values, slots, blocks and strings are read a chunk
+        /// at a time by the run's read loop (<see cref="NinoGather.ReadAll{T,TFormatter,TTarget}"/>), others one at a
+        /// time. A slot read alone went through the run's kernel once an element (1,000 <c>int?</c> into a
+        /// <c>Collection</c>: 10,486 ns, against 4,552 read as one run; a <c>HashSet</c> 12,174 against 4,842, local).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void AddSlots<TTarget, T, TFormatter, TAdder>(TTarget target, int length, ref Reader reader)
+        public static Reader AddAll<TTarget, T, TFormatter, TAdder>(TTarget target, int length, Reader reader)
             where TFormatter : struct, INinoFormatter<T>
             where TAdder : struct, INinoAdder<TTarget, T>
         {
-            var rented = ReadRented<T, TFormatter>(length, ref reader);
-            try
-            {
-                for (int i = 0; i < length; i++)
-                    default(TAdder).Add(target, rented[i]);
-            }
-            finally
-            {
-                ReturnRented(rented);
-            }
+            var adds = new NinoGather.Adds<TTarget, T, TAdder>(target);
+            return NinoGather.ReadAll<T, TFormatter, NinoGather.Adds<TTarget, T, TAdder>>(ref adds, length, reader);
         }
 
         /// <summary><see cref="ReadRented{T,TFormatter}"/> for pairs.</summary>
