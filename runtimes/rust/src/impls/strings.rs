@@ -1,9 +1,4 @@
-use crate::error::{Error, Result};
-use crate::reader::Reader;
-use crate::traits::{NinoRead, NinoWrite};
-use crate::writer::Writer;
-
-use super::sequences::prefetches;
+// ---------------------------------------------------------------------- strings
 
 impl NinoRead for String {
     const MIN_SIZE: usize = 1;

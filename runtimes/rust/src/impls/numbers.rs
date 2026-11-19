@@ -1,7 +1,4 @@
-use crate::error::{Error, ErrorKind, Result};
-use crate::reader::Reader;
-use crate::traits::{NinoRead, NinoWrite};
-use crate::writer::Writer;
+// ---------------------------------------------------------------------- numbers
 
 macro_rules! number {
     ($($t:ty, $n:literal, $method:ident;)*) => {$(
