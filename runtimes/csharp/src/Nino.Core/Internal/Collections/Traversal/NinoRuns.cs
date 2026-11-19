@@ -11,14 +11,13 @@ namespace Nino.Core.Internal
     /// its elements through these, and reads them into its storage through the same view (#355). A run of values in a
     /// row (an array, a list, a span, each half of a ring) is <see cref="Write{T,TFormatter}(NinoRun, ref Writer)"/>
     /// and <see cref="Read{T,TFormatter}(NinoRun, ref Reader, bool)"/>; the entries of a set and of a dictionary are
-    /// <see cref="WriteSet{T,TFormatter}"/> and <see cref="ReadSet{T,TFormatter}"/> (new entries, which the caller links
-    /// after: <see cref="HashTables"/>). A dictionary's element is its pair, one value of a composite whose formatter
-    /// composes its key and value (<see cref="KeyValuePairFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/>, or
-    /// the entry's, <see cref="CollectionFields.MapEntryFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/>): never
-    /// a loop shape of its own. In each:
+    /// runs of their entries too, each the element (a storage element whose formatter composes its items at their
+    /// offsets, <see cref="NinoStorageFormatter{TElement,TA,TFormatterA,TFields}"/>), written by
+    /// <see cref="WriteEntries{TEntry,TFormatter}"/> and read by <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>
+    /// through these loops: never a loop shape of its own. In each:
     /// <list type="bullet">
-    /// <item>raw elements and blocks: one block, copied, or gathered out of the entries by the block kernels through
-    /// the entries' one block formatter (<see cref="CollectionFields.EntryBlock{TEntry,TItems}"/>);</item>
+    /// <item>raw elements and blocks (a storage element of raw items or blocks among them): one block, copied, or
+    /// moved by the block kernels, which skip the bytes of an element that are not on the wire;</item>
     /// <item>slots: one block, through the slot kernels;</item>
     /// <item>a polymorphic base's values: its generated loop over the run (<see cref="INinoFormatter.WriteRun"/>),
     /// the dispatch inline and the writer in a local; a pair of them, its value formatter's loop over the run of its
@@ -117,80 +116,44 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Writes the count (<paramref name="count"/>, not 0: the set's) and the values of <paramref name="run"/>, a
-        /// set's entries (<see cref="CollectionFields.Run{T}(System.Collections.Generic.HashSet{T}, int, out
-        /// NinoRun)"/>).
+        /// Writes the count (<paramref name="count"/>, not 0) and the elements of <paramref name="run"/>, a set's or a
+        /// dictionary's entries, each the element (a storage element, <see cref="NinoStorageFormatter{TElement,TA,
+        /// TFormatterA,TFields}"/>: its items at their offsets in the entry, the rest skipped), the free ones skipped:
+        /// blocks in a run without free entries as one block (the block kernels packing the items out of the
+        /// entries), values with the cursor form (<paramref name="cursor"/>, which the caller asks of the items: in
+        /// code shared over a class the element formatter's own answer is a lookup) through the cursor loop, others
+        /// value by value. A polymorphic item's run loop is the caller's, through the element formatter's static
+        /// <c>WriteRun</c>, for the same reason.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteSet<T, TFormatter>(NinoRun run, int count, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
+        public static void WriteEntries<TEntry, TFormatter>(NinoRun run, int count, ref Writer writer, bool cursor)
+            where TFormatter : struct, INinoFormatter<TEntry>
         {
-            var kind = NinoKind.Of<T, TFormatter>();
-            bool whole = run.InUse == NinoRun.AllInUse;
-            if (kind is NinoElementKind.Raw or NinoElementKind.Block && whole)
+            if (NinoKind.Of<TEntry, TFormatter>() == NinoElementKind.Block && run.InUse == NinoRun.AllInUse)
             {
-                // Several entries at a time where the CPU permutes vectors, each value packed out of its entry.
-                int size = NinoKind.Stride<T, TFormatter>();
-                NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>,
-                    CollectionFields.EntryBlock<CollectionFields.SetEntry<T>,
-                        CollectionFields.SetValue<T, TFormatter>>>(ref writer.ReserveCounted(count, size),
-                    ref CollectionFields.SetEntryOf<T>(ref run.First), count, size);
+                // Several entries at a time where the CPU permutes vectors, the items packed out of each.
+                int size = NinoKind.Stride<TEntry, TFormatter>();
+                NinoBlockCollections.WriteAll<TEntry, TFormatter>(ref writer.ReserveCounted(count, size),
+                    ref Unsafe.As<byte, TEntry>(ref run.First), count, size);
                 return;
             }
 
-            if (kind == NinoElementKind.Slot && whole && default(TFormatter).SlotsWriteInPlace)
-            {
-                WriteSlots<T, TFormatter>(run, count, ref writer);
-                return;
-            }
-
-            // Through a copy of the writer, as the dictionaries' did: the writer's address never reaches the generated
-            // loop, a call, so the caller keeps its fields in registers. The intrinsic itself, as in Write.
-            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoKind<TFormatter>.Runs)
+            // Values whose items have the cursor form (strings, pairs holding them): the cursor loop. Blocks with
+            // free entries between them go value by value, as before: the loop's setup in every set's write cost more
+            // code and stack than it saves them (asm.py: HashSet<NinoNullable<int>> 61 to 91 stack accesses).
+            if (cursor)
             {
                 writer.WriteLength(count);
-                Writer copy = default;
-                writer.CopyTo(ref copy);
-                default(TFormatter).WriteRun(run, ref copy);
-                copy.CopyTo(ref writer);
-                return;
-            }
-
-            // Values whose formatter has the cursor form (strings, pairs holding them): the cursor loop. Raw values and
-            // blocks with free entries between them go value by value, as before: the loop's setup in every set's write
-            // cost more code and stack than it saves them (asm.py: HashSet<NinoNullable<int>> 61 to 91 stack accesses).
-            if (NinoCursor.Own<T, TFormatter>())
-            {
-                writer.WriteLength(count);
-                writer = WriteCursors<T, TFormatter>(run, writer);
+                writer = WriteCursors<TEntry, TFormatter>(run, writer);
                 return;
             }
 
             // Elements with references through the writer parameter, which their formatters' calls take anyway: a copy
             // in and out of WriteEach for each set cost more (NinoElements.WritesOnLocal).
-            if (NinoElements.WritesOnLocal<T>())
-                writer = WriteEach<T, TFormatter>(run, count, writer);
+            if (NinoElements.WritesOnLocal<TEntry>())
+                writer = WriteEach<TEntry, TFormatter>(run, count, writer);
             else
-                WriteEach<T, TFormatter>(run, count, ref writer);
-        }
-
-        /// <summary>
-        /// The count and the slots, out of line: the values packed out of the entries as raw elements are, then
-        /// written over themselves as slots (<see cref="INinoFormatter{T}.SlotsWriteInPlace"/>), which clears their
-        /// padding and absent values (1,000 <c>int?</c>: 227 ns against 1,140 from a rented copy, local).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteSlots<T, TFormatter>(NinoRun run, int count, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            int size = Unsafe.SizeOf<T>();
-            ref byte elements = ref writer.ReserveCounted(count, size);
-            NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>,
-                CollectionFields.EntryBlock<CollectionFields.SetEntry<T>, CollectionFields.SetValueBytes<T>>>(
-                ref elements, ref CollectionFields.SetEntryOf<T>(ref run.First), count, size);
-            default(TFormatter).WriteSlots(ref elements,
-                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, T>(ref elements),
-                    count));
+                WriteEach<TEntry, TFormatter>(run, count, ref writer);
         }
 
         /// <summary>
@@ -504,7 +467,7 @@ namespace Nino.Core.Internal
         /// to a call would keep the caller's reader in memory.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadEach<T, TFormatter>(scoped ref T item, int count, Reader reader)
+        internal static Reader ReadEach<T, TFormatter>(scoped ref T item, int count, Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
             // The reader a local, its cursor in registers, where through a reference every element would store it and
@@ -515,128 +478,13 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Whether a set's or a dictionary's entries take <typeparamref name="T"/>'s values (a dictionary's pairs) as
-        /// one block, scattered into them by the block kernels (<see cref="CollectionFields.EntryBlock{TEntry,TItems}"/>): raw values (their
-        /// checks made first on the block, <see cref="TakeSet{T,TFormatter}"/>) and blocks read as one
+        /// Whether a run of <typeparamref name="T"/>'s values is read as one block: raw values and blocks read as one
         /// (<see cref="NinoBlockCollections.ReadSize{T,TFormatter}"/>; not in Untrusted mode where their fields need
-        /// checks). Their item bytes are <see cref="NinoKind.Stride{T,TFormatter}"/>. A JIT-time constant.
+        /// checks). Their bytes are <see cref="NinoKind.Stride{T,TFormatter}"/>. A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ScattersItems<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw ||
             NinoKind.Of<T, TFormatter>() == NinoElementKind.Block && NinoBlockCollections.ReadSize<T, TFormatter>() > 0;
-
-        /// <summary>
-        /// <see cref="ScattersItems{T,TFormatter}"/> for a set's values, and slots whose memory is their wire form
-        /// (<see cref="INinoFormatter{T}.SlotsAreMemory"/>), checked on the block and moved as bytes. A JIT-time
-        /// constant.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool ScattersSet<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            ScattersItems<T, TFormatter>() ||
-            NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot && default(TFormatter).SlotsAreMemory;
-
-        /// <summary>
-        /// Takes the block of <paramref name="count"/> values a set reads as one (<see cref="ScattersSet"/>), with the
-        /// checks of their bytes a read of each makes: a raw bool other than 0 or 1 (and in Untrusted mode other values
-        /// no constructor makes), a presence byte of a slot other than 0 or 1. Blocks are checked as they are read.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ref byte TakeSet<T, TFormatter>(ref Reader reader, int count)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            int size = NinoKind.Stride<T, TFormatter>();
-            ref byte source = ref reader.ReadElements(count, size);
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                default(TFormatter).CheckSlots(ref source, count);
-            else
-                CheckRaw<T, TFormatter>(ref source, count, size);
-            return ref source;
-        }
-
-        // Raw values the block moves without a look: a bool other than 0 or 1, and in Untrusted mode other values no
-        // constructor makes, are invalid data (NinoLayout<T>.CopiesAsIs, a constant).
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void CheckRaw<T, TFormatter>(ref byte source, int count, int stride)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw && !NinoLayout<T>.CopiesAsIs)
-                NinoChecks.Values<T>(ref source, count, stride);
-        }
-
-        /// <summary>
-        /// Reads a value of a block <see cref="TakeSet{T,TFormatter}"/> took at
-        /// <paramref name="source"/>: a set or dictionary that is not filled through its entries adds them one by one.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T ReadItem<T, TFormatter>(ref byte source) where TFormatter : struct, INinoFormatter<T>
-        {
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                return NinoUnsafe.Read<T>(ref source);
-            T value = default;
-            NinoBlocks.ReadItem<T, TFormatter>(ref value, ref source);
-            return value;
-        }
-
-        /// <summary>
-        /// Reads the values of <paramref name="run"/>, a set's or a dictionary's new entries (every one in use,
-        /// <see cref="CollectionFields.Run{T}(CollectionFields.SetEntry{T}[], int)"/>), from the data: the values a set takes as one block
-        /// (<see cref="ScattersSet{T,TFormatter}"/>) scattered into the entries by the block kernels, the others value by
-        /// value into their places. The entries' hash codes and links are the caller's
-        /// (<see cref="HashTables.Link{T}(System.Collections.Generic.HashSet{T}, int)"/>).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ReadSet<T, TFormatter>(NinoRun run, ref Reader reader)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            if (ScattersSet<T, TFormatter>())
-            {
-                ScatterSet<T, TFormatter>(run, ref TakeSet<T, TFormatter>(ref reader, run.Count));
-                return;
-            }
-
-            if (NinoCursor.Own<T, TFormatter>())
-            {
-                ReadCursors<T, TFormatter>(run, ref reader);
-                return;
-            }
-
-            reader = ReadSetEach<T, TFormatter>(run, reader);
-        }
-
-        /// <summary>
-        /// The values a set takes as one block (<see cref="TakeSet{T,TFormatter}"/>'s, at <paramref name="source"/>),
-        /// scattered into its entries: the gather of <see cref="WriteSet{T,TFormatter}"/> the other way. A caller that
-        /// takes the block itself (to keep its reader out of a call) passes it here.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void ScatterSet<T, TFormatter>(NinoRun run, ref byte source)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            ref var entries = ref CollectionFields.SetEntryOf<T>(ref run.First);
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                NinoBlockCollections.ReadAll<CollectionFields.SetEntry<T>,
-                    CollectionFields.EntryBlock<CollectionFields.SetEntry<T>, CollectionFields.SetValueBytes<T>>>(
-                    ref source, ref entries, run.Count, Unsafe.SizeOf<T>());
-            else
-                NinoBlockCollections.ReadAll<CollectionFields.SetEntry<T>,
-                    CollectionFields.EntryBlock<CollectionFields.SetEntry<T>, CollectionFields.SetValue<T, TFormatter>>>(
-                    ref source, ref entries, run.Count, NinoKind.Stride<T, TFormatter>());
-        }
-
-        /// <summary>
-        /// The values of a set's run one by one into their entries, out of line with the reader by value (as
-        /// <see cref="ReadEach{T,TFormatter}"/>).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static Reader ReadSetEach<T, TFormatter>(NinoRun run, Reader reader)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            ref byte value = ref run.First;
-            int stride = run.Stride;
-            for (int left = run.Count; left > 0; left--, value = ref NinoRun.Next(ref value, stride))
-                NinoElements.ReadOne<T, TFormatter>(ref reader, ref Unsafe.As<byte, T>(ref value));
-            return reader;
-        }
     }
 }
