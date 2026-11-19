@@ -73,6 +73,13 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   and the tagged union is the faster form (12.1 µs serialize, 7.5 deserialize against 23.1 and 13.0 on EPYC 9V45, with
   fewer and smaller values); Go deserializes in about three times its serialize time (35.7 against 11.9 µs, EPYC
   9V74) with an allocation per non-int case (808 for UnionArray). The gaps are #387.
+- Use direct TypeScript values for the first case of each runtime test. Keep the tag on later cases sharing that
+  test and cases without one. An int and a short can hold the same number, so choose the direct case by declaration
+  order and keep the other case's tag even when its value lies in both ranges. The official tagged array reads
+  333 tagged objects for 1,000 elements. In [44458051073](https://github.com/JasonXuDeveloper/Nino/actions/runs/44458051073),
+  its write took 14–16 % less time on the sampled x64 CPUs and 20 % less on Neoverse-N2. Tagged reads took about
+  12 % less time on the AMD CPUs and 17 % less on Neoverse-N2. The Xeon read and ordinary union cases stayed on par.
+  V8 inlines the 124-byte tagged reader and 235-byte tagged writer into their collection loops.
 - Construct the Rust union variant directly in its read, and record a deferred trail only for cases that can open
   deferred bodies. Against 44d49866 on runtime A/B 44333395182, `UnionArray` / `TaggedUnionArray` deserialize
   medians fell 38 % / 51 % on EPYC 9V74, 43 % / 55 % on Xeon 6975P-C and 33 % / 44 % on Neoverse-N2.
