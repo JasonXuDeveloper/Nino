@@ -100,6 +100,59 @@ func TestDeserializeIntoPolymorphic(t *testing.T) {
 	}
 }
 
+// TestUnionClassCasesStayDistinct checks that batching class allocations keeps each pointer fresh, including
+// when a Reader is reused and an outer slice is read into.
+func TestUnionClassCasesStayDistinct(t *testing.T) {
+	const count = 24
+	points := func(x int32) *Unions {
+		value := &Unions{Many: make([]Choice, count)}
+		for i := range value.Many {
+			value.Many[i] = &Point{X: x + int32(i)}
+		}
+		return value
+	}
+	r := nino.NewReader(mustSerialize(t, points(1), WriteUnions))
+	value := ReadUnions(r)
+	if err := r.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if value == nil || len(value.Many) != count {
+		t.Fatalf("union sequence length changed: %+v", value)
+	}
+	earlier := make(map[*Point]int32)
+	for i, c := range value.Many {
+		p, ok := c.(*Point)
+		if !ok || p == nil || p.X != 1+int32(i) {
+			t.Fatalf("case %d: %T %+v", i, c, c)
+		}
+		earlier[p] = p.X
+	}
+	if len(earlier) != len(value.Many) {
+		t.Fatal("union cases shared an instance")
+	}
+
+	r.Reset(mustSerialize(t, points(100), WriteUnions))
+	ReadUnionsInto(r, &value)
+	if err := r.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if value == nil || len(value.Many) != count {
+		t.Fatalf("replacement union sequence length changed: %+v", value)
+	}
+	for i, c := range value.Many {
+		p, ok := c.(*Point)
+		_, reused := earlier[p]
+		if !ok || p == nil || p.X != 100+int32(i) || reused {
+			t.Fatalf("replacement case %d: %T %+v", i, c, c)
+		}
+	}
+	for p, x := range earlier {
+		if p.X != x {
+			t.Fatalf("another decode overwrote a class from %d to %d", x, p.X)
+		}
+	}
+}
+
 // TestDeserializeIntoFailure leaves a value that can be written and read into again.
 func TestDeserializeIntoFailure(t *testing.T) {
 	good := mustSerialize(t, outerValue("name"), WriteOuter)

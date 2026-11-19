@@ -3394,8 +3394,16 @@ func (PickByte) NinoUnionCase() string {
 	return "System.Byte"
 }
 
+type ninoPickSlabs struct {
+	Empty ninoClassSlab[Empty]
+}
+
 // ReadPick reads a Pick: the type id of its case (0 for the empty union), then the case's value.
 func ReadPick(r *nino.Reader) Pick {
+	return readPickSlab(r, nil)
+}
+
+func readPickSlab(r *nino.Reader, slabs *ninoPickSlabs) Pick {
 	id := r.TypeID()
 	if id == nino.NullTypeID {
 		return nil
@@ -3406,7 +3414,19 @@ func ReadPick(r *nino.Reader) Pick {
 	var v Pick
 	switch id {
 	case 334101194:
-		if value := ReadEmpty(r); value != nil {
+		var value *Empty
+		if slabs == nil {
+			value = ReadEmpty(r)
+		} else if r.Present() {
+			value = slabs.Empty.next(r)
+			if d, ok := r.EnterBody(); ok {
+				readEmptyBody(r, value)
+				r.ExitBody(d)
+			} else {
+				nino.ReadClassInto(r, value, &emptyClass)
+			}
+		}
+		if value != nil {
 			v = value
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
@@ -4773,6 +4793,23 @@ func writeUsesBody(w *nino.Writer, v *Uses) {
 	codecV28.Write(w, v.StringKeys)
 }
 
+// ninoClassSlab gives the class cases of a union sequence fresh storage in small blocks.
+type ninoClassSlab[T any] struct {
+	slots []T
+	size  int
+}
+
+func (s *ninoClassSlab[T]) next(r *nino.Reader) *T {
+	if len(s.slots) == 0 {
+		var z T
+		s.size = r.SliceCap(min(8, max(1, s.size*2)), int(unsafe.Sizeof(z)))
+		s.slots = make([]T, s.size)
+	}
+	v := &s.slots[0]
+	s.slots = s.slots[1:]
+	return v
+}
+
 // readSlot0 reads a value of a slot declared as Shapes.Generic.Open<System.Int32>: a type id, then the body
 // of a type it allows.
 func readSlot0(r *nino.Reader) OpenType[int32] {
@@ -5833,12 +5870,10 @@ func readintoV36(r *nino.Reader, p *[]Pick) {
 		var z Pick
 		v = make([]Pick, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
 	}
-	for i := range n {
-		var e Pick
-		if i < len(old) {
-			e = old[i]
-		}
-		ReadPickInto(r, &e)
+	var slabs ninoPickSlabs
+	var e Pick
+	for range n {
+		e = readPickSlab(r, &slabs)
 		if r.Failed() {
 			*p = nil
 			return
