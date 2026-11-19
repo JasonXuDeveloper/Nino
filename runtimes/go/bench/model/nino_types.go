@@ -27082,7 +27082,7 @@ func readV19(r *nino.Reader) []nino.Entry[string, *string] {
 		}
 		v = append(v, e)
 	}
-	return nino.CheckUniqueKeys(r, v)
+	return nino.CheckUniqueKeysWith(r, v, &keyCheck0)
 }
 
 func writeV18(w *nino.Writer, v Severity) {
@@ -27116,7 +27116,7 @@ func readV20(r *nino.Reader) []nino.Entry[string, int32] {
 		}
 		v = append(v, e)
 	}
-	return nino.CheckUniqueKeys(r, v)
+	return nino.CheckUniqueKeysWith(r, v, &keyCheck0)
 }
 
 func readV21(r *nino.Reader) []nino.Entry[int32, *string] {
@@ -27134,7 +27134,7 @@ func readV21(r *nino.Reader) []nino.Entry[int32, *string] {
 		}
 		v = append(v, e)
 	}
-	return nino.CheckUniqueKeys(r, v)
+	return nino.CheckUniqueKeysWith(r, v, &keyCheck1)
 }
 
 func writeV20(w *nino.Writer, v []nino.Entry[string, int32]) {
@@ -27551,11 +27551,11 @@ func readV37(r *nino.Reader) []nino.Entry[int32, PolymorphicFooBase] {
 		}
 		v = append(v, e)
 	}
-	return nino.CheckUniqueKeys(r, v)
+	return nino.CheckUniqueKeysWith(r, v, &keyCheck1)
 }
 
 func readV38(r *nino.Reader) []int32 {
-	return nino.CheckUniqueValues(r, nino.ReadPrimitives[int32](r))
+	return keyCheck1.Values(r, nino.ReadPrimitives[int32](r))
 }
 
 func writeV36(w *nino.Writer, v []PolymorphicFooBase) {
@@ -28415,7 +28415,7 @@ func writeV70(w *nino.Writer, v []*string) {
 }
 
 func readV71(r *nino.Reader) []nino.NullableSlot[int32] {
-	return nino.CheckUniqueValues(r, nino.ReadNullableSlots[int32](r))
+	return keyCheck2.Values(r, nino.ReadNullableSlots[int32](r))
 }
 
 func readV72(r *nino.Reader) []InventoryItem {
@@ -29889,6 +29889,12 @@ func readV105(r *nino.Reader) NinoTuple5[float64, int64, float64, float32, uint8
 	v.Item5 = r.U8()
 	return v
 }
+
+var keyCheck0 = nino.PrepareKeyCheck[string]()
+
+var keyCheck1 = nino.PrepareKeyCheck[int32]()
+
+var keyCheck2 = nino.PrepareKeyCheck[nino.NullableSlot[int32]]()
 
 // NinoTuple2 is a ValueTuple or Tuple of 2 items.
 type NinoTuple2[T1, T2 any] struct {

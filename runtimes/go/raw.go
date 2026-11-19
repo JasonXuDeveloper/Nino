@@ -240,7 +240,9 @@ func ReadPrimitiveEntries[K, V Primitive](r *Reader) []Entry[K, V] {
 			b = b[wire:]
 		}
 	}
-	if repeated[K](unsafe.Pointer(unsafe.SliceData(v)), n, size, &r.keys) {
+	// Division by two distinguishes integer and floating-point shapes at compile time.
+	floatKey := K(1)/K(2) != 0
+	if n > 1 && repeatedBits(unsafe.Pointer(unsafe.SliceData(v)), n, size, ks, floatKey, &r.keys) {
 		r.Fail(CodeDuplicateKey, "")
 		return nil
 	}
