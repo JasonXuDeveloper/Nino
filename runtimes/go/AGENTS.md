@@ -14,6 +14,8 @@ go.mod                       the module (no requirements)
 doc.go                       the package documentation: what it is and its guarantees
 api.go                       Deserialize / DeserializeExact / Serialize / Append with a pooled reader or writer
 reader.go                    Reader: bounds-checked reads, sticky errors (zeros after the first failure)
+copy_fresh_amd64.go, copy_fresh_amd64.s, copy_fresh_generic.go
+                             1 MiB byte-array copy probe and its portable fallback (#263)
 writer.go                    Writer: appends to a doubling buffer, sticky errors, Reset for reuse
 errors.go                    Error (the one error type) and its Code
 wire.go                      the wire constants (Nino.Core's NinoWire and NinoDepth)

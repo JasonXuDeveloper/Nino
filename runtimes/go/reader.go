@@ -276,6 +276,9 @@ func (r *Reader) ByteArray() []byte {
 	if len(b) != n {
 		return nil
 	}
+	if out := tryCopyFreshBytes(b); out != nil {
+		return out
+	}
 	out := make([]byte, n)
 	copy(out, b)
 	return out
