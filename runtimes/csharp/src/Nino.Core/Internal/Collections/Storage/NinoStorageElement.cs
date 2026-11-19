@@ -69,7 +69,9 @@ namespace Nino.Core.Internal
     /// pieces a collection's top layer adds are its own: reaching the storage, measuring where the fields are (its
     /// startup check), and what it does after a fill (link). Extension points that take it unchanged: a
     /// <c>SortedList</c>'s two arrays, a <c>Queue</c>'s ring in two segments and the chunks of nodes the gather walks
-    /// (<see cref="NinoGather"/>), each with an element and fields of its own.
+    /// (<see cref="NinoGather"/>), each with an element and fields of its own. An element holding references is
+    /// compiled once for every class it holds, and there the fields' accessor is a call: a set of such values takes the
+    /// run of its values instead (<see cref="NinoStorage.Items"/>), the values at their offset, the entry's stride.
     /// </summary>
     internal struct NinoStorageFormatter<TElement, TA, TFormatterA, TFields> : INinoFormatter<TElement>
         where TElement : struct

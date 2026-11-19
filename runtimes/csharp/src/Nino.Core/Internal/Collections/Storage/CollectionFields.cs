@@ -39,34 +39,13 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// The fields of a hashed collection's entry that the table itself uses (its hash code and its link), and how
-        /// the runtime marks a free entry by them (<see cref="CollectionViews.SetFree"/>, <see cref="CollectionViews.MapFree"/>).
-        /// </summary>
-        internal interface IEntryFields<TEntry>
-        {
-            ref int HashCode(ref TEntry entry);
-
-            ref int Next(ref TEntry entry);
-
-            CollectionViews.FreeEntries Free { get; }
-        }
-
-        /// <summary>
         /// A <see cref="HashSet{T}"/>'s entry as a storage element (<see cref="NinoStorageFormatter{TElement,TA,
         /// TFormatterA,TFields}"/>): its value the one item, its hash code and link skipped.
         /// </summary>
-        internal struct SetFields<T> : INinoStorageFields<SetEntry<T>, T>, IEntryFields<SetEntry<T>>
+        internal struct SetFields<T> : INinoStorageFields<SetEntry<T>, T>
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public ref T A(ref SetEntry<T> entry) => ref entry.Value;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public ref int HashCode(ref SetEntry<T> entry) => ref entry.HashCode;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public ref int Next(ref SetEntry<T> entry) => ref entry.Next;
-
-            public CollectionViews.FreeEntries Free => CollectionViews.SetFree;
         }
 
         /// <summary>
@@ -74,36 +53,13 @@ namespace Nino.Core.Internal
         /// TA,TB,TFormatterA,TFormatterB,TFields}"/>): its key and value the two items, wherever this runtime put them,
         /// its hash code and link skipped.
         /// </summary>
-        internal struct MapFields<TKey, TValue> : INinoStorageFields<MapEntry<TKey, TValue>, TKey, TValue>,
-            IEntryFields<MapEntry<TKey, TValue>>
+        internal struct MapFields<TKey, TValue> : INinoStorageFields<MapEntry<TKey, TValue>, TKey, TValue>
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public ref TKey A(ref MapEntry<TKey, TValue> entry) => ref entry.Key;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public ref TValue B(ref MapEntry<TKey, TValue> entry) => ref entry.Value;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public ref int HashCode(ref MapEntry<TKey, TValue> entry) => ref entry.HashCode;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public ref int Next(ref MapEntry<TKey, TValue> entry) => ref entry.Next;
-
-            public CollectionViews.FreeEntries Free => CollectionViews.MapFree;
-        }
-
-        /// <summary>
-        /// The <see cref="NinoRun.InUse"/> of a run of a set's or a dictionary's entries (from the entry's start, which
-        /// the run's elements are) with free entries, measured on this runtime's layout of the entry: one layout for
-        /// both, by their fields (<see cref="IEntryFields{TEntry}"/>).
-        /// </summary>
-        internal static class EntryLayout<TEntry, TFields> where TEntry : struct where TFields : struct, IEntryFields<TEntry>
-        {
-            private static TEntry s_entry;
-
-            public static readonly int InUse = InUseAt(default(TFields).Free,
-                NinoBlocks.Offset(ref s_entry, ref default(TFields).HashCode(ref s_entry)),
-                NinoBlocks.Offset(ref s_entry, ref default(TFields).Next(ref s_entry)));
         }
 
         /// <summary>
@@ -176,6 +132,22 @@ namespace Nino.Core.Internal
                     UnmanagedFormatter<TKey>, UnmanagedFormatter<TValue>, MapFields<TKey, TValue>>>.Mapped;
         }
 
+        /// <summary>
+        /// The <see cref="NinoRun.InUse"/> of a run of a set's or a dictionary's entries with free entries, the one rule
+        /// for both: by how the runtime marks a free entry (<see cref="CollectionViews.SetFree"/>, <see cref="CollectionViews.MapFree"/>) and where the entry
+        /// at <paramref name="first"/> has its hash code and link. The offsets are the distances from the entry to its
+        /// fields, which the JIT folds to constants, written by each run with the entry's own fields: a field of a class
+        /// of its own, which a run never initialized (sets whose entries were all in use), was a helper call when Tier1
+        /// compiled the write and kept the run and the writer's cursor on the stack (asm.py: <c>HashSet&lt;int&gt;</c>'s
+        /// write 40 to 57 stack accesses), and an entry's fields reached through a struct of their own were calls in code shared over a class
+        /// (its <c>Run</c> 247 to 378 bytes).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int InUse(CollectionViews.FreeEntries free, ref byte first, ref int hashCode, ref int next) =>
+            InUseAt(free, NinoStorage.Distance(ref first, ref Unsafe.As<int, byte>(ref hashCode)),
+                NinoStorage.Distance(ref first, ref Unsafe.As<int, byte>(ref next)));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int InUseAt(CollectionViews.FreeEntries free, int hashCode, int next) => free switch
         {
             CollectionViews.FreeEntries.Next => NinoRun.InUseAt(next, -1),
@@ -200,9 +172,10 @@ namespace Nino.Core.Internal
             if (entries == null || bound > entries.Length || bound < count ||
                 bound != count && CollectionViews.SetFree == CollectionViews.FreeEntries.Unknown)
                 return false;
-            // The in-use test read only for a run with free entries: a class a set without them never initializes.
-            run = new NinoRun(ref Unsafe.As<SetEntry<T>, byte>(ref entries[0]), bound, Unsafe.SizeOf<SetEntry<T>>(),
-                NinoRun.NoKey, bound == count ? NinoRun.AllInUse : EntryLayout<SetEntry<T>, SetFields<T>>.InUse);
+            ref var first = ref entries[0];
+            run = new NinoRun(ref Unsafe.As<SetEntry<T>, byte>(ref first), bound, Unsafe.SizeOf<SetEntry<T>>(),
+                NinoRun.NoKey, bound == count ? NinoRun.AllInUse : InUse(CollectionViews.SetFree,
+                    ref Unsafe.As<SetEntry<T>, byte>(ref first), ref first.HashCode, ref first.Next));
             return true;
         }
 
@@ -225,9 +198,11 @@ namespace Nino.Core.Internal
             if (entries == null || bound > entries.Length || bound < count ||
                 bound != count && CollectionViews.MapFree == CollectionViews.FreeEntries.Unknown)
                 return false;
-            run = new NinoRun(ref Unsafe.As<MapEntry<TKey, TValue>, byte>(ref entries[0]), bound,
+            ref var first = ref entries[0];
+            run = new NinoRun(ref Unsafe.As<MapEntry<TKey, TValue>, byte>(ref first), bound,
                 Unsafe.SizeOf<MapEntry<TKey, TValue>>(), NinoRun.NoKey,
-                bound == count ? NinoRun.AllInUse : EntryLayout<MapEntry<TKey, TValue>, MapFields<TKey, TValue>>.InUse);
+                bound == count ? NinoRun.AllInUse : InUse(CollectionViews.MapFree,
+                    ref Unsafe.As<MapEntry<TKey, TValue>, byte>(ref first), ref first.HashCode, ref first.Next));
             return true;
         }
 
@@ -239,6 +214,23 @@ namespace Nino.Core.Internal
         public static NinoRun Run<TEntry>(TEntry[] entries, int count) =>
             new(ref Unsafe.As<TEntry, byte>(ref entries[0]), count, Unsafe.SizeOf<TEntry>(), NinoRun.NoKey,
                 NinoRun.AllInUse);
+
+        /// <summary>
+        /// The run of the values of the first <paramref name="count"/> (not 0) of a new set's <paramref name="entries"/>
+        /// (the entry's stride), every one in use: the item view of a set of values with references.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static NinoRun Values<T>(SetEntry<T>[] entries, int count) =>
+            new(ref Unsafe.As<T, byte>(ref entries[0].Value), count, Unsafe.SizeOf<SetEntry<T>>(), NinoRun.NoKey,
+                NinoRun.AllInUse);
+
+        /// <summary>
+        /// The run of the values of <paramref name="run"/>, a run of a set's entries (not empty): the item view of a set
+        /// of values with references, whose run loops take the values at the entry's stride.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static NinoRun Values<T>(NinoRun run) =>
+            NinoStorage.Items(run, ref Unsafe.As<T, byte>(ref Unsafe.As<byte, SetEntry<T>>(ref run.First).Value));
 
         /// <summary>
         /// The <see cref="List{T}"/> that <paramref name="collection"/> wraps (what its constructors without a list

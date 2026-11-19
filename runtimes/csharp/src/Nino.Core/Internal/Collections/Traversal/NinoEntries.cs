@@ -19,8 +19,12 @@ namespace Nino.Core.Internal
         /// <summary>Whether a key it added has its bucket walked (<see cref="HashTables.Plan{T}"/>).</summary>
         bool Walks { get; }
 
-        /// <summary>Its entries, for a fill <see cref="CanInsert"/> accepted.</summary>
-        TEntry[] Entries();
+        /// <summary>
+        /// The run of its first <paramref name="count"/> new entries, each the element (in use, for a fill
+        /// <see cref="CanInsert"/> accepted): its entries, or the items of a one-item entry, a run of them with the
+        /// entry's stride.
+        /// </summary>
+        NinoRun Run(int count);
 
         /// <summary>Links the first <paramref name="count"/> entries a fill wrote (<see cref="HashTables"/>).</summary>
         void Link(int count);
@@ -43,7 +47,6 @@ namespace Nino.Core.Internal
     /// entry on, the others from <see cref="HashTables.FillFrom"/> on.
     /// </summary>
     internal static class NinoEntries<TEntry, TFormatter, TTable>
-        where TEntry : struct
         where TFormatter : struct, INinoFormatter<TEntry>
         where TTable : struct, INinoHashTable<TEntry>
     {
@@ -119,8 +122,9 @@ namespace Nino.Core.Internal
         {
             try
             {
+                // Blocks are entries of values, whose runs are their entries in a row.
                 NinoBlockCollections.ReadAll<TEntry, TFormatter>(ref source,
-                    ref NinoUnsafe.GetArrayDataReference(table.Entries()), length,
+                    ref Unsafe.As<byte, TEntry>(ref table.Run(length).First), length,
                     NinoKind.Stride<TEntry, TFormatter>());
                 table.Link(length);
             }
@@ -158,7 +162,7 @@ namespace Nino.Core.Internal
             try
             {
                 int read = NinoRuns.ReadCursors<TEntry, TFormatter, NinoCursor.InPlace<TEntry>>(
-                    CollectionFields.Run(table.Entries(), length), ref data, end, default);
+                    table.Run(length), ref data, end, default);
                 table.Link(length);
                 return read;
             }
@@ -204,8 +208,7 @@ namespace Nino.Core.Internal
         {
             try
             {
-                reader = NinoRuns.ReadEach<TEntry, TFormatter>(ref NinoUnsafe.GetArrayDataReference(table.Entries()),
-                    length, reader);
+                reader = ReadEach(table.Run(length), reader);
                 table.Link(length);
                 return reader;
             }
@@ -214,6 +217,20 @@ namespace Nino.Core.Internal
                 table.Unlink();
                 throw;
             }
+        }
+
+        /// <summary>
+        /// The elements of <paramref name="run"/> (new entries) read in place one by one, the reader by value (a local,
+        /// its cursor in registers).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Reader ReadEach(NinoRun run, Reader reader)
+        {
+            ref byte value = ref run.First;
+            int stride = run.Stride;
+            for (int left = run.Count; left > 0; left--, value = ref NinoRun.Next(ref value, stride))
+                default(TFormatter).Deserialize(ref reader, ref Unsafe.As<byte, TEntry>(ref value));
+            return reader;
         }
 
         /// <summary>The entries a collection takes one at a time (<see cref="NinoCursor.IStore{T}"/>).</summary>
@@ -239,9 +256,14 @@ namespace Nino.Core.Internal
         }
     }
 
-    /// <summary>A <see cref="HashSet{T}"/>'s own layer under <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>: its
-    /// key is the entry's value, and a null value is one.</summary>
-    internal readonly struct SetTable<T> : INinoHashTable<CollectionFields.SetEntry<T>>
+    /// <summary>
+    /// A <see cref="HashSet{T}"/>'s own layer under <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>: its key is the
+    /// entry's value, and a null value is one. Two views of its entries: the entries themselves (values without
+    /// references: the storage element, a block where the value is), or the values at their offset in them, a run with
+    /// the entry's stride (values with references: in code shared over a class the element's accessor was an indirect
+    /// call per value in the cursor loops, asm.py: <c>HashSet&lt;string&gt;</c>'s write loop 382 to 812 bytes).
+    /// </summary>
+    internal readonly struct SetTable<T> : INinoHashTable<CollectionFields.SetEntry<T>>, INinoHashTable<T>
     {
         private readonly HashSet<T> _set;
 
@@ -256,7 +278,11 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public CollectionFields.SetEntry<T>[] Entries() => HashTables.Entries(_set);
+        NinoRun INinoHashTable<CollectionFields.SetEntry<T>>.Run(int count) =>
+            CollectionFields.Run(HashTables.Entries(_set), count);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        NinoRun INinoHashTable<T>.Run(int count) => CollectionFields.Values(HashTables.Entries(_set), count);
 
         public void Link(int count) => HashTables.Link(_set, count);
 
@@ -265,6 +291,9 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(ref CollectionFields.SetEntry<T> entry, bool insert, bool walk) =>
             Add(_set, entry.Value, insert, walk);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Add(ref T value, bool insert, bool walk) => Add(_set, value, insert, walk);
 
         /// <summary>Adds <paramref name="value"/> as <see cref="INinoHashTable{TEntry}.Add"/> does.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -300,7 +329,7 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public CollectionFields.MapEntry<TKey, TValue>[] Entries() => HashTables.Entries(_dictionary);
+        public NinoRun Run(int count) => CollectionFields.Run(HashTables.Entries(_dictionary), count);
 
         public void Link(int count) => HashTables.Link(_dictionary, count);
 

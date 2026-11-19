@@ -52,21 +52,30 @@ namespace Nino.Core
                 return;
             }
 
-            // A polymorphic base's values: its generated loop over the run of the values, through a copy of the writer
-            // (the writer's address never reaches the generated loop, a call, so the caller keeps its fields in
-            // registers). The intrinsic itself, as in NinoRuns.Write.
-            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoKind<TFormatter>.Runs)
+            // Values with references are moved as the values at their offset in the entries (SetTable's item view): in
+            // code shared over a class the entry formatter's accessor is a call. A polymorphic base's values: its
+            // generated loop over the run of the values, through a copy of the writer (the writer's address never
+            // reaches the generated loop, a call, so the caller keeps its fields in registers). The intrinsic itself,
+            // as in NinoRuns.Write.
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
-                writer.WriteLength(count);
-                Writer copy = default;
-                writer.CopyTo(ref copy);
-                NinoStorageFormatter<CollectionFields.SetEntry<T>, T, TFormatter, CollectionFields.SetFields<T>>.WriteRun(run, ref copy);
-                copy.CopyTo(ref writer);
+                var values = CollectionFields.Values<T>(run);
+                if (NinoKind<TFormatter>.Runs)
+                {
+                    writer.WriteLength(count);
+                    Writer copy = default;
+                    writer.CopyTo(ref copy);
+                    default(TFormatter).WriteRun(values, ref copy);
+                    copy.CopyTo(ref writer);
+                    return;
+                }
+
+                NinoRuns.WriteEntries<T, TFormatter>(values, count, ref writer, NinoCursor.Own<T, TFormatter>());
                 return;
             }
 
-            NinoRuns.WriteEntries<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T, TFormatter, CollectionFields.SetFields<T>>>(run, count, ref writer,
-                NinoCursor.Own<T, TFormatter>());
+            NinoRuns.WriteEntries<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T, TFormatter, CollectionFields.SetFields<T>>>(run, count,
+                ref writer, NinoCursor.Own<T, TFormatter>());
         }
 
         /// <summary>
@@ -135,8 +144,13 @@ namespace Nino.Core
                 return;
             }
 
-            NinoEntries<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T, TFormatter, CollectionFields.SetFields<T>>, SetTable<T>>.Read(new SetTable<T>(set), length,
-                ref reader, NinoCursor.Own<T, TFormatter>());
+            // As in Serialize: the entries of values without references, the values of those with.
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                NinoEntries<T, TFormatter, SetTable<T>>.Read(new SetTable<T>(set), length, ref reader,
+                    NinoCursor.Own<T, TFormatter>());
+            else
+                NinoEntries<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T, TFormatter, CollectionFields.SetFields<T>>, SetTable<T>>.Read(
+                    new SetTable<T>(set), length, ref reader, NinoCursor.Own<T, TFormatter>());
         }
 
         /// <summary>

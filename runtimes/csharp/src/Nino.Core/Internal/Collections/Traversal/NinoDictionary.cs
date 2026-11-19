@@ -65,12 +65,15 @@ namespace Nino.Core
 
         /// <summary>
         /// Writes the count and the pairs of a run of entries holding references: the loop chosen here from what the
-        /// key and value formatters say. The entry formatter answers the same from them, but in code shared over a
-        /// class each of its answers is a lookup, which compiled every loop into each dictionary's write (asm.py: a
-        /// <c>Dictionary&lt;string, int&gt;</c>'s 889 to 1,670 bytes, 23 to 54 stack accesses), so the run loop of a
-        /// polymorphic value is the entry formatter's static <c>WriteRun</c>. Out of line with the run, the writer by
-        /// value and returned (one call per dictionary, as each loop was out of line already): inlined, its tests and
-        /// the run's used up the budget of a generated body holding two dictionaries, which then called this with the
+        /// key and value formatters say, and the offsets of the key and value read from the entry itself. The entry
+        /// formatter answers the same from them, but in code shared over a class each of its answers is a lookup and
+        /// each call of its field accessors a call, which compiled every loop into each dictionary's write (asm.py: a
+        /// <c>Dictionary&lt;string, int&gt;</c>'s 889 to 1,670 bytes, 23 to 54 stack accesses). The loops take the
+        /// writer by value and return it (<see cref="NinoRuns.WriteEach{T,TFormatter}(NinoRun,int,Writer)"/>): the
+        /// shared <see cref="NinoRuns.WriteEntries{TEntry,TFormatter}"/> inlined its loop on this method's writer,
+        /// which then lived in memory (asm.py: 36 to 54 stack accesses). Out of line with the run, the writer by value
+        /// and returned (one call per dictionary, as each loop was out of line already): inlined, its tests and the
+        /// run's used up the budget of a generated body holding two dictionaries, which then called this with the
         /// writer by ref, compiled both loops of the other and kept its writer in memory (asm.py: a Lookup's top-level
         /// write, 107 to 189 stack accesses).
         /// </summary>
@@ -84,15 +87,20 @@ namespace Nino.Core
             {
                 // The value's run loop, through a copy of the writer (HashSetFormatter).
                 writer.WriteLength(count);
+                ref var first = ref Unsafe.As<byte, CollectionFields.MapEntry<TKey, TValue>>(ref run.First);
                 Writer copy = default;
                 writer.CopyTo(ref copy);
-                NinoStorageFormatter<CollectionFields.MapEntry<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter, CollectionFields.MapFields<TKey, TValue>>.WriteRun(run, ref copy);
+                NinoRuns.WritePairRun<TKey, TValue, TKeyFormatter, TValueFormatter>(run,
+                    NinoStorage.Distance(ref run.First, ref Unsafe.As<TValue, byte>(ref first.Value)),
+                    NinoStorage.Distance(ref run.First, ref Unsafe.As<TKey, byte>(ref first.Key)), ref copy);
                 copy.CopyTo(ref writer);
                 return writer;
             }
 
-            NinoRuns.WriteEntries<CollectionFields.MapEntry<TKey, TValue>, NinoStorageFormatter<CollectionFields.MapEntry<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter, CollectionFields.MapFields<TKey, TValue>>>(run, count, ref writer, CursorPairs);
-            return writer;
+            if (!CursorPairs)
+                return NinoRuns.WriteEach<CollectionFields.MapEntry<TKey, TValue>, NinoStorageFormatter<CollectionFields.MapEntry<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter, CollectionFields.MapFields<TKey, TValue>>>(run, count, writer);
+            writer.WriteLength(count);
+            return NinoRuns.WriteCursors<CollectionFields.MapEntry<TKey, TValue>, NinoStorageFormatter<CollectionFields.MapEntry<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter, CollectionFields.MapFields<TKey, TValue>>>(run, writer);
         }
 
         /// <summary>The count and the pairs through the enumerator, out of line, the writer by value and
