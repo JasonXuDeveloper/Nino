@@ -25,12 +25,14 @@ namespace Nino.Core.Internal
         /// a generic class's 849 to 1,470). Value types (pairs) read the field only where their kind is per value: a
         /// raw, slot or block collection returns before any read of it, so the field was not initialized when Tier1
         /// compiled the method and stayed a helper call there, with the cursor loop compiled in (asm.py:
-        /// <c>HashSet&lt;NinoNullable&lt;int&gt;&gt;</c> 811 to 1,174 bytes).
+        /// <c>HashSet&lt;NinoNullable&lt;int&gt;&gt;</c> 811 to 1,174 bytes). A value without references holds no
+        /// string, so it reads nothing: a set's or a dictionary's entries ask this of the entry.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Own<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             typeof(T).IsValueType
-                ? NinoKind.Of<T, TFormatter>() == NinoElementKind.PerValue && NinoKind<TFormatter>.Cursor
+                ? RuntimeHelpers.IsReferenceOrContainsReferences<T>() &&
+                  NinoKind.Of<T, TFormatter>() == NinoElementKind.PerValue && NinoKind<TFormatter>.Cursor
                 : typeof(TFormatter) == typeof(StringFormatter) || typeof(TFormatter) == typeof(Utf8StringFormatter);
 
         /// <summary>

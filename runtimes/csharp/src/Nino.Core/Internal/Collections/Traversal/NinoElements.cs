@@ -193,27 +193,34 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// Writes one element of a sequence that is not written from a span (an enumerator, a node): its slot where
-        /// elements are slots, so that it is the bytes <see cref="NinoRuns.Write{T,TFormatter}(ReadOnlySpan{T}, ref Writer)"/>
-        /// writes for it, else through its formatter.
+        /// Writes one element of a sequence that is not written from a span (an enumerator, a node, a run's value one
+        /// by one): its slot where elements are slots, so that it is the bytes
+        /// <see cref="NinoRuns.Write{T,TFormatter}(ReadOnlySpan{T}, ref Writer)"/> writes for it, else through its
+        /// formatter. The slot test is a field behind the intrinsic, both constants while the JIT imports the caller,
+        /// so the slot path is not imported where elements are not slots: imported, its span over the item and its
+        /// call kept the item and the writer in memory (asm.py: an array of structs holding a string, 8 to 14 stack
+        /// accesses). By reference: a value passed in was copied to the stack.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteOne<T, TFormatter>(T item, ref Writer writer)
+        public static void WriteOne<T, TFormatter>(scoped in T item, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                default(TFormatter).WriteSlots(ref writer.Reserve(NinoKind.Stride<T, TFormatter>()),
-                    MemoryMarshal.CreateReadOnlySpan(ref item, 1));
+            if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>() &&
+                NinoKind<T, TFormatter>.Kind == NinoElementKind.Slot)
+                default(TFormatter).WriteSlots(ref writer.Reserve(NinoKind<T, TFormatter>.Stride),
+                    MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in item), 1));
             else
                 default(TFormatter).Serialize(item, ref writer);
         }
 
-        /// <summary><see cref="WriteOne{T,TFormatter}"/> the other way.</summary>
+        /// <summary><see cref="WriteOne{T,TFormatter}"/> the other way: the slot path, whose call takes the reader's
+        /// address, imported only for slots.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ReadOne<T, TFormatter>(ref Reader reader, ref T item)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
+            if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>() &&
+                NinoKind<T, TFormatter>.Kind == NinoElementKind.Slot)
                 NinoRuns.ReadSlots<T, TFormatter>(ref item, 1, ref reader, prechecked: false);
             else
                 default(TFormatter).Deserialize(ref reader, ref item);

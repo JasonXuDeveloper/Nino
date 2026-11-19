@@ -13,7 +13,7 @@ namespace Nino.Core
     /// <c>HashSet&lt;T&gt;</c> (or a type derived from it): count (-1 = null), then the elements. The set's thin layer:
     /// its entries are a run whose elements are the entries themselves (<see cref="CollectionFields.SetEntry{T}"/>, its
     /// value composed at its offset by <see cref="NinoStorageFormatter{TElement,TA,TFormatterA,TFields}"/>), written by
-    /// <see cref="NinoRuns.WriteEntries{TEntry,TFormatter}"/> and read by <see cref="NinoEntries{TEntry,TFormatter,
+    /// <see cref="NinoRuns.Write{T,TFormatter}(NinoRun, int, ref Writer)"/> and read by <see cref="NinoEntries{TEntry,TFormatter,
     /// TTable}"/>, as a dictionary's are; what is the set's own is reaching the entries, its slots, and the add of one
     /// value (<see cref="SetTable{T}"/>).
     /// </summary>
@@ -52,31 +52,14 @@ namespace Nino.Core
                 return;
             }
 
-            // Values with references are moved as the values at their offset in the entries (SetTable's item view): in
-            // code shared over a class the entry formatter's accessor is a call. Strings: the string run kernels
-            // (NinoRuns.WriteEntries). A polymorphic base's values: its
-            // generated loop over the run of the values, through a copy of the writer (the writer's address never
-            // reaches the generated loop, a call, so the caller keeps its fields in registers). The intrinsic itself,
-            // as in NinoRuns.Write.
+            // The one write of a run, the count first. Values with references are moved as the values at their offset
+            // in the entries (SetTable's item view): in code shared over a class the entry formatter's accessor is a
+            // call. The intrinsic itself, as in NinoRuns.Write.
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-            {
-                var values = CollectionFields.Values<T>(run);
-                if (NinoKind<TFormatter>.Runs)
-                {
-                    writer.WriteLength(count);
-                    Writer copy = default;
-                    writer.CopyTo(ref copy);
-                    default(TFormatter).WriteRun(values, ref copy);
-                    copy.CopyTo(ref writer);
-                    return;
-                }
-
-                NinoRuns.WriteEntries<T, TFormatter>(values, count, ref writer, NinoCursor.Own<T, TFormatter>());
-                return;
-            }
-
-            NinoRuns.WriteEntries<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T, TFormatter, CollectionFields.SetFields<T>>>(run, count,
-                ref writer, NinoCursor.Own<T, TFormatter>());
+                NinoRuns.Write<T, TFormatter>(CollectionFields.Values<T>(run), count, ref writer);
+            else
+                NinoRuns.Write<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T,
+                    TFormatter, CollectionFields.SetFields<T>>>(run, count, ref writer);
         }
 
         /// <summary>

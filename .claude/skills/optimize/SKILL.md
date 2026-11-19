@@ -167,7 +167,7 @@ says which CPUs and cases moved.
   the case 138 to 112). Add no generic member to `INinoFormatter<T>`: Unity
   2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`). The
   view is one cursor, `NinoRun` (#355 PR 3: the first value, count, stride, the in-use test of free entries, whose rule
-  each runtime proves at startup), and the loops are `NinoRuns`, one per kind:
+  each runtime proves at startup), and the loops are `NinoRuns`, a kernel per kind and one loop of values per direction:
   every contiguous collection builds a run and calls them, never a loop of its own. Reads take the same view (#355
   step 4): `NinoRuns.Read` fills a run of values in a row (arrays, a list's backing array before its count is
   published, spans, `Memory`, rings from 0, multi-dimensional arrays, lookups), `NinoEntries` fills the new
@@ -212,7 +212,27 @@ says which CPUs and cases moved.
   helper call with the loop compiled in (`HashSet<NinoNullable<int>>` 811 to 1,174 bytes), so gate it behind the kind
   first; in shared code `typeof(T) == typeof(string)` with `T` a class is no constant, `typeof(TFormatter)` is; an
   instance method of a generic struct called from shared code is not inlined (an indirect `call r8` per pair), a
-  static generic method is.
+  static generic method is. One write of a run of any stride and one loop per direction (`NinoRuns.Write`,
+  `WriteLoop`, `ReadLoop`; #355 step 5) took these, each from `asm.py compare` against the base: pass a run in a row
+  as constants (a `row` and `counted` flag, the size of `T`, `NoKey`, `AllInUse`), never read them from the
+  `NinoRun`, whose five fields the JIT does not fold (every kind's path compiled into every array's write); the
+  import folds only intrinsics (`IsReferenceOrContainsReferences<T>()`), constant arguments and initialized `static
+  readonly` fields read directly, never the result of an inlined call (`NinoKind.Stride`, `NinoCursor.Own`,
+  `WritesOnLocal`), so a branch behind such a call is imported and an address of the writer taken there exposes it;
+  write the choice between two calls that return the writer, or two arguments of one, as `if`/`else` statements,
+  never `?:` (a `KeyValuePair` array's top-level write 5 to 38 stack accesses for a path it never takes); in a
+  loop, test each piece against the caller's constants before calling it (`if (key != NoKey) WriteKey(...)`,
+  `if (IsReferenceOrContainsReferences<T>()) Serialize(...) else WriteOne(...)`): a call whose test folds inside it
+  is still imported and charged to the root's budget (AppData `Events` ran out and called the writer's properties,
+  19 to 86 stack accesses); guard a slot path with the intrinsic before the kind and pass the value with `in` (by
+  value with a span over it, every `ManagedStruct` array write and every `ReadEach` gained 6 stack accesses); take
+  the reader of an inlined loop by `ref` (by value, each caller copied its reader parameter in its prolog); and
+  leave the by-value write of a row (`WriteEach`) to the JIT with its loop spelled out, as `WriteOnLocal` was: a
+  `NoInlining` one left `FixedClasses`' writer in memory (8 to 30), one more level of inlining (`WriteLoop` inside
+  it) spent `Events`' budget. Tried and dropped: a call to the full `NinoRuns.Read` from a set's fill (shared code
+  read `NinoKind<Entries>.Cursor` as a lookup: `NinoEntries<MapEntry<int, __Canon>>` 450 to 922 bytes; it calls
+  `ReadLoop`), `NinoCollections.WriteSpan` as `NinoRuns.Write(values, length)` (classes' array writes inlined every
+  path, `List<ICommand>` 343 to 1,289 bytes; it keeps its block test and length).
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks

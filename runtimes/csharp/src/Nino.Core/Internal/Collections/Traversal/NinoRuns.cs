@@ -6,15 +6,19 @@ using Nino.Core.CompilerServices;
 namespace Nino.Core.Internal
 {
     /// <summary>
-    /// The loops over a run of a collection's storage (<see cref="NinoRun"/>), one per element kind
-    /// (<see cref="NinoKind"/>) and direction, over <c>&lt;T, TFormatter&gt;</c> only: every contiguous collection writes
-    /// its elements through these, and reads them into its storage through the same view (#355). A run of values in a
-    /// row (an array, a list, a span, each half of a ring) is <see cref="Write{T,TFormatter}(NinoRun, ref Writer)"/>
-    /// and <see cref="Read{T,TFormatter}(NinoRun, ref Reader, bool)"/>; the entries of a set and of a dictionary are
-    /// runs of their entries too, each the element (a storage element whose formatter composes its items at their
-    /// offsets, <see cref="NinoStorageFormatter{TElement,TA,TFormatterA,TFields}"/>), written by
-    /// <see cref="WriteEntries{TEntry,TFormatter}"/> and read by <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>
-    /// through these loops: never a loop shape of its own. In each:
+    /// The one write and the one read of a run of a collection's storage (<see cref="NinoRun"/>), over
+    /// <c>&lt;T, TFormatter&gt;</c> only, for a run of any stride (#355): <see cref="Write{T,TFormatter}(NinoRun, bool,
+    /// bool, int, ref Writer)"/> and <see cref="Read{T,TFormatter}(Span{T}, ref Reader, bool)"/>. Every collection
+    /// writes its elements through them and reads them into its storage through the same view: values in a row (an
+    /// array, a list, a span, each half of a ring, a gathered chunk), the entries of a set and of a dictionary, each
+    /// the element (a storage element whose formatter composes its items at their offsets,
+    /// <see cref="NinoStorageFormatter{TElement,TA,TFormatterA,TFields}"/>, filled then linked by
+    /// <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>), and the values of a set's entries at the entries' stride:
+    /// never a loop shape of its own. Each element kind is moved by its kernel, and what no kernel moves by the one
+    /// loop of values one by one per direction (<see cref="WriteLoop{T,TFormatter}"/>,
+    /// <see cref="ReadLoop{T,TFormatter}"/>), inlined into each entry point with its constants, so a run in a row steps
+    /// by a constant (a row's write out of line by value spells the loop out, <see cref="WriteEach{T,TFormatter}(ref
+    /// byte, int, int, Writer)"/>):
     /// <list type="bullet">
     /// <item>raw elements and blocks (a storage element of raw items or blocks among them): one block, copied, or
     /// moved by the block kernels, which skip the bytes of an element that are not on the wire;</item>
@@ -27,16 +31,29 @@ namespace Nino.Core.Internal
     /// <item>others: value by value through the formatter, a constrained call.</item>
     /// </list>
     /// Entries a set or a dictionary freed are skipped (<see cref="NinoRun.Skips"/>); the kinds moved as one block take
-    /// a run without free entries, else they go value by value. Reads fill a run whose every entry is in use, and read
+    /// a run of values in a row without free entries, else they go value by value. Reads fill a run whose every entry is in use, and read
     /// a polymorphic base's values through its formatter's <c>Deserialize</c> (its subtype switch inlined there).
     /// </summary>
     internal static class NinoRuns
     {
+        /// <summary>
+        /// The <c>length</c> of <see cref="Write{T,TFormatter}(NinoRun, int, ref Writer)"/> where the caller writes
+        /// the collection's length itself (a ring in two runs, the chunks of a gather).
+        /// </summary>
+        public const int NoLength = -1;
+
         /// <summary>Writes the elements of <paramref name="values"/> (the count is the caller's).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T> =>
-            Write<T, TFormatter>(NinoRun.Of(values), ref writer);
+            Write<T, TFormatter>(NinoRun.Of(values), true, false, NoLength, ref writer);
+
+        /// <summary>Writes <paramref name="length"/> (not <see cref="NoLength"/>), then the elements of
+        /// <paramref name="values"/>: an array's, a span's.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Write<T, TFormatter>(ReadOnlySpan<T> values, int length, ref Writer writer)
+            where TFormatter : struct, INinoFormatter<T> =>
+            Write<T, TFormatter>(NinoRun.Of(values), true, true, length, ref writer);
 
         /// <summary>
         /// Writes <paramref name="count"/> elements in a row starting at <paramref name="first"/> (a multi-dimensional
@@ -45,144 +62,183 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write<T, TFormatter>(ref T first, int count, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T> =>
-            Write<T, TFormatter>(System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref first, count), ref writer);
+            Write<T, TFormatter>(MemoryMarshal.CreateReadOnlySpan(ref first, count), ref writer);
 
         /// <summary>
-        /// Writes the elements of <paramref name="run"/>, a run of values in a row (the count is the caller's).
+        /// Writes <paramref name="length"/> (not <see cref="NoLength"/>: the elements in use), then the elements of
+        /// <paramref name="run"/>, a run of any stride whose free entries are skipped: a set's or a dictionary's
+        /// entries, each the element (a storage element, <see cref="NinoStorageFormatter{TElement,TA,TFormatterA,
+        /// TFields}"/>: its items at their offsets, the rest of its stride skipped), or the values of a set's entries
+        /// at the entries' stride (values with references). Never empty: the caller writes an empty collection itself.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write<T, TFormatter>(NinoRun run, ref Writer writer)
+        public static void Write<T, TFormatter>(NinoRun run, int length, ref Writer writer)
+            where TFormatter : struct, INinoFormatter<T> =>
+            Write<T, TFormatter>(run, false, true, length, ref writer);
+
+        /// <summary>
+        /// The one write of a run (#355), every entry point's: writes <paramref name="length"/> first where
+        /// <paramref name="counted"/> (a constant: a collection's length), then the entries of <paramref name="run"/>,
+        /// those its in-use test says are free (<see cref="NinoRun.InUse"/>) skipped; <paramref name="row"/> (a
+        /// constant) where they are values in a row, every one in use, so that nothing reads the run's stride or
+        /// in-use test: the JIT does not fold a run's five fields, and the code of a run in a row is that of a span.
+        /// By kind: elements of a fixed size in a row without free entries (an entry's stride is its size) as one
+        /// block, one capacity check with the length; a polymorphic base's values through its generated loop; strings
+        /// and pairs holding them through the string run kernels; others one by one
+        /// (<see cref="WriteLoop{T,TFormatter}"/>). Statements, never a conditional expression (?:), here and in every
+        /// path inlined into a top-level write: one choosing between two calls that return the writer, or between two
+        /// arguments of one, kept the writer of a top-level write of an array of blocks in memory, though that write
+        /// never takes the path (asm.py: KeyValuePairs 5 to 38 stack accesses).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Write<T, TFormatter>(NinoRun run, bool row, bool counted, int length, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
             int count = run.Count;
-            ref T first = ref Unsafe.As<byte, T>(ref run.First);
             // Elements of a fixed size (NinoKind.Stride): one capacity check for the block, none per element. Raw
             // elements too, as the unmanaged formatters write them: an interface, Stack or Queue of them, or any
             // collection whose formatter is not specialized for them, would otherwise check the capacity per element.
+            // A set's entries: the block kernels pack the items out of each.
+            // A run of any stride whose values have no references is a set's or a dictionary's entries, each at its
+            // own size (values with references have no fixed size): the block kernels take it whole where no entry is
+            // free. Its callers write an empty collection themselves, so it never tests for none (a test of the run's
+            // count, and the stride compared with the entry's size, cost the sets' writes 160 bytes and 11 stack
+            // accesses, asm.py: HashSet<int>).
             int block = NinoKind.Stride<T, TFormatter>();
-            if (block > 0)
+            if (block > 0 && (row || run.InUse == NinoRun.AllInUse))
             {
-                if (count != 0)
-                    NinoElements.WriteBlock<T, TFormatter>(ref writer.ReserveElements(count, block), ref first, count);
+                if (counted)
+                {
+                    ref byte elements = ref writer.ReserveCounted(length, block);
+                    if (!row || count != 0)
+                        NinoElements.WriteBlock<T, TFormatter>(ref elements, ref Unsafe.As<byte, T>(ref run.First),
+                            count);
+                }
+                else if (count != 0)
+                    NinoElements.WriteBlock<T, TFormatter>(ref writer.ReserveElements(count, block),
+                        ref Unsafe.As<byte, T>(ref run.First), count);
+                return;
+            }
+
+            // A polymorphic base: its generated loop over the run, with the dispatch inline, a constrained call on the
+            // formatter on every target; a pair of them, its value's loop (KeyValuePairFormatter). The intrinsic
+            // itself, not NinoUnsafe's: one inlinee more in this method, inlined into every collection's write, left
+            // the writer of block arrays' top-level writes in memory (asm.py: ByteIntPairs32 10 to 38 stack accesses).
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoKind<TFormatter>.Runs)
+            {
+                if (counted)
+                    writer.WriteLength(length);
+                if (!row || count != 0)
+                    default(TFormatter).WriteRun(run, ref writer);
+                return;
+            }
+
+            // Strings and pairs holding them: the string run kernels, one call not generic over the element (a pair's
+            // through its formatter, once per run), free entries skipped.
+            if (NinoCursor.Own<T, TFormatter>())
+            {
+                if (counted)
+                    writer.WriteLength(length);
+                if (!row || count != 0)
+                    writer = WriteStrings<T, TFormatter>(run, writer);
+                return;
+            }
+
+            // Values without references through a local copy of the writer, out of line, the length too; others by
+            // reference, as their formatters' calls take it anyway (NinoElements.WritesOnLocal). Empty collections (the
+            // leaves of a tree) skip the call and the copies of the writer in and out.
+            if (NinoElements.WritesOnLocal<T, TFormatter>())
+            {
+                if (row && count == 0)
+                {
+                    if (counted)
+                        writer.WriteLength(length);
+                }
+                else if (row)
+                    writer = WriteEach<T, TFormatter>(ref run.First, count, length, writer);
+                else
+                    writer = WriteEach<T, TFormatter>(run, length, writer);
                 return;
             }
 
             // The loop stays in this method: a helper of its own was not inlined where the element's formatter
             // writes a collection of its own type (a tree), which added a call per level (SelfTree serialize 0.86x on
             // EPYC 9V74, runner A/B of the rc.10 review head against main 51a7bd18).
-            // A polymorphic base: its generated loop over the run, with the dispatch inline, a constrained call on the
-            // formatter on every target; a pair of them, its value's loop (KeyValuePairFormatter). The intrinsic itself,
-            // not NinoUnsafe's: one inlinee more in this method, inlined into every collection's write, left the writer of
-            // block arrays' top-level writes in memory (asm.py: ByteIntPairs32 10 to 38 stack accesses).
-            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoKind<TFormatter>.Runs)
-            {
-                if (count != 0)
-                    default(TFormatter).WriteRun(run, ref writer);
-                return;
-            }
-
-            // Strings and pairs holding them: the string run kernels, one call not generic over the element (a pair's
-            // through its formatter, once per run).
-            if (NinoCursor.Own<T, TFormatter>())
-            {
-                if (count != 0)
-                    writer = WriteStrings<T, TFormatter>(run, writer);
-                return;
-            }
-
-            if (NinoElements.WritesOnLocal<T, TFormatter>())
-            {
-                if (count != 0)
-                    writer = WriteOnLocal<T, TFormatter>(ref first, count, writer);
-                return;
-            }
-
-            // By reference, as in WriteOnLocal.
-            for (int left = count; left > 0; left--, first = ref Unsafe.Add(ref first, 1))
-                default(TFormatter).Serialize(first, ref writer);
+            if (counted)
+                writer.WriteLength(length);
+            if (row)
+                WriteLoop<T, TFormatter>(ref run.First, count, Unsafe.SizeOf<T>(), NinoRun.NoKey, NinoRun.AllInUse,
+                    ref writer);
+            else
+                WriteLoop<T, TFormatter>(ref run.First, count, run.Stride, NinoRun.NoKey, run.InUse, ref writer);
         }
 
         /// <summary>
-        /// The elements one by one through a local copy of the writer (as reads do), out of line: Write is inlined
-        /// into every collection formatter, and a second loop there slows down the code around it (as
-        /// HashSetFormatter's raw loop was).
+        /// Writes <paramref name="length"/> (unless <see cref="NoLength"/>) and the <paramref name="count"/> values
+        /// (not 0) in a row at <paramref name="first"/> one by one, the writer by value and returned: a
+        /// local here, its cursor in registers (HashSet&lt;int?&gt; of 1,000: 5 to 10% faster), where one passed by
+        /// reference would be kept in memory, the caller's too; and a second loop in the caller made the raw one's
+        /// code slower (HashSet&lt;int&gt; of 1,000 serialized 40% slower on x64 and Arm64). Left to the JIT, as it
+        /// always was: inlined where it pays (a top-level write of an array of sealed classes of raw members inlines
+        /// the loop, its writer in registers; out of line it kept that writer in memory, asm.py: FixedClasses 8 to 30
+        /// stack accesses). Its loop is <see cref="WriteLoop{T,TFormatter}"/> with a row's constants written out, the
+        /// one place it is: a value in a row is never free, has no key and is no slot (slots go as a block), and the
+        /// level of inlining WriteLoop adds made a top-level write of sealed classes holding a raw array run out of
+        /// inlining budget, its writer in memory (asm.py: AppData Events 19 to 86 stack accesses).
         /// </summary>
-        private static Writer WriteOnLocal<T, TFormatter>(ref T item, int count, Writer writer)
+        private static Writer WriteEach<T, TFormatter>(scoped ref byte first, int count, int length, Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            // By reference, not by index: a span's length is not known to the JIT to be positive (a list's count, for
-            // one), and over a loop with a call in it each element kept a bounds check of its own.
-            for (int left = count; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
+            if (length != NoLength)
+                writer.WriteLength(length);
+            for (ref T item = ref Unsafe.As<byte, T>(ref first); count > 0; count--, item = ref Unsafe.Add(ref item, 1))
                 default(TFormatter).Serialize(item, ref writer);
             return writer;
         }
 
         /// <summary>
-        /// Writes the count (<paramref name="count"/>, not 0) and the elements of <paramref name="run"/>, a set's or a
-        /// dictionary's entries, each the element (a storage element, <see cref="NinoStorageFormatter{TElement,TA,
-        /// TFormatterA,TFields}"/>: its items at their offsets in the entry, the rest skipped), the free ones skipped:
-        /// blocks in a run without free entries as one block (the block kernels packing the items out of the
-        /// entries), strings (a set's values at the entries' stride: <paramref name="strings"/>, which the caller asks
-        /// of the items, as in code shared over a class the element formatter's own answer is a lookup) through the
-        /// string run kernels, others value by value. A polymorphic item's run loop is the caller's, through the
-        /// element formatter's static <c>WriteRun</c>, for the same reason.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteEntries<TEntry, TFormatter>(NinoRun run, int count, ref Writer writer, bool strings)
-            where TFormatter : struct, INinoFormatter<TEntry>
-        {
-            if (NinoKind.Of<TEntry, TFormatter>() == NinoElementKind.Block && run.InUse == NinoRun.AllInUse)
-            {
-                // Several entries at a time where the CPU permutes vectors, the items packed out of each.
-                int size = NinoKind.Stride<TEntry, TFormatter>();
-                NinoBlockCollections.WriteAll<TEntry, TFormatter>(ref writer.ReserveCounted(count, size),
-                    ref Unsafe.As<byte, TEntry>(ref run.First), count, size);
-                return;
-            }
-
-            // Strings: the string run kernels, free entries skipped. Blocks with free entries between them go value by
-            // value: a loop's setup in every set's write cost more code and stack than it saves them (asm.py:
-            // HashSet<NinoNullable<int>> 61 to 91 stack accesses).
-            if (strings)
-            {
-                writer.WriteLength(count);
-                writer = WriteStrings<TEntry, TFormatter>(run, writer);
-                return;
-            }
-
-            // Elements with references through the writer parameter, which their formatters' calls take anyway: a copy
-            // in and out of WriteEach for each set cost more (NinoElements.WritesOnLocal).
-            if (NinoElements.WritesOnLocal<TEntry>())
-                writer = WriteEach<TEntry, TFormatter>(run, count, writer);
-            else
-                WriteEach<TEntry, TFormatter>(run, count, ref writer);
-        }
-
-        /// <summary>
-        /// The count and the elements one by one: one loop, out of the caller (a second loop there made the raw one's
-        /// code slower: HashSet&lt;int&gt; of 1,000 serialized 40% slower on x64 and Arm64). The writer by value and
-        /// returned: a local here, its cursor in registers (HashSet&lt;int?&gt; of 1,000: 5 to 10% faster), where one
-        /// passed by reference would be kept in memory, the caller's too.
+        /// As <see cref="WriteEach{T,TFormatter}(ref byte, int, int, Writer)"/>, the entries of <paramref name="run"/>
+        /// (any stride, free entries skipped): a set's or a dictionary's; <paramref name="length"/> written first.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static Writer WriteEach<T, TFormatter>(NinoRun run, int count, Writer writer)
+        internal static Writer WriteEach<T, TFormatter>(scoped NinoRun run, int length, Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            WriteEach<T, TFormatter>(run, count, ref writer);
+            if (length != NoLength)
+                writer.WriteLength(length);
+            WriteLoop<T, TFormatter>(ref run.First, run.Count, run.Stride, NinoRun.NoKey, run.InUse, ref writer);
             return writer;
         }
 
+        /// <summary>
+        /// The one loop that writes a run's values one by one (the other kinds are kernels: blocks, slots, strings, a
+        /// polymorphic base's generated loop): <paramref name="count"/> entries <paramref name="stride"/> bytes apart
+        /// from <paramref name="value"/>, those <paramref name="inUse"/> says are free skipped, each value after its
+        /// key where <paramref name="key"/> is not <see cref="NinoRun.NoKey"/> (<see cref="NinoRun.WriteEach{T,
+        /// TFormatter}"/>, the deep path of a pair's generated loop), a slot as a run of slots writes it. Inlined into
+        /// each entry point, whose constants fold its tests: a run in a row steps by the value's size.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteEach<T, TFormatter>(NinoRun run, int count, ref Writer writer)
+        internal static void WriteLoop<T, TFormatter>(scoped ref byte value, int count, int stride, int key, int inUse,
+            ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            writer.WriteLength(count);
-            ref byte value = ref run.First;
-            int stride = run.Stride, inUse = run.InUse;
-            for (int left = run.Count; left > 0; left--, value = ref NinoRun.Next(ref value, stride))
+            // By reference, not by index: a span's length is not known to the JIT to be positive (a list's count, for
+            // one), and over a loop with a call in it each element kept a bounds check of its own.
+            // Each piece tested here, against the constants the callers pass, before it is called: a call whose
+            // test folds inside it is still imported, and takes from the caller's inlining budget (an array of
+            // sealed classes holding a raw array, inlined into its top-level write, ran out of budget and called its
+            // writer's properties: asm.py, AppData Events 19 to 109 stack accesses).
+            for (int left = count; left > 0; left--, value = ref Unsafe.Add(ref value, stride))
             {
-                if (!NinoRun.Skips(ref value, inUse))
-                    NinoElements.WriteOne<T, TFormatter>(Unsafe.As<byte, T>(ref value), ref writer);
+                if (inUse != NinoRun.AllInUse && NinoRun.Skips(ref value, inUse))
+                    continue;
+                if (key != NinoRun.NoKey)
+                    NinoRun.WriteKey(ref value, key, ref writer);
+                if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                    default(TFormatter).Serialize(Unsafe.As<byte, T>(ref value), ref writer);
+                else
+                    NinoElements.WriteOne<T, TFormatter>(in Unsafe.As<byte, T>(ref value), ref writer);
             }
         }
 
@@ -252,17 +308,20 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader, bool prechecked = false)
             where TFormatter : struct, INinoFormatter<T> =>
-            Read<T, TFormatter>(new NinoRun(ref Unsafe.As<T, byte>(ref first), count, Unsafe.SizeOf<T>(), NinoRun.NoKey,
-                NinoRun.AllInUse), ref reader, prechecked);
+            Read<T, TFormatter>(new NinoRun(ref Unsafe.As<T, byte>(ref first), count, Unsafe.SizeOf<T>(),
+                NinoRun.NoKey, NinoRun.AllInUse), ref reader, prechecked);
 
         /// <summary>
-        /// Reads into the elements of <paramref name="run"/>, a run of values in a row (an array's, a list's backing
-        /// array, a ring's from its start), reusing the existing values: the dense half of the one view reads fill
-        /// (#355, design §2.4). The caller publishes what it filled (a list's count, a ring's head and tail).
+        /// The one read of values in a row (#355), every entry point's: an array's, a list's backing array, a ring's
+        /// from its start, a chunk, reusing the existing values; the caller publishes what it filled (a list's count,
+        /// a ring's head and tail). By kind, as <see cref="Write{T,TFormatter}(NinoRun, bool, bool, int, ref Writer)"/>:
+        /// raw values, slots and blocks as one block, strings and pairs holding them through the string run kernels,
+        /// others one by one (<see cref="ReadLoop{T,TFormatter}"/>, which a set's and a dictionary's entries, a run of
+        /// any stride, take from <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>).
         /// </summary>
         /// <param name="prechecked">The collection length already proved its entire fixed-stride payload fits.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(scoped NinoRun run, ref Reader reader, bool prechecked)
+        private static void Read<T, TFormatter>(scoped NinoRun run, ref Reader reader, bool prechecked)
             where TFormatter : struct, INinoFormatter<T>
         {
             int count = run.Count;
@@ -366,20 +425,39 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// The elements one by one, out of line: inlined into a read (also where they are blocks and it is never
-        /// reached), the loop and the element's formatter used up what the JIT inlines into the method, and helpers as
-        /// small as Reader.Skip were left calls. The reader by value and returned, not by reference: its address passed
-        /// to a call would keep the caller's reader in memory.
+        /// The <paramref name="count"/> values (not 0) in a row from <paramref name="item"/> read one by one, out of
+        /// line: inlined into a read (also where they are blocks and it is never reached), the loop and the element's
+        /// formatter used up what the JIT inlines into the method, and helpers as small as Reader.Skip were left calls.
+        /// The reader by value and returned, not by reference: its address passed to a call would keep the caller's
+        /// reader in memory. The one loop with the stride a constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static Reader ReadEach<T, TFormatter>(scoped ref T item, int count, Reader reader)
+        private static Reader ReadEach<T, TFormatter>(scoped ref T item, int count, Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
-            // The reader a local, its cursor in registers, where through a reference every element would store it and
-            // load it back (List<(int, long)>: 2x faster). By reference, see WriteOnLocal.
-            for (int left = count; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
-                default(TFormatter).Deserialize(ref reader, ref item);
+            ReadLoop<T, TFormatter>(ref Unsafe.As<T, byte>(ref item), count, Unsafe.SizeOf<T>(), ref reader);
             return reader;
+        }
+
+        /// <summary>
+        /// The one loop that reads a run's values one by one (the other kinds are kernels): <paramref name="count"/>
+        /// entries <paramref name="stride"/> bytes apart from <paramref name="value"/>, each read in place as a run of
+        /// its kind reads it (a slot as a slot). Inlined into each entry point, a run in a row stepping by a constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void ReadLoop<T, TFormatter>(scoped ref byte value, int count, int stride, ref Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            // The callers' reader a local, its cursor in registers, where through a reference every element would
+            // store it and load it back (List<(int, long)>: 2x faster); by reference here, which inlined is that local
+            // (by value, each caller copied its reader parameter in its prolog). By reference, see WriteLoop.
+            for (int left = count; left > 0; left--, value = ref Unsafe.Add(ref value, stride))
+            {
+                if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                    default(TFormatter).Deserialize(ref reader, ref Unsafe.As<byte, T>(ref value));
+                else
+                    NinoElements.ReadOne<T, TFormatter>(ref reader, ref Unsafe.As<byte, T>(ref value));
+            }
         }
 
         /// <summary>

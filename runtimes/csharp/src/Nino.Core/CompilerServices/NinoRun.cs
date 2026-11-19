@@ -128,22 +128,14 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// Writes each value of <paramref name="run"/> (and its key) through <typeparamref name="TFormatter"/>'s
         /// <c>Serialize</c>, with the caller's writer: what a generated loop over a run does once the writer is too deep
-        /// for its shallow writes (<see cref="NinoObject.IsDeep"/>). Out of line: rare.
+        /// for its shallow writes (<see cref="NinoObject.IsDeep"/>). The one loop of values one by one, with the key;
+        /// out of line: rare.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void WriteEach<T, TFormatter>(NinoRun run, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            ref byte value = ref run.First;
-            int stride = run.Stride, key = run.Key, inUse = run.InUse;
-            for (int left = run.Count; left > 0; left--, value = ref Next(ref value, stride))
-            {
-                if (Skips(ref value, inUse))
-                    continue;
-                WriteKey(ref value, key, ref writer);
-                default(TFormatter).Serialize(Unsafe.As<byte, T>(ref value), ref writer);
-            }
-        }
+            where TFormatter : struct, INinoFormatter<T> =>
+            Internal.NinoRuns.WriteLoop<T, TFormatter>(ref run.First, run.Count, run.Stride, run.Key, run.InUse,
+                ref writer);
 
         /// <summary>The run of the elements of <paramref name="values"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
