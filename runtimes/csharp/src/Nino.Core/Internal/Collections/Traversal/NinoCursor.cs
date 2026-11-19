@@ -109,7 +109,9 @@ namespace Nino.Core.Internal
         public static bool Pairs<TA, TB, TFormatterA, TFormatterB>()
             where TFormatterA : struct, INinoFormatter<TA>
             where TFormatterB : struct, INinoFormatter<TB> =>
-            (Own<TA, TFormatterA>() || Own<TB, TFormatterB>()) && Has<TA, TB, TFormatterA, TFormatterB>();
+            // (Own A || Own B) && Has A && Has B, each item asked once on the path a constant takes: every inlinee
+            // counts against the budget of the generated body a dictionary's write is inlined into.
+            Own<TA, TFormatterA>() ? Has<TB, TFormatterB>() : Own<TB, TFormatterB>() && Has<TA, TFormatterA>();
 
         /// <summary>The most bytes <see cref="WriteAt{TA,TB,TFormatterA,TFormatterB}"/> writes (negative: more than an
         /// <c>int</c> holds, which the writer rejects).</summary>

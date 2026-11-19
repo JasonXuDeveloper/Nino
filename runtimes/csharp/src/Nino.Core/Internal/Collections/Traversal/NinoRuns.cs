@@ -253,6 +253,7 @@ namespace Nino.Core.Internal
         /// (<see cref="INinoFormatter.HasRunLoop"/> of a pair's formatter): its values are a polymorphic base's with a
         /// run loop, and its keys are written by that loop (<see cref="KeyOf{TKey,TKeyFormatter}"/>).
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool PairRuns<TKey, TValue, TKeyFormatter, TValueFormatter>()
             where TKeyFormatter : struct, INinoFormatter<TKey>
             where TValueFormatter : struct, INinoFormatter<TValue> =>

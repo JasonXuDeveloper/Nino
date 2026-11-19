@@ -66,13 +66,13 @@ namespace Nino.Core
                 return;
             }
 
-            if (!CollectionFields.Run(value, count, out var run))
-                writer = WriteEnumerated(value, count, writer);
-            else if (InEntries)
+            if (!InEntries)
+                writer = WriteEntries(value, count, writer);
+            else if (CollectionFields.Run(value, count, out var run))
                 NinoRuns.WriteSet<KeyValuePair<TKey, TValue>,
                     KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run, count, ref writer);
             else
-                WriteEntries(run, count, ref writer);
+                writer = WriteEnumerated(value, count, writer);
         }
 
         /// <summary>
@@ -81,11 +81,18 @@ namespace Nino.Core
         /// what the key and value formatters say. The entry formatter answers the same from them, but in code shared
         /// over a class each of its answers is a lookup, which compiled every loop into each dictionary's write (asm.py:
         /// a <c>Dictionary&lt;string, int&gt;</c>'s 889 to 1,670 bytes, 23 to 54 stack accesses) and called a polymorphic
-        /// value's run loop through the entry formatter's, an indirect call.
+        /// value's run loop through the entry formatter's, an indirect call. Out of line with the run, the writer by
+        /// value and returned (one call per dictionary, as each loop was out of line already): inlined, its tests and
+        /// the run's used up the budget of a generated body holding two dictionaries, which then called this with the
+        /// writer by ref, compiled both loops of the other and kept its writer in memory (asm.py: a Lookup's top-level
+        /// write, 107 to 189 stack accesses).
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteEntries(NinoRun run, int count, ref Writer writer)
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteEntries(Dictionary<TKey, TValue> value, int count, Writer writer)
         {
+            if (!CollectionFields.Run(value, count, out var run))
+                return WriteEnumerated(value, count, writer);
+
             if (NinoRuns.PairRuns<TKey, TValue, TKeyFormatter, TValueFormatter>())
             {
                 // The value's run loop, through a copy of the writer (NinoRuns.WriteSet).
@@ -95,14 +102,16 @@ namespace Nino.Core
                 NinoRuns.WritePairRun<TKey, TValue, TKeyFormatter, TValueFormatter>(run, CollectionFields.MapLayout<TKey,
                     TValue>.Value, CollectionFields.MapLayout<TKey, TValue>.Key, ref copy);
                 copy.CopyTo(ref writer);
+                return writer;
             }
-            else if (CursorPairs)
+
+            if (CursorPairs)
             {
                 writer.WriteLength(count);
-                writer = NinoRuns.WriteCursors<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run, writer);
+                return NinoRuns.WriteCursors<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run, writer);
             }
-            else
-                writer = NinoRuns.WriteEach<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run, count, writer);
+
+            return NinoRuns.WriteEach<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run, count, writer);
         }
 
         /// <summary>The count and the pairs through the enumerator, out of line, the writer by value and
