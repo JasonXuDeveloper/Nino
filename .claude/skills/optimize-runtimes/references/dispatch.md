@@ -115,3 +115,14 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   official `UnionArray` and `TaggedUnionArray` cases dropped from 808 to 77 and 582 to 43 allocations. Median reads
   took 12–15 % and 9–20 % less time on the sampled x64 CPUs, and 22 % and 16 % less on Neoverse-N2. The linked
   benchmark readers on both architectures lost the five `runtime.convT*` calls for those cases.
+  Keep the slab's `next` as it is and its block limits at 32 fixed-size and 8 variable-size slots: after the
+  pointer cases, GC (`scanobject`, write barriers) and string reads take most of a union read's profile, not `next`.
+  A `next` that advances an index (no slice store, so no write barrier) with its growth in a `//go:noinline` method
+  measured on par locally (UnionArray 28.6 against 28.4 µs, TaggedUnionArray 18.8 against 19.2, `-count 6`), and the
+  shaped method stays out of line anyway (cost 88-89 against the budget of 80: the dictionary call). Blocks of
+  256 / 64 slots took 4-7 % longer locally (more bytes to clear and scan: 39.4 against 36.6 KB per UnionArray read).
+- Keep TypeScript's direct union cases without a tag. Every value carrying its case (a wrapper, or a class with a
+  `case` field) costs an object per number, string or array, which is the allocation #387 removed; a generated class
+  cannot carry one either, since one class can be a case of several unions. Users narrow a direct case by its runtime
+  test (`typeof`, `Array.isArray`, `instanceof`) and a tagged one by `case`; the union's generated comment lists each
+  direct case's test (docs/codegen.md, C# unions).
