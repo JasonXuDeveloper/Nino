@@ -95,7 +95,13 @@ value check in a runtime or a template.
   Keep Go's built-in copy in `Reader.ByteArray`. The Arm64 candidate for fresh 2–4 KiB reads took 5–9 %
   longer with a hot input and 24–26 % longer with a 64 MiB source rotation on Neoverse-N2
   ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411), `DeserializeExact`).
-  The 128-byte fallback control also took 30 % longer. The hot 1 MiB x64 copy result remains a microbenchmark.
+  The 128-byte fallback control also took 30 % longer.
+  The [1 MiB end-to-end x64 follow-up](https://github.com/JasonXuDeveloper/Nino/actions/runs/44451141322)
+  ran the AVX2 candidate through the same fresh `Reader.ByteArray` read. With a 64 MiB source rotation,
+  median time rose 17 % on Xeon 6975P-C, 39 % on EPYC 9V45 and 122 % on EPYC 7763. The hot 7763 row
+  rose 21 %. The same-revision 9V45 rotation moved 1.5 %. The other two x64 CPU models did not occur
+  in the floor jobs. The standard path compiles the allocation and copy to `runtime.makeslicecopy`.
+  Keep it for megabyte reads as well.
 - Compare Rust's standard copy under the default loader and with
   `GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112`. In the same run, forcing the historical lower
   threshold made the unaligned 2,113-byte standard copy 7.1× its default time on EPYC 7763 and 5.8× on 9V74.
@@ -106,8 +112,21 @@ value check in a runtime or a template.
   In real Rust codecs ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411)),
   the scoped AVX2 candidate lowered reused writes by 14–33 % at 2,113 and 4,096 bytes on EPYC with the
   forced threshold. The 2,113-byte writes also fell 9–10 % under the default loader on EPYC 7763 and 9V74.
-  Ordinary read measurements shifted by about 25–30 % even with the same revision on both sides. Keep the
-  current Rust copy until a write-only path and its production dispatch have their own measurements.
+  Ordinary read measurements shifted by about 25–30 % even with the same revision on both sides.
+- Keep Rust's standard counted byte copy. A write-only AVX2 candidate gated to AMD family 19h
+  ([44443778134](https://github.com/JasonXuDeveloper/Nino/actions/runs/44443778134)) lowered reused
+  2,113-byte writes by 31 % on EPYC 7763 and 19 % on 9V74 with the forced historical glibc threshold.
+  At 4,096 bytes the apparent gains were 30 % and 26 %, while the same-revision floors themselves
+  moved 27 % and 17 % lower by median. With the default loader, the 2,113-byte case improved 13 % on
+  9V74 and was on par on 7763. The 4,096-byte 9V45 control took 19 % longer, with no matching same-CPU
+  floor. The 2,113-byte legacy gain is repeatable. Evidence for the full range and fallback remains
+  inconclusive. A separate [mixed workload](https://github.com/JasonXuDeveloper/Nino/actions/runs/44447481096)
+  varied source alignment and payload lengths from 2,113 to 4,096 bytes. The measured AMD writers
+  stayed on par under the default loader. Under the forced threshold, EPYC 9V74 fresh and reused times
+  fell 9 % and 18 %, respectively, with overlapping same-revision controls that fell 12 % for both.
+  Keep the standard writer. Do not infer the effective threshold from the glibc version alone. The
+  [glibc 2.39 stable branch](https://sourceware.org/pipermail/glibc-cvs/2024q2/084781.html) backported the
+  AMD change, as did [RHEL 9.5](https://docs.redhat.com/en-us/documentation/red_hat_enterprise_linux/9/pdf/9.5_release_notes/Red_Hat_Enterprise_Linux-9-9.5_Release_Notes-en-US.pdf).
 - Keep `TypedArray.set` for ordinary TypeScript buffers. In 44339615693, copying through Wasm memory with both
   staging copies took 82–339 % more time than `TypedArray.set` across the default and historical threshold
   runs. For views already backed by Wasm memory, `memory.copy` varied from 8 % lower to 17 % higher by size and

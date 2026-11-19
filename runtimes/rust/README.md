@@ -273,6 +273,7 @@ still parse from these strings (`FromStr`) and print to them (`Display`).
 
 ```sh
 cargo fmt --all --check
+rustfmt --edition 2021 --check src/impls/*.rs
 cargo clippy --workspace --all-features --all-targets -- -D warnings
 cargo test --workspace --all-features
 ```

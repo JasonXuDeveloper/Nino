@@ -1,13 +1,3 @@
-use core::hash::Hash;
-use std::collections::{BTreeSet, HashSet};
-
-use crate::error::{Error, ErrorKind, Result};
-use crate::reader::Reader;
-use crate::traits::{NinoRead, NinoWrite};
-use crate::writer::Writer;
-
-use super::read_key;
-
 macro_rules! set {
     ($set:ident, $($bound:tt)*) => {
         /// A set: its length, then each element. A repeated element is rejected.
