@@ -22,7 +22,9 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
   logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is `audit-redundancy`.
   Collections in particular share one storage layer and one loop per element kind (`optimize`, "One storage layer for
   every collection"): a collection formatter that decides its element kind itself (anything but
-  `NinoKind`), or holds a loop of its own, is a finding.
+  `NinoKind`), or holds a loop of its own, is a finding, and so is a loop, run field or helper type over the parts
+  of a composite (a key apart from its value, a scratch copy of `KeyValuePair`, a marker that bends one loop shape into
+  another) where the loop over `<T, TFormatter>` with the composite's composed formatter would do.
 - **A class does what its name says**: a helper named for one direction or job that the other direction or another
   job calls is two concerns in one file; split it by job. `NinoBodyReader` (Nino.AspNetCore) also held MVC's
   supported-type cache, which the output formatter asked, and the response flush: now `NinoSupportedTypes` and
