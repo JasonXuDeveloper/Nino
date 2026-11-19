@@ -377,7 +377,7 @@ namespace Shapes
 
     /// <summary>
     /// Cases TypeScript cannot tell apart by their values (an int and a double are both numbers, two lists both
-    /// arrays): a tagged union there.
+    /// arrays): the later case of each pair needs a tag.
     /// </summary>
     [NinoType]
     public union Measure(int, double, List<int>, List<string>);

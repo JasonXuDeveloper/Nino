@@ -1436,18 +1436,18 @@ function writeBody$BasedInt(w: NinoWriter, v: BasedInt): void {
   w.i32(v.value);
 }
 
-/** `Shapes.Measure`, a C# union: its case, by name, and the case's value; null is the empty union. */
+/** `Shapes.Measure`, a C# union: direct values and tagged alternatives; null is the empty union. */
 export type Measure =
-  | { readonly case: "Int32"; readonly value: number }
+  | number
   | { readonly case: "Double"; readonly value: number }
-  | { readonly case: "ListInt32"; readonly value: number[] }
+  | number[]
   | { readonly case: "ListString"; readonly value: (string | null)[] };
 
 /** Makes a `Measure` holding one of its cases. */
 export const Measure = {
-  Int32: (value: number): Measure => ({ case: "Int32", value }),
+  Int32: (value: number): Measure => value,
   Double: (value: number): Measure => ({ case: "Double", value }),
-  ListInt32: (value: number[]): Measure => ({ case: "ListInt32", value }),
+  ListInt32: (value: number[]): Measure => value,
   ListString: (value: (string | null)[]): Measure => ({ case: "ListString", value }),
 } as const;
 
@@ -1458,7 +1458,7 @@ function readMeasure(r: NinoReader): Measure | null {
   let v: Measure;
   switch (id) {
     case 546808484: {
-      v = { case: "Int32", value: r.i32() };
+      v = r.i32();
       break;
     }
     case -1251563749: {
@@ -1468,7 +1468,7 @@ function readMeasure(r: NinoReader): Measure | null {
     case -217079013: {
       const value = read$37(r);
       if (value === null) throw r.invalidCase(id);
-      v = { case: "ListInt32", value };
+      v = value;
       break;
     }
     case -1803246716: {
@@ -1490,31 +1490,31 @@ function writeMeasure(w: NinoWriter, v: Measure | null): void {
     return;
   }
   w.enterStruct();
-  switch (v.case) {
-    case "Int32": {
-      const at = w.reserve(8);
-      w.view.setInt32(at, 546808484, true);
-      w.view.setInt32(at + 4, v.value, true);
-      break;
+  if (typeof v === "number") {
+    const at = w.reserve(8);
+    w.view.setInt32(at, 546808484, true);
+    w.view.setInt32(at + 4, v, true);
+  }
+  else if (Array.isArray(v)) {
+    w.i32(-217079013);
+    write$37(w, v);
+  }
+  else {
+    switch (v.case) {
+      case "Double": {
+        const at = w.reserve(12);
+        w.view.setInt32(at, -1251563749, true);
+        w.view.setFloat64(at + 4, v.value, true);
+        break;
+      }
+      case "ListString": {
+        w.i32(-1803246716);
+        write$38(w, v.value);
+        break;
+      }
+      default:
+        throw types.unwritable(v);
     }
-    case "Double": {
-      const at = w.reserve(12);
-      w.view.setInt32(at, -1251563749, true);
-      w.view.setFloat64(at + 4, v.value, true);
-      break;
-    }
-    case "ListInt32": {
-      w.i32(-217079013);
-      write$37(w, v.value);
-      break;
-    }
-    case "ListString": {
-      w.i32(-1803246716);
-      write$38(w, v.value);
-      break;
-    }
-    default:
-      throw types.unwritable(v);
   }
   w.exitStruct();
 }

@@ -203,16 +203,13 @@ A C# 15 union is a struct wrapping one value whose case is that value's runtime 
 language writes the sum type it has, under the codec function names of a struct, so members and collections hold a
 union as they hold a struct, and null (nil, `Empty`) is the empty union:
 
-- **TypeScript** has unions of types, so a union is one wherever the writer can tell every case's values apart at run
-  time (`TypeScriptTarget.UnionForm`): each case's test (`typeof v === "number"`, `"string"`, `"boolean"` or
-  `"bigint"`, `Array.isArray(v)`, `v instanceof Map`, `Set`, `Date`, a typed array or a generated class) must be
-  different. Then the union is `export type Result = number | string;`, read as the bare value and written by testing
-  the value, class cases most derived first (a subclass's values take its own case, as .NET's writer tries the exact
-  type first). Where two cases share a test (an `int` and a `double` are both numbers, two lists both arrays, a
-  `char` and a `string` both strings) or a case has none (an interface, `object`), the case is a tag:
-  `export type Measure = { readonly case: "Int32"; readonly value: number } | ...`, with a constructor per case
-  (`Measure.Int32(42)`), so `switch (m.case)` narrows. A `T?` of a union has no TypeScript form (NINOGEN002): null
-  would be both no value and the empty union.
+- **TypeScript** keeps a case as a direct value when the writer can identify it by its runtime test
+  (`typeof`, `Array.isArray` or `instanceof`). When cases share a test, the first in declaration order uses the
+  direct representation. Later cases in that group, and cases without a test (such as an interface), use
+  `{ case, value }` with the case's name as the tag. For example, for `Measure(int, double, List<int>, List<string>)`,
+  `Measure.Int32(42)` is the number `42` and `Measure.Double(42)` is `{ case: "Double", value: 42 }`.
+  The writer dispatches direct class cases from most derived to base. `null` represents the empty union, so
+  a `T?` of a union has no TypeScript form (NINOGEN002).
 - **Go** uses a sealed interface with a type per case. A case whose value is a non-generic generated struct or
   class uses a pointer to that type, with the union's marker method. Other cases use a struct holding `Value` and
   exposing `NinoUnionCase()`, the .NET name. Wrappers that need a heap allocation when stored by value in a Go
@@ -232,8 +229,8 @@ Every read and write dispatches through one `switch` on the case's id and one ch
 `match`. A tagged TypeScript case is one object literal, and Go interfaces store the case pointer directly. The depth is counted
 only for a union with a case that can hold it again, as .NET counts it (`UnionNests`). `nino-gen inspect` reads the
 case id, names the case, and rejects an id that is not a case and a null value. The corpus's `Choice` and `UnionTree`
-(`unions-*`, `union-root`, `type-id-union-*`), `Shapes.Pick` (plain) and `Shapes.Measure` (tagged), and the
-integration tests' `Samples.Shot` (plain) and `Samples.Amount` (tagged) test them.
+(`unions-*`, `union-root`, `type-id-union-*`), `Shapes.Pick` (plain) and `Shapes.Measure` (direct and tagged), and the
+integration tests' `Samples.Shot` (plain) and `Samples.Amount` (direct and tagged) test them.
 
 A Unity client (C# 9) cannot compile a union, but can use one from a precompiled contract library: [pitfalls.md,
 "C# unions and Unity"](pitfalls.md#c-unions-and-unity).

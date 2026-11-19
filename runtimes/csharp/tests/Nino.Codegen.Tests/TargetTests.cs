@@ -511,7 +511,7 @@ namespace Nino.Codegen.Tests
         }
 
         /// <summary>
-        /// A union is each language's sum type: a TypeScript class naming its case, a Go interface with a struct per
+        /// A union is each language's sum type: a TypeScript union with tagged alternatives where needed, a Go interface with a struct per
         /// case, a Rust enum with a variant per case (a case named Empty after the empty union's own variant).
         /// </summary>
         [TestMethod]
@@ -522,10 +522,13 @@ namespace Nino.Codegen.Tests
             StringAssert.Contains(ts, "export type Pick = Empty | TrackedPick | number | PickPair;");
             StringAssert.Contains(ts, "  if (v instanceof Empty) {");
             StringAssert.Contains(ts, "  else if (typeof v === \"number\") {");
-            // An int and a double, two lists: a union tagged with each case's name, and its constructors.
-            StringAssert.Contains(ts, "export type Measure =\n  | { readonly case: \"Int32\"; readonly value: number }\n" +
-                                      "  | { readonly case: \"Double\"; readonly value: number }");
-            StringAssert.Contains(ts, "  Int32: (value: number): Measure => ({ case: \"Int32\", value }),");
+            // The first number and array are direct. Their overlapping alternatives still carry a tag.
+            StringAssert.Contains(ts, "export type Measure =\n  | number\n" +
+                                      "  | { readonly case: \"Double\"; readonly value: number }\n" +
+                                      "  | number[]\n" +
+                                      "  | { readonly case: \"ListString\"; readonly value: (string | null)[] };");
+            StringAssert.Contains(ts, "  Int32: (value: number): Measure => value,");
+            StringAssert.Contains(ts, "  Double: (value: number): Measure => ({ case: \"Double\", value }),");
             StringAssert.Contains(ts, "  switch (v.case) {");
             Assert.IsFalse(ts.Contains("PickObject", StringComparison.Ordinal), "no object member: no class for one");
             var (go, _) = Run("go", "nino_types.go");

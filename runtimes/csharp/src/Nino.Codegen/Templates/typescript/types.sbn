@@ -270,20 +270,21 @@ func case_write(k, v)
 end
 
 # A C# union (spec §7.12): the type id of its case (0, null, for the empty union), then the case's value, never null.
-# A plain TypeScript union of the cases' types when their values tell them apart, else a union tagged with each case's
-# name and constructors for it (TypeScriptTarget.UnionForm). Both read and write through one switch on the id and one
-# chain of tests or a switch on the tag.
+# Keep uniquely identifiable cases and the first case for each shared runtime test as direct values.
+# The other cases carry tags (TypeScriptTarget.UnionCases).
 func union_type(c)
   $n = c.name
   $o = "/** `" + c.model.full_name + "`, a C# union: "
   if c.tagged
-    $o = $o + "its case, by name, and the case's value; null is the empty union. */\nexport type " + $n + " =\n"
+    $o = $o + "direct values and tagged alternatives; null is the empty union. */\nexport type " + $n + " =\n"
     for $k in c.cases
-      $o = $o + "  | { readonly case: \"" + $k.model.name + "\"; readonly value: " + case_ts($k) + " }" + (for.last ? ";" : "") + "\n"
+      $t = case_ts($k)
+      $o = $o + "  | " + ($k.test ? $t : "{ readonly case: \"" + $k.model.name + "\"; readonly value: " + $t + " }") + (for.last ? ";" : "") + "\n"
     end
     $o = $o + "\n/** Makes a `" + $n + "` holding one of its cases. */\nexport const " + $n + " = {\n"
     for $k in c.cases
-      $o = $o + "  " + $k.model.name + ": (value: " + case_ts($k) + "): " + $n + " => ({ case: \"" + $k.model.name + "\", value }),\n"
+      $made = $k.test ? "value" : "({ case: \"" + $k.model.name + "\", value })"
+      $o = $o + "  " + $k.model.name + ": (value: " + case_ts($k) + "): " + $n + " => " + $made + ",\n"
     end
     $o = $o + "} as const;\n\n"
   else
@@ -311,7 +312,7 @@ func union_type(c)
       $o = $o + "      const value = " + $value + ";\n      if (value === null) throw r.invalidCase(id);\n"
       $value = "value"
     end
-    $made = c.tagged ? "{ case: \"" + $k.model.name + "\", " + ($value == "value" ? "value" : "value: " + $value) + " }" : $value
+    $made = !$k.test ? "{ case: \"" + $k.model.name + "\", " + ($value == "value" ? "value" : "value: " + $value) + " }" : $value
     if $nests
       $o = $o + "      v = " + $made + ";\n      break;\n    }\n"
     else
@@ -329,16 +330,23 @@ func union_type(c)
   if $nests
     $o = $o + "  w.enterStruct();\n"
   end
+  $has_plain = false
+  for $k in c.plain_cases
+    $o = $o + (for.first ? "  if (" : "  else if (") + $k.test + ") {\n    " + (string.replace (case_write($k, "v")) "\n" "\n    ") + "\n  }\n"
+    $has_plain = true
+  end
   if c.tagged
-    $o = $o + "  switch (v.case) {\n"
-    for $k in c.cases
-      $o = $o + "    case \"" + $k.model.name + "\": {\n      " + (string.replace (case_write($k, "v.value")) "\n" "\n      ") + "\n      break;\n    }\n"
+    $tagged_write = "switch (v.case) {\n"
+    for $k in c.tagged_cases
+      $tagged_write = $tagged_write + "  case \"" + $k.model.name + "\": {\n    " + (string.replace (case_write($k, "v.value")) "\n" "\n    ") + "\n    break;\n  }\n"
     end
-    $o = $o + "    default:\n      throw types.unwritable(v);\n  }\n"
+    $tagged_write = $tagged_write + "  default:\n    throw types.unwritable(v);\n}"
+    if $has_plain
+      $o = $o + "  else {\n    " + (string.replace $tagged_write "\n" "\n    ") + "\n  }\n"
+    else
+      $o = $o + "  " + (string.replace $tagged_write "\n" "\n  ") + "\n"
+    end
   else
-    for $k in c.cases
-      $o = $o + (for.first ? "  if (" : "  else if (") + $k.test + ") {\n    " + (string.replace (case_write($k, "v")) "\n" "\n    ") + "\n  }\n"
-    end
     $o = $o + "  else throw types.unwritable(v as object);\n"
   end
   if $nests
