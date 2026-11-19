@@ -17,9 +17,13 @@ impl Input {
         if !align_payload {
             return Self { bytes, start: 0 };
         }
-        // Model a caller's framed input: place the Nino length right before a page-aligned payload.
-        let mut storage = vec![0; bytes.len() + 4095];
-        let start = storage[4..].as_ptr().align_offset(4096);
+        Self::page_offset(bytes, 0)
+    }
+
+    fn page_offset(bytes: Vec<u8>, offset: usize) -> Self {
+        // Place the Nino length four bytes before the desired payload offset within a page.
+        let mut storage = vec![0; bytes.len() + 4095 + offset];
+        let start = storage[4..].as_ptr().align_offset(4096) + offset;
         storage[start..].get_mut(..bytes.len()).unwrap().copy_from_slice(&bytes);
         storage.truncate(start + bytes.len());
         Self { bytes: storage, start }
@@ -104,6 +108,47 @@ fn benches(c: &mut Criterion) {
         }
     }
     group.finish();
+
+    let mut mixed = c.benchmark_group("copy-mixed");
+    for (name, sizes) in [
+        ("control", [128, 1024, 2048, 2112, 4097, 8192, 32768, 65536]),
+        ("window", [2113, 2176, 2304, 2560, 3072, 3584, 4032, 4096]),
+    ] {
+        let inputs: Vec<_> = (0..32)
+            .map(|i| {
+                let value: Vec<_> = (0..sizes[i % sizes.len()]).map(|j| (j * 73 + i) as u8).collect();
+                Input::page_offset(nino::serialize(&value).unwrap(), (i * 29) % 4096)
+            })
+            .collect();
+        let mut outputs: Vec<_> = inputs.iter().map(|input| Vec::with_capacity(input.wire().len())).collect();
+        for (input, out) in inputs.iter().zip(&mut outputs) {
+            nino::serialize_into(input.payload(), out).unwrap();
+            assert_eq!(out, input.wire());
+            let mut fresh = Vec::new();
+            nino::serialize_into(input.payload(), &mut fresh).unwrap();
+            assert_eq!(fresh, input.wire());
+        }
+        mixed.bench_function(BenchmarkId::new("write-reused", name), |b| {
+            let mut i = 0;
+            b.iter(|| {
+                let out = &mut outputs[i];
+                out.clear();
+                nino::serialize_into(black_box(inputs[i].payload()), out).unwrap();
+                black_box(out.as_slice());
+                i = (i + 1) % inputs.len();
+            });
+        });
+        mixed.bench_function(BenchmarkId::new("write-fresh", name), |b| {
+            let mut i = 0;
+            b.iter(|| {
+                let mut out = Vec::new();
+                nino::serialize_into(black_box(inputs[i].payload()), &mut out).unwrap();
+                drop(black_box(out));
+                i = (i + 1) % inputs.len();
+            });
+        });
+    }
+    mixed.finish();
 }
 
 criterion_group! {
