@@ -71,7 +71,8 @@ NinoDirect.cs                the top-level calls with the formatter the generato
                              Stream forms, the latter through NinoStreams)
 NinoRun.cs                   NinoRun: the run cursor over any contiguous storage (first value, count, stride, the in-use
                              test of free entries; the key's offset and write only in the run of a pair's values, Values)
-                             and the pieces of a loop over it (Next, Skips, WriteKey, Value; WriteEach, the deep path);
+                             and the pieces of a loop over it (Next, Skips, WriteKey, Value; WriteEach, the deep path,
+                             through NinoRuns.WriteLoop);
                              what INinoFormatter.WriteRun takes
 NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory, built item by item (Item)
 NinoBlocks.cs                NinoBlocks: the items of composites (ItemSize, WriteItem, ReadItem: raw, or a block through
@@ -251,15 +252,17 @@ NinoKind.cs                  the one element-kind decision every collection read
                              the sized and external top-level writes), NinoKind<T, TFormatter> (NinoElementKind: raw,
                              slot, block or per value, with Stride, MinWire, CopiedWhole, ReadOverwrites, Heavy,
                              HeavyHashed), NinoKind.Of / Stride (read behind the no-references guard)
-NinoRuns.cs                  the loops over a run (NinoRun), one per element kind and direction, over <T, TFormatter>
-                             only: values in a row (arrays, lists, spans, ring halves; Write, Read), and a set's or a
-                             dictionary's entries, each the element (WriteEntries); strings and pairs holding them
-                             handed to the string run kernels, one call out of line (WriteStrings, ReadStrings); a
-                             polymorphic base's run loop and a pair's composed onto it (KeyOf, PairRuns, WritePairRun)
+NinoRuns.cs                  the one write of a run (NinoRun) of any stride and the one read of values in a row, over
+                             <T, TFormatter> only (Write, Read: arrays, lists, spans, ring halves, a set's or a
+                             dictionary's entries, each the element), each kind by its kernel, the rest through the
+                             one loop per direction (WriteLoop, ReadLoop; WriteEach, ReadEach out of line); strings and
+                             pairs holding them handed to the string run kernels, one call out of line (WriteStrings,
+                             ReadStrings); a polymorphic base's run loop and a pair's composed onto it (KeyOf,
+                             PairRuns, WritePairRun)
 NinoEntries.cs               the one read of a set's and a dictionary's entries (NinoEntries: a block scattered into new
-                             entries, or value by value, filled then linked, or each added), over the collection's own
-                             layer (INinoHashTable: SetTable, MapTable; their static Add, which the string kernels'
-                             stores call)
+                             entries, or value by value through NinoRuns.ReadLoop, filled then linked, or each added),
+                             over the collection's own layer (INinoHashTable: SetTable, MapTable; their static Add,
+                             which the string kernels' stores call)
 NinoCursor.cs                which values the string run kernels move (Own: strings by their formatter's type, pairs by
                              INinoFormatter.HasCursor; Pairs: a string with a string or a value read as one) and the
                              cursor read of one item (ReadAt: a dictionary's merge)

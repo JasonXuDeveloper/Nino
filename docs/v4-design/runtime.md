@@ -74,10 +74,12 @@ public interface INinoFormatter                               // what does not d
 Every contiguous collection (arrays, lists, spans, `Memory<T>`, `ArraySegment<T>`, `ImmutableArray<T>`, each half of a
 `Queue<T>`'s ring, `Stack<T>`, and the entries of `HashSet<T>` and `Dictionary<TKey, TValue>`) writes its elements as a
 run (`NinoRun`): the first value, the count, the stride between entries and how a free entry is told apart (a set and a
-dictionary that removed elements; the rule is found at startup). One loop per element kind writes a run (`NinoRuns`),
-over `<T, TFormatter>` only: raw elements and blocks as one block, slots through the slot kernels, strings and pairs
-holding them through the string run kernels (below), others value by value; a polymorphic base's values through its
-generated `WriteRun`, the compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep
+dictionary that removed elements; the rule is found at startup). One write of a run of any stride (`NinoRuns.Write`),
+over `<T, TFormatter>` only, takes every one of them: raw elements and blocks as one block (a run of entries too, where
+none is free), slots through the slot kernels, strings and pairs holding them through the string run kernels (below),
+others value by value through the one loop of values (`NinoRuns.WriteLoop`: the step, the in-use test, the key and the
+value, each tested against the constants its caller passes, so a run in a row compiles as a span's); a polymorphic
+base's values through its generated `WriteRun`, the compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep
 path are Nino.Core's. A pair (a `KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes
 its items (block, string items, dispatch bit), never a loop of its own. A pair of a polymorphic value composes onto its
 value's `WriteRun`: the run of its values, each key at an offset from its value (`NinoRun.Key`) and written by the loop,
@@ -177,8 +179,10 @@ and composites whose items are raw or blocks, #348), else per value; with the st
 follow (`MinWire`, `CopiedWhole`, `ReadOverwrites`, `Heavy`, `HeavyHashed`). Its code is never shared, so it is read
 behind `IsReferenceOrContainsReferences<T>()` (`NinoKind.Of`, `NinoKind.Stride`). Every trait is a query of the
 formatter or a `typeof`, never an `is` test or a cast, and no member is generic (Unity 2022.3's IL2CPP fails on generic
-default members, #405). The loops themselves are still per collection; one loop per kind over a storage view is a later
-step of #355.
+default members, #405). The loops are one per direction over a storage view (`NinoRuns.WriteLoop`, `NinoRuns.ReadLoop`,
+#355): a run's five fields do not fold in the JIT, so an entry point of values in a row passes the constants (the size
+of `T`, no key, every entry in use) rather than reading them from the run, and the loop tests each piece against them
+before calling it, since a call whose test folds inside it is still imported and spends the caller's inlining budget.
 
 `Deserialize` takes the reader first, as every read API does, and the current value by `ref`. Passing `default` creates a new instance, and passing an
 existing instance populates it in place when possible. One code path serves both `Deserialize` and ref
