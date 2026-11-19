@@ -230,7 +230,8 @@ NinoCollectionViews.cs       reads into the backing storage shared by Queue and 
 ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder)
 ConcurrentTables.Checks.cs   its startup checks (the layout, the hash mask, chains, a built table)
 HashTables.cs                links the entries a read filled into a new HashSet / Dictionary (Link, Unlink on a
-                             rejected read), counting collisions against MaxHashCollisions; Plan, Insert, Added, Walk
+                             rejected read), counting collisions against MaxHashCollisions; Plan, Insert, Added, Walk; one
+                             core for both tables over the entry mirrors (Fields, the null-key policy)
 HashTables.Checks.cs         its startup checks (the hashing of each implementation, chains, references and strings)
 ```
 
