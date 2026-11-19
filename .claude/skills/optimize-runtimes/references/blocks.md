@@ -57,6 +57,10 @@ value check in a runtime or a template.
   intact. In [44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411) the revised GUID map
   write took 82–85 % less time on x64 and 81 % less on Neoverse-N2. The revised map read took 52–54 % less on
   x64 and 45 % less on Neoverse-N2.
+- Keep generated raw fallback loops on direct codecs after the raw-memory attempt. In the
+  [prepared-key follow-up](https://github.com/JasonXuDeveloper/Nino/actions/runs/44451141322) both native
+  listings call `repeatedBits` directly for padded primitive pairs. The eight-pair read was on par on
+  EPYC and Neoverse-N2. Its Xeon 6973P-C sample took 9 % less time, with no same-CPU control.
 
 - Check a block of range-limited 8- or 16-byte values four a step with one compare each (`w[0].Valid() && ... &&
   w[3].Valid()`, then the failing step value by value), each `Valid` a single compare (a signed range from 0 as

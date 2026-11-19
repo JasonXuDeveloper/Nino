@@ -27,6 +27,7 @@ namespace Nino.Codegen.Targets
         private readonly List<GoNamed> _namedCollections = new();
         private readonly Dictionary<string, GoHelper> _helperByKey = new(StringComparer.Ordinal);
         private readonly List<GoHelper> _helpers = new();
+        private readonly Dictionary<string, int> _keyChecks = new(StringComparer.Ordinal);
         private readonly HashSet<int> _tuples = new();
         private readonly Dictionary<TypeModel, GoGeneric> _generics = new();
         private readonly Dictionary<string, GoClosed> _closedByKey = new(StringComparer.Ordinal);
@@ -110,6 +111,9 @@ namespace Nino.Codegen.Targets
             renderer.Set("generic_slots", _slots.ToList());
             renderer.Set("uses_elements", types.Any(t => t.Elements != null));
             renderer.Function("helper", new Func<GoShape, string, string>(Helper));
+            renderer.Function("key_check", new Func<string, string>(KeyCheck));
+            renderer.Function("key_check_types", new Func<string[]>(() =>
+                _keyChecks.OrderBy(p => p.Value).Select(p => p.Key).ToArray()));
             renderer.Function("helper_count", new Func<int>(() => _helpers.Count));
             renderer.Function("helper_at", new Func<int, GoHelper>(i => _helpers[i]));
             renderer.Function("tag_name", new Func<string, string>(TagName));
@@ -190,6 +194,7 @@ namespace Nino.Codegen.Targets
             _namedCollections.Clear();
             _helperByKey.Clear();
             _helpers.Clear();
+            _keyChecks.Clear();
             _tuples.Clear();
             _generics.Clear();
             _closedByKey.Clear();
@@ -402,6 +407,16 @@ namespace Nino.Codegen.Targets
             }
 
             return sb.Append('"').ToString();
+        }
+
+        private string KeyCheck(string type)
+        {
+            if (!_keyChecks.TryGetValue(type, out var index))
+            {
+                index = _keyChecks.Count;
+                _keyChecks.Add(type, index);
+            }
+            return "keyCheck" + index.ToString(CultureInfo.InvariantCulture);
         }
 
         // ---------------------------------------------------------------- helpers

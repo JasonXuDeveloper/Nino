@@ -136,7 +136,7 @@ func TestUniqueBytewiseKeys(t *testing.T) {
 		Id Guid
 		Hi [2]uint64
 	}
-	if bytewiseKeySize[Guid]() != 16 || bytewiseKeySize[nested]() != 32 {
+	if bytewiseKeySize[Guid]() != 16 || bytewiseKeySize[Int128]() != 16 || bytewiseKeySize[nested]() != 32 {
 		t.Fatal("packed pointer-free keys did not use the bytewise check")
 	}
 	if bytewiseKeySize[padded]() != 0 || bytewiseKeySize[Decimal]() != 0 ||
@@ -152,6 +152,39 @@ func TestUniqueBytewiseKeys(t *testing.T) {
 		checkUnique(t, keys, (*Writer).Guid, (*Reader).Guid, 16)
 		keys[n-1] = keys[0]
 		checkUnique(t, keys, (*Writer).Guid, (*Reader).Guid, 16)
+	}
+}
+
+func TestPreparedKeyCheck(t *testing.T) {
+	check := PrepareKeyCheck[Guid]()
+	keys := make([]Guid, 32)
+	entries := make([]Entry[Guid, uint64], len(keys))
+	for i := range keys {
+		keys[i][0] = byte(i)
+		entries[i] = Entry[Guid, uint64]{keys[i], uint64(i)}
+	}
+	r := NewReader(nil)
+	if !slices.Equal(check.Values(r, keys), keys) || !slices.Equal(CheckUniqueKeysWith(r, entries, &check), entries) || r.Failed() {
+		t.Fatalf("distinct prepared keys: %v", r.Err())
+	}
+	keys[len(keys)-1] = keys[0]
+	entries[len(entries)-1].Key = keys[0]
+	r = NewReader(nil)
+	if v := check.Values(r, keys); v != nil || !r.Failed() {
+		t.Fatal("prepared set accepted a duplicate")
+	}
+	r = NewReader(nil)
+	if v := CheckUniqueKeysWith(r, entries, &check); v != nil || !r.Failed() {
+		t.Fatal("prepared dictionary accepted a duplicate")
+	}
+
+	type namedFloat float64
+	values := []namedFloat{namedFloat(math.NaN()), namedFloat(math.Float64frombits(0x7ff8000000000002))}
+	for _, check := range []KeyCheck[namedFloat]{PrepareKeyCheck[namedFloat](), {}} {
+		r = NewReader(nil)
+		if v := check.Values(r, values); v != nil || !r.Failed() {
+			t.Fatal("float NaN payloads must compare equal")
+		}
 	}
 }
 
@@ -312,7 +345,7 @@ func TestPrimitiveEntries(t *testing.T) {
 	primitiveEntries(t, func(i int) uint8 { return uint8(i) }, func(i int) int8 { return int8(i) })
 	primitiveEntries(t, func(i int) uint16 { return uint16(i * 7) }, func(i int) uint16 { return uint16(i) })
 	primitiveEntries(t, func(i int) int64 { return int64(i) << 40 }, func(i int) float64 { return float64(i) / 3 })
-	// Float keys keep the map: -0 and +0 are one key.
+	// Float keys compare as .NET does: -0 and +0 are one key.
 	primitiveEntries(t, func(i int) float32 {
 		if i == 0 {
 			return float32(math.Copysign(0, -1))
@@ -329,6 +362,7 @@ func TestPrimitiveEntries(t *testing.T) {
 // TestUniqueFloatsAsDotNet: floating-point elements and keys are equal as .NET's double.Equals has it: any two NaNs
 // (whatever their payload), and -0 with 0, where Go's == and maps keep NaNs apart.
 func TestUniqueFloatsAsDotNet(t *testing.T) {
+	type namedFloat float64
 	quiet, payload := math.NaN(), math.Float64frombits(0x7FF0000000000001)
 	for _, n := range []int{2, 16, 17, 300} {
 		base := make([]float64, n)
@@ -345,6 +379,11 @@ func TestUniqueFloatsAsDotNet(t *testing.T) {
 			e := []Entry[float64, int32]{{pair[0], 1}, {pair[1], 2}}
 			if r = NewReader(nil); CheckUniqueKeys(r, e) != nil || r.Err() == nil {
 				t.Fatalf("keys %v and %v: accepted", pair[0], pair[1])
+			}
+			w := NewWriter(0)
+			WritePrimitiveEntries(w, []Entry[namedFloat, int32]{{namedFloat(pair[0]), 1}, {namedFloat(pair[1]), 2}})
+			if r = NewReader(w.Bytes()); ReadPrimitiveEntries[namedFloat, int32](r) != nil || r.Err() == nil {
+				t.Fatalf("primitive keys %v and %v: accepted", pair[0], pair[1])
 			}
 			f := make([]float32, n)
 			for i := range f {

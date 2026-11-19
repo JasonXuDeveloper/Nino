@@ -190,7 +190,30 @@ func readLabels(r *nino.Reader) []Label {
 	return v
 }
 
+func readMixeds(r *nino.Reader) []Mixed {
+	if v, ok := nino.TryReadRaw[Mixed](r, 12, asIsMixed, nil); ok {
+		return v
+	}
+	n := r.Length(12)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 12)
+	if len(b) != n*12 {
+		return nil
+	}
+	v := make([]Mixed, 0, r.SliceCap(n, int(unsafe.Sizeof(Mixed{}))))
+	for len(b) >= 12 {
+		v = append(v, decodeMixed(r, b[:12:12]))
+		b = b[12:]
+	}
+	return v
+}
+
 func readPaddeds(r *nino.Reader) []Padded {
+	if v, ok := nino.TryReadRaw[Padded](r, 16, asIsPadded, nil); ok {
+		return v
+	}
 	n := r.Length(16)
 	if n < 0 {
 		return nil
@@ -199,15 +222,30 @@ func readPaddeds(r *nino.Reader) []Padded {
 	if len(b) != n*16 {
 		return nil
 	}
-	var e Padded
-	v := make([]Padded, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	v := make([]Padded, 0, r.SliceCap(n, int(unsafe.Sizeof(Padded{}))))
 	for len(b) >= 16 {
-		e = decodePadded(r, b[:16:16])
-		if r.Failed() {
-			return nil
-		}
-		v = append(v, e)
+		v = append(v, decodePadded(r, b[:16:16]))
 		b = b[16:]
+	}
+	return v
+}
+
+func readVec2s(r *nino.Reader) []Vec2 {
+	if v, ok := nino.TryReadRaw[Vec2](r, 8, asIsVec2, nil); ok {
+		return v
+	}
+	n := r.Length(8)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 8)
+	if len(b) != n*8 {
+		return nil
+	}
+	v := make([]Vec2, 0, r.SliceCap(n, int(unsafe.Sizeof(Vec2{}))))
+	for len(b) >= 8 {
+		v = append(v, decodeVec2(r, b[:8:8]))
+		b = b[8:]
 	}
 	return v
 }
@@ -587,6 +625,25 @@ func writePaddeds(w *nino.Writer, v []Padded) {
 	for _, e := range v {
 		encodePadded(b[:16:16], e)
 		b = b[16:]
+	}
+}
+
+func writeVec2s(w *nino.Writer, v []Vec2) {
+	if nino.TryWriteRaw(w, v, 8, asIsVec2, nil, nil) {
+		return
+	}
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendFixed(len(v), 8, false)
+	if b == nil {
+		return
+	}
+	for _, e := range v {
+		encodeVec2(b[:8:8], e)
+		b = b[8:]
 	}
 }
 
