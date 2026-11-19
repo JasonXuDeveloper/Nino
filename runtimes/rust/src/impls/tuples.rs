@@ -1,9 +1,4 @@
-use core::any::Any;
-
-use crate::error::{Error, Result};
-use crate::reader::Reader;
-use crate::traits::{NinoRead, NinoWrite};
-use crate::writer::Writer;
+// ---------------------------------------------------------------------- tuples
 
 macro_rules! tuple {
     ($($name:ident $index:tt),+) => {

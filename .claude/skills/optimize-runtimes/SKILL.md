@@ -10,7 +10,8 @@ metadata:
 The techniques that made the Go, Rust and TypeScript runtimes and nino-gen's generated code faster or slower. The
 .NET and Unity techniques, reading .NET machine code and the prefetch design of every runtime are `optimize` (prefetch:
 its references/prefetch.md). How to measure on runners is `benchmark` (runtime A/B), where the next win is
-`audit-perf`, each runtime's rules are `runtimes/*/AGENTS.md` and `audit-runtimes`.
+`audit-perf`, each runtime's rules are `runtimes/*/AGENTS.md` and `audit-runtimes`. For Rust source splits that must
+keep machine code identical, see [audit-layout](../audit-layout/SKILL.md#splitting-long-files).
 
 ## The techniques, by topic
 

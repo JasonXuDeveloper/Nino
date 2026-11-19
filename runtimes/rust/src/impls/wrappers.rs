@@ -1,10 +1,4 @@
-use core::any::Any;
-
-use crate::defer::Step;
-use crate::error::Result;
-use crate::reader::Reader;
-use crate::traits::{NinoRead, NinoWrite};
-use crate::writer::Writer;
+// ---------------------------------------------------------------------- Option, Box
 
 fn option_inner<T: 'static>(v: &mut dyn Any) -> Option<&mut dyn Any> {
     v.downcast_mut::<Option<T>>()?.as_mut().map(|x| x as &mut dyn Any)
