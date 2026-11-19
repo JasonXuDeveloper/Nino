@@ -171,8 +171,15 @@ namespace Nino.Core
                 return;
             }
 
-            // Its two arrays zipped into pairs a chunk at a time, written by the pairs' run loop.
-            writer = NinoGather.Write<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, Zip>(new Zip(keys, values, count), count, writer);
+            // Its two arrays zipped into pairs a chunk at a time, written by the pairs' run loop; through a copy of the
+            // writer, as the pair loop it replaces, so the caller's stays in registers on the raw path above (asm.py:
+            // SortedList<int, int>'s write 27 to 40 stack accesses with the writer itself passed).
+            Writer local = default;
+            writer.CopyTo(ref local);
+            local = NinoGather.Write<KeyValuePair<TKey, TValue>,
+                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, Zip>(new Zip(keys, values, count),
+                count, local);
+            local.CopyTo(ref writer);
         }
 
         /// <summary>A <see cref="SortedList{TKey,TValue}"/>'s keys and values, zipped into its pairs.</summary>
