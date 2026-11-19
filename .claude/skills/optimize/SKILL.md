@@ -61,8 +61,8 @@ says which CPUs and cases moved.
   Every collection whose memory is contiguous, or that keeps it inside (arrays, `List<T>`, spans, `Memory<T>`,
   `ArraySegment`, `ImmutableArray`, `Queue` and `Stack` rings, `HashSet` and `Dictionary` entries, the
   `PriorityQueue` heap, `SortedList`'s arrays, multi-dimensional arrays), is read and written by one bottom layer: it
-  describes its storage as a view (segments with start, count, stride, key and value offsets, an in-use test, ring
-  wrap), and each element kind has one loop over the view. What is not contiguous joins the same layer piece by piece:
+  describes its storage as a view (segments with start, count, stride, an in-use test, ring wrap), and each element
+  kind has one loop over the view. What is not contiguous joins the same layer piece by piece:
   `ReadOnlySequence<T>` segment by segment (each is a span), `LinkedList<T>`, `SortedSet` and the immutable trees as
   runs of nodes gathered into a span or walked, whichever measures faster, and a bare `IEnumerable<T>` buffered into a
   span. The element kind is decided once per type and formatter, in one place (a `static readonly` trait the JIT
@@ -115,10 +115,19 @@ says which CPUs and cases moved.
   memory is `NinoBlockPlan.IsMemory` on each runtime, never assumed; a block whose own map is empty
   (`DateTimeOffset`: a read checks the range and widens the minutes) leaves the composite moved value by value. Why:
   `(int, DateTimeOffset)` and `KeyValuePair<int, BlockStruct>` were written element by element because each composite
-  tested `RawFormatter.Is` per item and `DateTimeOffset` was a `typeof` in four places. Add no generic member to `INinoFormatter<T>`: Unity
+  tested `RawFormatter.Is` per item and `DateTimeOffset` was a `typeof` in four places. Write every loop over
+  `<T, TFormatter>` only, never over the parts of a composite (the owner's rule, #355 comment 6998107680): a pair is an
+  element, a dictionary's entries are a run of `T = KeyValuePair<TKey, TValue>` (the entry's key and value proven at
+  startup to sit as `KeyValuePair` lays them out, else value by value), and `KeyValuePairFormatter` composes its items'
+  block, cursor form and dispatch bit as tuples and generic structs do; only a collection's thin top layer (add, merge,
+  link) reads `Key` and `Value` from the `T`, and the one key written apart from its value is the composed formatter's
+  inside a polymorphic `WriteRun`. Why: steps 3-5 carried the key down as its own shape (`NinoRun.Key`, loops over
+  `<TKey, TValue, TKeyFormatter, TValueFormatter>`, `NinoCursor.Pair` duplicating `KeyValuePair`, `NinoCursor.None` to
+  turn the pair loop back into the element loop), so only `Dictionary` got that loop and `List<KeyValuePair<K, V>>`,
+  `(K, V)[]` and a user's generic struct took another; the refactor after step 6 removes it. Add no generic member to `INinoFormatter<T>`: Unity
   2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`). The
-  view is one cursor, `NinoRun` (#355 PR 3: the first value, count, stride, a dictionary key's offset and write, the
-  in-use test of free entries, whose rule each runtime proves at startup), and the loops are `NinoRuns`, one per kind:
+  view is one cursor, `NinoRun` (#355 PR 3: the first value, count, stride, the in-use test of free entries, whose rule
+  each runtime proves at startup), and the loops are `NinoRuns`, one per kind:
   every contiguous collection builds a run and calls them, never a loop of its own. Reads take the same view (#355
   step 4): `NinoRuns.Read` fills a run of values in a row (arrays, a list's backing array before its count is
   published, spans, `Memory`, rings from 0, multi-dimensional arrays, lookups), `ReadSet`/`ReadPairs` fill the new
@@ -126,10 +135,10 @@ says which CPUs and cases moved.
   `EntryBlock`, the gather of the writes the other way; others value by value), and `HashTables.Link` links them. A polymorphic base's values go
   through its generated `WriteRun`, whose body is Nino.Core's pieces with the base's compare chain inside (a step
   carried into a Core loop lost: dispatch.md). A composite carries `NinoBodyTraits.Dispatches` where an item's
-  formatter does (`NinoBlocks.Dispatches`: pairs, tuples, generated generic structs). Strings, UTF-8 strings and pairs
-  holding them take one pair loop per direction (#347, #355 step 5: `NinoRuns.WriteCursors`/`ReadCursors` over each
-  value's cursor form, `NinoCursor`: `MaxSize`, `WriteAt`, `ReadAt` returning byte counts; the element loop is the pair
-  loop without keys), never a string loop of its own. Keep that loop's state in registers: give it only the free space
+  formatter does (`NinoBlocks.Dispatches`: pairs, tuples, generated generic structs). Strings, UTF-8 strings and composites
+  holding them take one cursor loop per direction (#347, #355 step 5: `NinoRuns.WriteCursors`/`ReadCursors` over each
+  element's cursor form, `NinoCursor`: `MaxSize`, `WriteAt`, `ReadAt` returning byte counts; a pair's form is
+  `KeyValuePairFormatter`'s, composed from its items), never a string loop of its own. Keep that loop's state in registers: give it only the free space
   (a reference and the bytes left) or the data and its end, return what it took, and let the caller commit, grow and
   go on; the stores it fills (`Entries`, `Adds`, `Merges`) are plain structs it dispatches on by `typeof`. Three
   traps cost iterations there (`asm.py`, the listings in references/jit.md): a `static readonly` field of
