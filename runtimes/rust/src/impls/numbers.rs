@@ -129,6 +129,15 @@ impl NinoWrite for u8 {
         w.bytes(values);
         Ok(())
     }
+
+    #[cfg(all(target_arch = "x86_64", target_os = "linux", target_env = "gnu", not(miri)))]
+    #[inline]
+    fn write_counted<'a>(values: &'a [Self], w: &mut Writer<'a>) -> Result<()> {
+        if crate::simd::byte_copy::try_write_counted(w.buffer(), values) {
+            return Ok(());
+        }
+        super::write_counted_fixed(values, w)
+    }
 }
 
 impl NinoRead for i8 {
