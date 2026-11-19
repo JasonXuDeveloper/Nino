@@ -160,7 +160,7 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 		s, ok := r.ReadShape(2+int(r.U8()%3), 4)
 		if ok {
 			items := make([]int32, s.Total)
-			readPrimitivesInto(r, items)
+			ReadPrimitivesInto(r, items)
 		}
 	case 19:
 		v := r.Guid()

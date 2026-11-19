@@ -275,11 +275,13 @@ namespace Nino.Codegen.Tests
             StringAssert.Contains(ts, "  sorted: Set<NullableSlot<number>> | null = null;");
             StringAssert.Contains(ts, "  boxedNested: Box<(Set<NullableSlot<bigint>> | null)[] | null> | null = null;");
             StringAssert.Contains(ts, "  tuples: ([number, number | null])[] | null = null;");
-            StringAssert.Contains(ts, "import { NinoReader, NinoSubtypes, NinoWriter, type NinoCodec, type NinoNullable, type NullableSlot } from");
+            StringAssert.Contains(ts, "import { NinoReader, NinoSubtypes, NinoWriter, type NinoCodec, type NinoGrid as NinoGrid$, type NinoNullable, type NullableSlot } from");
             StringAssert.Contains(ts, "  map: Map<number, bigint | null> | null = null;");
             // A set's slots are taken as one run, then each read at its offset.
             StringAssert.Contains(ts, "for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) values.add(");
-            StringAssert.Contains(tsOutput, "Shapes.NullableGrids is not written to TypeScript");
+            StringAssert.Contains(ts, "  grid: NinoGrid$<NullableSlot<number>[]> | null = null;");
+            StringAssert.Contains(ts, "  cube: NinoGrid$<NullableSlot<bigint>[]> | null = null;");
+            Assert.IsFalse(tsOutput.Contains("NullableGrids", StringComparison.Ordinal), tsOutput);
             var (go, goOutput) = Run("go", "nino_types.go");
             Assert.IsTrue(Regex.IsMatch(go, @"\n\tQueue +\[\]nino\.NullableSlot\[int32\] "));
             Assert.IsTrue(Regex.IsMatch(go, @"\n\tSorted +\[\]nino\.NullableSlot\[int32\] "));
@@ -293,6 +295,13 @@ namespace Nino.Codegen.Tests
             foreach (string output in new[] { rustOutput, goOutput })
                 Assert.IsFalse(output.Contains("Nullable", StringComparison.Ordinal), output);
             Assert.IsFalse(tsOutput.Contains("NullableSlots", StringComparison.Ordinal), tsOutput);
+        }
+
+        [TestMethod]
+        public void ClosedGenericStructsGiveGoCollectionsTheirMinimumSize()
+        {
+            var (go, _) = Run("go", "nino_types.go");
+            Assert.IsTrue(Regex.IsMatch(go, @"func readV\d+\(r \*nino.Reader\) \[\]nino.Entry\[string, Pair\[int32, int32\]\] \{\n\tn := r.Length\(9\)"));
         }
 
         /// <summary>

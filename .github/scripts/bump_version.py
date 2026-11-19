@@ -4,7 +4,8 @@
 usage: bump_version.py <version> <unity version>
 
 NuGet (runtimes/csharp/Directory.Build.props), the Unity package (package.json, its OpenUPM version), the Rust crates
-(nino-serialization and nino-serialization-derive, which the first pins exactly) and the npm package
+(nino-serialization and nino-serialization-derive, which the first pins exactly, in both Cargo.lock files: the
+crates' and the fuzz workspace's) and the npm package
 nino-serialization all take the release's version; the Go module takes it as the tag runtimes/go/v<version>,
 which the module path's major version (runtimes/go/v4) must match. The install command in each runtime's README
 (shipped in the npm package and the crate) names the version too. Each file must change as expected, or this fails.
@@ -54,6 +55,8 @@ def main():
         rf'\g<1>"={version}"')
     sub("runtimes/rust/Cargo.lock", r'(name = "nino-serialization(?:-derive)?"\nversion = )"[^"]*"',
         rf'\g<1>"{version}"', count=0)
+    # The fuzz workspace (runtimes/rust/fuzz) has its own lockfile, with nino-serialization as a path dependency.
+    sub("runtimes/rust/fuzz/Cargo.lock", r'(name = "nino-serialization"\nversion = )"[^"]*"', rf'\g<1>"{version}"')
 
     bump_json("runtimes/typescript/package.json", version)
     bump_json("runtimes/typescript/package-lock.json", version, lock=True)

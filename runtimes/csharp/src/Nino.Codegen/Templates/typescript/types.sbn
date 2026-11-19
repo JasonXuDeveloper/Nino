@@ -247,12 +247,26 @@ func case_ts(k)
   ret $t
 end
 
-# Writing a union case's value, never null: a nullable's presence byte is 1.
+# Writing a union case's id and value. Reserve both together if the payload size is known.
 func case_write(k, v)
-  if k.shape.kind == "nullable"
-    ret "w.u8(1);\n      " + stmt(write(k.shape.inner, v))
+  $s = k.shape
+  $nullable = $s.kind == "nullable"
+  if $nullable
+    $s = $s.inner
   end
-  ret stmt(write(k.shape, v))
+  if $s.fixed
+    $size = 4 + ($nullable ? 1 : 0)
+    $o = "const at = " + reserve($size + $s.size, $s.zeroed) + ";\nw.view.setInt32(at, " + k.model.type_id + ", true);\n"
+    if $nullable
+      $o = $o + "w.view.setUint8(at + 4, 1);\n"
+    end
+    ret $o + stmt(write_at($s, $size, v))
+  end
+  $o = "w.i32(" + k.model.type_id + ");\n"
+  if $nullable
+    $o = $o + "w.u8(1);\n"
+  end
+  ret $o + stmt(write($s, v))
 end
 
 # A C# union (spec §7.12): the type id of its case (0, null, for the empty union), then the case's value, never null.
@@ -318,12 +332,12 @@ func union_type(c)
   if c.tagged
     $o = $o + "  switch (v.case) {\n"
     for $k in c.cases
-      $o = $o + "    case \"" + $k.model.name + "\":\n      w.i32(" + $k.model.type_id + ");\n      " + case_write($k, "v.value") + "\n      break;\n"
+      $o = $o + "    case \"" + $k.model.name + "\": {\n      " + (string.replace (case_write($k, "v.value")) "\n" "\n      ") + "\n      break;\n    }\n"
     end
     $o = $o + "    default:\n      throw types.unwritable(v);\n  }\n"
   else
     for $k in c.cases
-      $o = $o + (for.first ? "  if (" : "  else if (") + $k.test + ") {\n    w.i32(" + $k.model.type_id + ");\n    " + (string.replace (case_write($k, "v")) "\n      " "\n    ") + "\n  }\n"
+      $o = $o + (for.first ? "  if (" : "  else if (") + $k.test + ") {\n    " + (string.replace (case_write($k, "v")) "\n" "\n    ") + "\n  }\n"
     end
     $o = $o + "  else throw types.unwritable(v as object);\n"
   end
@@ -346,9 +360,51 @@ func guard_decl(shape)
   ret shape.guard ? "  const guard = r.keyGuard(length);\n" : ""
 end
 
+# The grid dimensions take the place of a sequence's count. The elements follow with the same stride.
+func grid_helper(h)
+  $s = h.shape
+  $t = grid_ts($s)
+  $e = $s.element
+  if h.mode == "read"
+    $reuse = !$s.array_type ? ", cur?: " + $t + " | null" : ""
+    $min = $e.fixed ? $e.size : 1
+    $o = "function " + h.name + h.type_params + "(r: NinoReader" + h.codecs + $reuse + "): " + $t + " | null {\n  const shape = r.gridShape(" + $s.rank + ", " + $min + ");\n  if (shape === null) return null;\n  const { lengths, count } = shape;\n"
+    if $s.array_type
+      $o = $o + "  if (count > " + $s.inline_length + ") return { lengths, data: r.numbers(" + $s.array_type + ", count)! };\n"
+      $o = $o + "  const values = new " + $s.array_type + "(count);\n"
+    else
+      $o = $o + "  const reuse = cur != null && lengths.length === cur.lengths.length && lengths.every((n, i) => n === cur.lengths[i]);\n  const values = reuse ? cur.data : new Array<" + ts($e) + ">(r.capacity(count));\n"
+    end
+    if $e.fixed
+      $o = $o + "  for (let i = 0, at = r.take(count * " + $e.size + "); i < count; i++, at += " + $e.size + ") values[i] = " + read_at($e, 0) + ";\n"
+    else
+      $o = $o + "  for (let i = 0; i < count; i++) values[i] = " + read_into($e, "values[i]") + ";\n"
+    end
+    if !$s.array_type
+      $o = $o + "  if (values.length !== count) values.length = count;\n  if (reuse) return cur;\n"
+    end
+    ret $o + "  return { lengths, data: values };\n}\n"
+  end
+
+  $o = "function " + h.name + h.type_params + "(w: NinoWriter, grid: " + $t + " | null" + h.codecs + "): void {\n  if (grid == null) { w.i32(-1); return; }\n  const values = grid.data;\n  w.gridShape(" + $s.rank + ", grid.lengths, values.length);\n"
+  if $s.array_type
+    $o = $o + "  if (values.length > " + $s.inline_length + ") { w.numberBlock(values); return; }\n"
+  end
+  $loop = "  for (let i = 0; i < values.length; i++) {\n    const value = values[i];\n"
+  if $e.fixed
+    $o = $o + "  let at = " + reserve("values.length * " + $e.size, $e.zeroed) + ";\n" + $loop + "    " + stmt(write_at($e, 0, "value")) + "\n    at += " + $e.size + ";\n  }\n"
+  else
+    $o = $o + $loop + "    " + stmt(write($e, "value")) + "\n  }\n"
+  end
+  ret $o + "}\n"
+end
+
 # A function shared by every value of one shape.
 func helper_body(h)
   $s = h.shape
+  if $s.kind == "grid"
+    ret grid_helper(h)
+  end
   $n = h.name
   $o = ""
   if h.mode == "readinto"

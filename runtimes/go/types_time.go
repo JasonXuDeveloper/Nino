@@ -168,7 +168,16 @@ func DateTimeOffsetOf(t time.Time) (DateTimeOffset, bool) {
 
 // DateTimeOffset reads a DateTimeOffset; one .NET cannot hold fails with CodeInvalidData, as in .NET.
 func (r *Reader) DateTimeOffset() DateTimeOffset {
-	o := DateTimeOffsetAt(r.Take(DateTimeOffsetSize))
+	return r.DateTimeOffsetAt(r.Take(DateTimeOffsetSize))
+}
+
+// DateTimeOffsetAt checks and decodes a DateTimeOffset from a block taken by the caller.
+func (r *Reader) DateTimeOffsetAt(b []byte) DateTimeOffset {
+	if len(b) < DateTimeOffsetSize {
+		r.eof()
+		return DateTimeOffset{}
+	}
+	o := DateTimeOffsetAt(b)
 	if !o.Valid() {
 		r.Fail(CodeInvalidData, "invalid DateTimeOffset")
 		return DateTimeOffset{}
@@ -197,6 +206,11 @@ func (w *Writer) DateTimeOffset(o DateTimeOffset) {
 	if len(b) < DateTimeOffsetSize {
 		return
 	}
+	o.Put(b)
+}
+
+// Put writes o into an existing block of at least DateTimeOffsetSize bytes. The caller checks Valid first.
+func (o DateTimeOffset) Put(b []byte) {
 	binary.LittleEndian.PutUint64(b, uint64(o.UtcTicks))
 	binary.LittleEndian.PutUint16(b[8:], uint16(o.OffsetMinutes))
 }

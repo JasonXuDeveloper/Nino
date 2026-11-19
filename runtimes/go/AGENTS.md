@@ -29,9 +29,9 @@ nullable.go                  NullableSlot[T] (a T? as the element of a sequence)
                              where Go's layout is the wire's)
 endian_little.go             littleEndian = true on little-endian architectures (blocks copied as memory)
 endian_other.go              littleEndian = false elsewhere (blocks converted element by element)
-unique.go                    duplicate keys of sets and maps read in data order: numbers, strings and NullableSlots of
-                             numbers (a set of T?) compared as .NET does, pairwise or in a seeded open-addressing table
-                             (the reader's scratch), no map
+unique.go                    duplicate keys of sets and maps read in data order: numbers, strings, NullableSlots of
+                             numbers (a set of T?) and keys whose equality is their bytes, pairwise or in a seeded
+                             open-addressing table (the reader's scratch); generated codecs prepare key metadata per Go key type
 collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes (the func-value
                              helpers unexported, for the runtime's rare paths); counts checked against the bytes left
 depth.go                     class bodies (Class, ReadClass, WriteClass), deferral past 128, the 512 limit
@@ -142,8 +142,10 @@ requirements:
   of allocations (`bench`, `-benchmem`). A collection of fixed-size elements takes a block helper
   (`ReadPrimitives`, `ReadPrimitiveEntries`, `ReadPrimitiveMap`), never the generic helpers that take element
   functions: those are an indirect call per element (`(*Reader).I32` is never inlined through a func value) and a
-  bounds check per value. Any other collection loop in generated code is written out with the element's call made directly
-  (nino-gen's `read_loop` / `write_loop`), never a helper taking a func value (the runtime keeps `readSlice` and the like unexported, for its own rare paths) (`optimize-runtimes`, references/dispatch.md).
+  bounds check per value. Generated fixed-width maps, sequences, sets and grids without a matching bulk copy
+  share a cursor loop at constant offsets. Raw sequences still attempt the memory copy through `TryReadRaw` /
+  `TryWriteRaw`, then take the same cursor on other hosts. Other generated collection loops also call the
+  element's codec directly (nino-gen's `read_loop` / `write_loop`; `optimize-runtimes`, references/dispatch.md).
   `ReadPrimitiveMap` read a 10-pair `map[int32]int32` 31 % faster than `ReadMap` (now unexported), and
   SimpleClass 4-7 % faster on runners (7ac8b46). Walk a block with a cursor (`for len(b) >= wire { ...; b =
   b[wire:] }`): indexing `b[i*wire:]` kept a bounds check per pair. A runner A/B can move code you did not touch by
@@ -151,9 +153,11 @@ requirements:
   (it then measured 7-14 % faster) rather than land a loss.
 - Checks over a block (ranges of dates and decimals, the bools of raw structs) and UTF-16 copies: what measured
   faster and slower is in the `optimize-runtimes` skill, "Checking blocks in Go"; time them with BenchmarkBlocks and BenchmarkUTF16.
-- Struct tags (`tagged.go`, `layout.go`, `marshal.go`) are the one place reflection is allowed: a plan built once
-  per type, then walked. Anything the wire format cannot express is a `*TagError` naming the field when the plan
-  is built, never a silent default; reads go through the same `Reader` calls as generated code, so the guarantees
+- Prepare generated set and dictionary duplicate checks once in package initializers (`PrepareKeyCheck`).
+  Primitive-entry checks use their generic type constraint. Struct tags (`tagged.go`, `layout.go`,
+  `marshal.go`) also build a reflection plan once per type, then walk it. Anything the wire format cannot express
+  is a `*TagError` naming the field when the plan is built, never a silent default; reads go through the same
+  `Reader` calls as generated code, so the guarantees
   above hold there too. The sample types carry the tags and `NinoLayout` a generator emits (README, "Tags on
   generated structs"); keep them and `internal/sample/tagged_test.go` in step with the hand-written codecs.
   A type decides its own encoding wherever the wire has two for one .NET shape: `nino.NinoNullable[T]` is .NET's

@@ -2,10 +2,12 @@
 // writes for it.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deserializeExact, NinoError, serialize, type NinoNullable, type NullableSlot } from "../src/nino.ts";
+import { deserializeExact, deserializeInto, NinoError, serialize, type NinoNullable, type NullableSlot } from "../src/nino.ts";
+import { Grid, GridCodec } from "./generated/Nino.Conformance.ts";
 import {
   Box, Flags, HoldsNinoNullable, HoldsWideNinoNullable, NinoNullableArgs, NinoNullableArgsCodec, NinoNullableRaw,
-  NinoNullableRawCodec, NinoNullableRawWide, NinoNullableRawWideCodec, NullableSlots, NullableSlotsCodec, Strides,
+  NinoNullableRawCodec, NinoNullableRawWide, NinoNullableRawWideCodec, NullableGrids, NullableGridsCodec,
+  NullableSlots, NullableSlotsCodec, Strides,
   StridesCodec, TupleCell, TupleInside,
 } from "./generated/Nino.Codegen.Tests.ts";
 
@@ -120,6 +122,43 @@ describe("Shapes", () => {
       bad[at] = 1;
       assert.throws(() => deserializeExact(NinoNullableArgsCodec, bad), /NinoNullable/, `byte ${at}`);
     }
+  });
+
+  it("writes rectangular arrays of raw nullable slots as .NET writes them", () => {
+    // NullableGridsHex in ModelTests.cs.
+    const expected = "0101000000020000000100000005000000000000000000000001000000020000000100000000000000000000000000000000000000010000000000" +
+      "0000070000000000000002000000010000000000000000000000000000000000000001000000010000000000000000000000";
+    const value = Object.assign(new NullableGrids(), {
+      grid: { lengths: [1, 2], data: [5, null] },
+      cube: { lengths: [1, 2, 1], data: [null, 7n] },
+      cells: { lengths: [2, 1], data: [null, Object.assign(new TupleCell(), { a: 1 })] },
+    });
+    const data = serialize(NullableGridsCodec, value);
+    assert.equal(hex(data), expected);
+    assert.deepEqual(deserializeExact(NullableGridsCodec, data), value);
+    const grid = value.grid;
+    const restored = deserializeInto(NullableGridsCodec, data, value);
+    assert.ok(restored);
+    assert.equal(restored.grid, grid);
+    for (const at of [9, 53]) {
+      const bad = data.slice();
+      bad[at] = 0xff;
+      assert.throws(() => deserializeExact(NullableGridsCodec, bad), NinoError);
+    }
+  });
+
+  it("uses typed storage for numeric rectangular arrays without inserting a length before the elements", () => {
+    const value = new Grid();
+    value.Values = { lengths: [2, 2], data: Int32Array.of(1, -2, 3, -4) };
+    assert.equal(hex(serialize(GridCodec, value)), "01020000000200000001000000feffffff03000000fcffffff");
+    for (const count of [0, 4, 32]) {
+      value.Values = { lengths: [2, count / 2], data: Int32Array.from({ length: count }, (_, i) => i - count) };
+      assert.deepEqual(deserializeExact(GridCodec, serialize(GridCodec, value)), value);
+    }
+    value.Values = { lengths: [65_536, 0], data: new Int32Array(0) };
+    assert.deepEqual(deserializeExact(GridCodec, serialize(GridCodec, value)), value);
+    value.Values = { lengths: [2, 2], data: Int32Array.of(1) };
+    assert.throws(() => serialize(GridCodec, value), NinoError);
   });
 
   it("reads and writes NinoNullable<T> inside a raw struct, its memory there too", () => {
