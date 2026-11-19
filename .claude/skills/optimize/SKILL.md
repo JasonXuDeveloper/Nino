@@ -81,7 +81,11 @@ says which CPUs and cases moved.
   every unmanaged type as first planned, because `ICollection<T>.CopyTo` copies only into a `T[]`, and a
   `ReadOnlyCollection<int>` of 1,000 copied in one `Array.Copy` where an enumerator makes two interface calls per
   element. Never wrap a gather in a try/finally to give its chunk back: a write or read that throws leaves its chunk to
-  the collector, so the gather inlines and a chunk half filled never returns to the buffer. A new collection is
+  the collector, so a chunk half filled never returns to the buffer. Keep each gather one out-of-line call in the
+  collection's write or read, the writer or reader by value (`NinoGather.Write`, `ReadAll`), and `Take`/`Return` calls
+  too: inlined, the walk's setup, the thread-static lookups and a stateful target (a linked list's nodes) took the
+  caller's registers (asm.py: `LinkedList<int>`'s read 29 to 62 stack accesses, a `ReadOnlyCollection<int>`'s write 35
+  to 76). A copy of the writer around such a call (`CopyTo` in and out) did not help there. A new collection is
   built the fastest way its runtime allows, through its internals where `runtime-internals` proves the layout:
   `Dictionary` fills its entries and links the buckets in one pass after (#390, LuminPack's form), keeping the
   collision count and the repeated- and null-key checks; `SortedSet` builds its tree in one pass; look for the same
