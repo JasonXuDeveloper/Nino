@@ -158,15 +158,19 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// <see cref="ReadEach"/>'s fill: a method of its own, as an exception region in the loop above slowed it for
-        /// a few entries too (one int-keyed pair 5 to 7 % slower on Neoverse-N2, #320, run 44246428900).
+        /// <see cref="ReadEach"/>'s fill: the new entries read in place by the one loop of values one by one
+        /// (<see cref="NinoRuns.ReadLoop{T,TFormatter}"/>; the kinds the kernels move are <see cref="AddBlock"/>'s and
+        /// the string run kernels', and the kind tests of <see cref="NinoRuns"/>' read are lookups in code shared over
+        /// a class), then linked. A method of its own, as an exception region in the loop above slowed it for a few
+        /// entries too (one int-keyed pair 5 to 7 % slower on Neoverse-N2, #320, run 44246428900).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Reader FillEach(TTable table, int length, Reader reader)
         {
             try
             {
-                reader = ReadEach(table.Run(length), reader);
+                var run = table.Run(length);
+                NinoRuns.ReadLoop<TEntry, TFormatter>(ref run.First, run.Count, run.Stride, ref reader);
                 table.Link(length);
                 return reader;
             }
@@ -175,20 +179,6 @@ namespace Nino.Core.Internal
                 table.Unlink();
                 throw;
             }
-        }
-
-        /// <summary>
-        /// The elements of <paramref name="run"/> (new entries) read in place one by one, the reader by value (a local,
-        /// its cursor in registers).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Reader ReadEach(NinoRun run, Reader reader)
-        {
-            ref byte value = ref run.First;
-            int stride = run.Stride;
-            for (int left = run.Count; left > 0; left--, value = ref NinoRun.Next(ref value, stride))
-                default(TFormatter).Deserialize(ref reader, ref Unsafe.As<byte, TEntry>(ref value));
-            return reader;
         }
     }
 

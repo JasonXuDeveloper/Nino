@@ -13,8 +13,8 @@ namespace Nino.Core
     /// The top layer of <c>Dictionary&lt;TKey, TValue&gt;</c>, generic over the key and value types only: with value-type
     /// keys and values this is fully specialized code, whereas a dictionary type parameter (a reference type)
     /// would make every call shared generic code with run-time lookups. It reaches the entries, picks their element,
-    /// then writes them, or fills them and links them, as a set's are (<see cref="NinoRuns.WriteEntries{TEntry,
-    /// TFormatter}"/>, <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>), or merges pairs one at a time into an
+    /// then writes them, or fills them and links them, as a set's are (<see cref="NinoRuns.Write{T,TFormatter}(NinoRun,
+    /// int, ref Writer)"/>, <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>), or merges pairs one at a time into an
     /// existing dictionary, the only code that reads a pair's key and value apart. Its element is its entry for every
     /// key and value (#355): a storage element of the key and the value at their offsets in it
     /// (<see cref="NinoStorageFormatter{TElement,TA,TB,TFormatterA,TFormatterB,TFields}"/>), a block where both are raw
@@ -40,7 +40,7 @@ namespace Nino.Core
 
         /// <summary>
         /// Writes the count and the pairs of a dictionary (not null): its entries as a run of them
-        /// (<see cref="NinoRuns.WriteEntries{TEntry,TFormatter}"/>), or through its enumerator where this runtime's
+        /// (<see cref="NinoRuns.Write{T,TFormatter}(NinoRun, int, ref Writer)"/>), or through its enumerator where this runtime's
         /// layout of them is not known. Entries holding references out of line (<see cref="WriteEntries"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -57,8 +57,9 @@ namespace Nino.Core
             if (RuntimeHelpers.IsReferenceOrContainsReferences<CollectionFields.MapEntry<TKey, TValue>>())
                 writer = WriteEntries(value, count, writer);
             else if (CollectionFields.Run(value, count, out var run))
-                NinoRuns.WriteEntries<CollectionFields.MapEntry<TKey, TValue>, NinoStorageFormatter<CollectionFields.MapEntry<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter, CollectionFields.MapFields<TKey, TValue>>>(run, count, ref writer,
-                    CursorPairs);
+                NinoRuns.Write<CollectionFields.MapEntry<TKey, TValue>, NinoStorageFormatter<CollectionFields.MapEntry<
+                    TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter, CollectionFields.MapFields<TKey,
+                    TValue>>>(run, count, ref writer);
             else
                 writer = WriteEnumerated(value, count, writer);
         }
@@ -72,9 +73,9 @@ namespace Nino.Core
         /// formatter answers the same from them, but in code shared over a class each of its answers is a lookup and
         /// each call of its field accessors a call, which compiled every loop into each dictionary's write (asm.py: a
         /// <c>Dictionary&lt;string, int&gt;</c>'s 889 to 1,670 bytes, 23 to 54 stack accesses). The loops take the
-        /// writer by value and return it (<see cref="NinoRuns.WriteEach{T,TFormatter}(NinoRun,int,Writer)"/>): the
-        /// shared <see cref="NinoRuns.WriteEntries{TEntry,TFormatter}"/> inlined its loop on this method's writer,
-        /// which then lived in memory (asm.py: 36 to 54 stack accesses). Out of line with the run, the writer by value
+        /// writer by value and return it (<see cref="NinoRuns.WriteEach{T,TFormatter}(NinoRun, int, Writer)"/>): the
+        /// shared <see cref="NinoRuns.Write{T,TFormatter}(NinoRun, int, ref Writer)"/> inlined its loop on this
+        /// method's writer, which then lived in memory (asm.py: 36 to 54 stack accesses). Out of line with the run, the writer by value
         /// and returned (one call per dictionary, as each loop was out of line already): inlined, its tests and the
         /// run's used up the budget of a generated body holding two dictionaries, which then called this with the
         /// writer by ref, compiled both loops of the other and kept its writer in memory (asm.py: a Lookup's top-level
