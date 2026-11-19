@@ -1275,3 +1275,9 @@ typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions, Node
 # done (run 44443778134): rust:bytes 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 ^byte-copy/(read-control/2048|write-reused/(2048|2113|4096))$ # write-only default floor
 # done (run 44443778134): rust:bytes 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 fa73d61055295b498c7113ee542dc306fb32c942 ^byte-copy/(read-control/2048|write-reused/(2048|2113|4096))$ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # write-only historical threshold
 # done (run 44443778134): rust:bytes 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 4f5d5aee5dee8e9f92decaec86ff520aafdb77f8 ^byte-copy/(read-control/2048|write-reused/(2048|2113|4096))$ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # write-only historical threshold floor
+
+# Mixed fresh/reused Rust writer lengths and source alignments (#263).
+rust:bytes 16366731 7ce7a622 ^copy-mixed/ # 263 mixed modern
+rust:bytes 16366731 16366731 ^copy-mixed/ # 263 mixed modern floor
+rust:bytes 16366731 7ce7a622 ^copy-mixed/ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 mixed legacy
+rust:bytes 16366731 16366731 ^copy-mixed/ GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 mixed legacy floor
