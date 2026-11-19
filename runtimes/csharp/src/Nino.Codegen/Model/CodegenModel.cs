@@ -218,7 +218,7 @@ namespace Nino.Codegen.Model
         /// <c>object</c>): .NET counts the nesting of its bodies toward the depth limit (<c>Reader.EnterStruct</c>,
         /// wire-format spec §9.9), as nothing else bounds it.
         /// </summary>
-        internal bool HoldsItself(TypeModel type)
+        internal bool HoldsItself(TypeModel type, Func<TypeModel, bool>? supports = null)
         {
             var seen = new HashSet<TypeModel>();
             var pending = new Stack<TypeModel>();
@@ -227,6 +227,8 @@ namespace Nino.Codegen.Model
             {
                 foreach (var reached in OwnValues(pending.Pop()).SelectMany(v => v.Walk()).SelectMany(StructsIn))
                 {
+                    if (supports != null && !supports(reached))
+                        continue;
                     if (reached == type)
                         return true;
                     if (seen.Add(reached))
@@ -240,12 +242,12 @@ namespace Nino.Codegen.Model
         /// <summary>The non-raw struct bodies a value can open directly (behind a type id, any of those assignable).</summary>
         private IEnumerable<TypeModel> StructsIn(ValueModel value)
         {
-            var candidates = value.Kind switch
+            IEnumerable<TypeModel> candidates = value.Kind switch
             {
                 ValueKind.Type when value.Type!.Header == HeaderKind.TypeId => value.Type.Assignable,
-                ValueKind.Type or ValueKind.Generic => new List<TypeModel> { value.Type! },
-                ValueKind.Object => Types,
-                _ => new List<TypeModel>(),
+                ValueKind.Type or ValueKind.Generic => new[] { value.Type! },
+                ValueKind.Object => Types.Where(t => t.TypeId != 0 && t.IsConcrete),
+                _ => Array.Empty<TypeModel>(),
             };
             return candidates.Where(t => t.IsValueType && !t.Raw);
         }

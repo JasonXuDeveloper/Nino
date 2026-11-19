@@ -14,6 +14,12 @@ value check in a runtime or a template.
 
 ## Fixed-size blocks in Rust
 
+- Write fixed-size Rust sets through `extend_fixed_iter`, reserving the count and payload together in iteration order.
+  In runtime A/B 44329792122, the median write time for 1,000 `i32` hash-set elements fell 33–43 % across EPYC
+  7763, 9V74, 9V45 and Xeon 8573C, and 58 % on Neoverse-N2. The GUID hash-set case fell 26–44 % on the same
+  x64 CPUs and 58 % on Neoverse-N2. The ordered `i32` case fell 37 % on Neoverse-N2 and ranged from on par
+  to 20 % lower on x64. The comparison used the same block benchmark harness on both sides.
+
 - In Rust, give every fixed-size shape `FIXED_SIZE` with `decode_fixed` / `encode_fixed` and let `read_fixed` /
   `extend_fixed` run it over `chunks_exact`; write no shuffle kernel. LLVM already turns a block whose wire bytes
   equal its memory ((i32, i32), a raw struct, a derived plain `{i32, f32}`) into vector copies (`vmovups ymm` on
@@ -41,6 +47,21 @@ value check in a runtime or a template.
 
 ## Checking blocks in Go
 
+- Reserve one checked block for fixed-width Go containers. Use constant wire offsets for padded primitive pairs
+  and copy compatible primitive grids as blocks. In runtime A/B
+  [44339615693](https://github.com/JasonXuDeveloper/Nino/actions/runs/44339615693), padded-pair read times fell
+  66–75 % on the measured x64 CPUs and 72 % on Neoverse-N2. Byte-grid writes fell 92–96 % on both architectures.
+  Fixed DateTimeOffset sequence writes fell 52–59 % on x64 and 47 % on Neoverse-N2.
+- Encode fixed map entries through their addresses. In the original fixed-stride loop the x64 GUID entry value
+  crossed two stack temporaries. The address loop reduced ten `MOVUPS` per entry to two, with the stride guard
+  intact. In [44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411) the revised GUID map
+  write took 82–85 % less time on x64 and 81 % less on Neoverse-N2. The revised map read took 52–54 % less on
+  x64 and 45 % less on Neoverse-N2.
+- Keep generated raw fallback loops on direct codecs after the raw-memory attempt. In the
+  [prepared-key follow-up](https://github.com/JasonXuDeveloper/Nino/actions/runs/44451141322) both native
+  listings call `repeatedBits` directly for padded primitive pairs. The eight-pair read was on par on
+  EPYC and Neoverse-N2. Its Xeon 6973P-C sample took 9 % less time, with no same-CPU control.
+
 - Check a block of range-limited 8- or 16-byte values four a step with one compare each (`w[0].Valid() && ... &&
   w[3].Valid()`, then the failing step value by value), each `Valid` a single compare (a signed range from 0 as
   unsigned; a Decimal's flags without the sign, rotated by 16 bits, `<= 28`). Writing 1000 values (runtime A/B runs
@@ -63,3 +84,50 @@ value check in a runtime or a template.
   read and 92-96 % to write; narrowing Latin-1 four units a word 40-64 % faster to write. Widening Latin-1 four bytes
   a word on read (`load32`, `widen`, `store64` into a fresh slice) was slower than the byte loop: +86 % on EPYC 7763,
   +56 % on Xeon 6973P, +10 % on Neoverse-N2 (run 40822228516); the byte loop stays.
+
+## Byte block copies
+
+- Confirm copy microbenchmarks in the codec that allocates or reuses the real buffer. Runtime A/B
+  [44339615693](https://github.com/JasonXuDeveloper/Nino/actions/runs/44339615693) probed disjoint copies with
+  rotated buffers, including a destination offset of four bytes. Go's candidate lowered the Neoverse-N2 time
+  by 10–33 % at 2–4 KiB but raised it by 21 % at 256 KiB with that offset. On the x64 runners it lowered the
+  hot 1 MiB time by 20–44 %, while the 2–4 KiB results varied by CPU and alignment.
+  Keep Go's built-in copy in `Reader.ByteArray`. The Arm64 candidate for fresh 2–4 KiB reads took 5–9 %
+  longer with a hot input and 24–26 % longer with a 64 MiB source rotation on Neoverse-N2
+  ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411), `DeserializeExact`).
+  The 128-byte fallback control also took 30 % longer.
+  The [1 MiB end-to-end x64 follow-up](https://github.com/JasonXuDeveloper/Nino/actions/runs/44451141322)
+  ran the AVX2 candidate through the same fresh `Reader.ByteArray` read. With a 64 MiB source rotation,
+  median time rose 17 % on Xeon 6975P-C, 39 % on EPYC 9V45 and 122 % on EPYC 7763. The hot 7763 row
+  rose 21 %. The same-revision 9V45 rotation moved 1.5 %. The other two x64 CPU models did not occur
+  in the floor jobs. The standard path compiles the allocation and copy to `runtime.makeslicecopy`.
+  Keep it for megabyte reads as well.
+- Compare Rust's standard copy under the default loader and with
+  `GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112`. In the same run, forcing the historical lower
+  threshold made the unaligned 2,113-byte standard copy 7.1× its default time on EPYC 7763 and 5.8× on 9V74.
+  AVX2 took about 13–15 % of that tuned time. With the default loader the custom vectors had mixed x64 results
+  and the unaligned NEON copies cost 15–25 % more through 64 KiB. The lower threshold reproduces the AMD
+  `rep movsb` transition. The current loader still has its own upper stop threshold, so the 1 MiB row does
+  not reproduce every historical glibc configuration.
+  In real Rust codecs ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411)),
+  the scoped AVX2 candidate lowered reused writes by 14–33 % at 2,113 and 4,096 bytes on EPYC with the
+  forced threshold. The 2,113-byte writes also fell 9–10 % under the default loader on EPYC 7763 and 9V74.
+  Ordinary read measurements shifted by about 25–30 % even with the same revision on both sides.
+- Keep Rust's standard counted byte copy. A write-only AVX2 candidate gated to AMD family 19h
+  ([44443778134](https://github.com/JasonXuDeveloper/Nino/actions/runs/44443778134)) lowered reused
+  2,113-byte writes by 31 % on EPYC 7763 and 19 % on 9V74 with the forced historical glibc threshold.
+  At 4,096 bytes the apparent gains were 30 % and 26 %, while the same-revision floors themselves
+  moved 27 % and 17 % lower by median. With the default loader, the 2,113-byte case improved 13 % on
+  9V74 and was on par on 7763. The 4,096-byte 9V45 control took 19 % longer, with no matching same-CPU
+  floor. The 2,113-byte legacy gain is repeatable. Evidence for the full range and fallback remains
+  inconclusive. A separate [mixed workload](https://github.com/JasonXuDeveloper/Nino/actions/runs/44447481096)
+  varied source alignment and payload lengths from 2,113 to 4,096 bytes. The measured AMD writers
+  stayed on par under the default loader. Under the forced threshold, EPYC 9V74 fresh and reused times
+  fell 9 % and 18 %, respectively, with overlapping same-revision controls that fell 12 % for both.
+  Keep the standard writer. Do not infer the effective threshold from the glibc version alone. The
+  [glibc 2.39 stable branch](https://sourceware.org/pipermail/glibc-cvs/2024q2/084781.html) backported the
+  AMD change, as did [RHEL 9.5](https://docs.redhat.com/en-us/documentation/red_hat_enterprise_linux/9/pdf/9.5_release_notes/Red_Hat_Enterprise_Linux-9-9.5_Release_Notes-en-US.pdf).
+- Keep `TypedArray.set` for ordinary TypeScript buffers. In 44339615693, copying through Wasm memory with both
+  staging copies took 82–339 % more time than `TypedArray.set` across the default and historical threshold
+  runs. For views already backed by Wasm memory, `memory.copy` varied from 8 % lower to 17 % higher by size and
+  CPU. These views avoid the staging cost and are timed separately from ordinary arrays.

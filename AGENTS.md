@@ -41,7 +41,7 @@ one (CI runs `tools/agents.sh --check`, which also checks that every file is in 
 | [`runtimes/csharp/tests/`](runtimes/csharp/tests/AGENTS.md) | adding or changing a test, or finding where a feature, a platform or hostile input is tested |
 | [`runtimes/go/`](runtimes/go/AGENTS.md) | reading or changing the Go runtime (runtimes/go, package nino), its string kernels, struct tags, sample codecs or Go benchmark |
 | [`runtimes/rust/`](runtimes/rust/AGENTS.md) | reading or changing the Rust runtime (runtimes/rust: crates nino-serialization and nino-serialization-derive), its SIMD kernels, tests or benchmarks |
-| [`runtimes/typescript/`](runtimes/typescript/AGENTS.md) | reading or changing the TypeScript runtime (runtimes/typescript: src/nino.ts, its WebAssembly kernels, tests or benchmark) |
+| [`runtimes/typescript/`](runtimes/typescript/AGENTS.md) | reading or changing the TypeScript runtime (runtimes/typescript: src/runtime/, its single-file bundle, WebAssembly kernels, tests or benchmark) |
 | [`tests/conformance/`](tests/conformance/AGENTS.md) | changing the wire format, a layout, a malicious-input check or a sample type, or making a runtime read the shared conformance corpus |
 <!-- agents-index:end -->
 

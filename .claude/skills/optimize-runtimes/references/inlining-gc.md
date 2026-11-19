@@ -8,6 +8,13 @@ Read it before growing a TypeScript or Rust hot helper, or when a TypeScript cas
   when a shape helps one target and hurts another, put it behind `cfg(target_arch)` and keep the generic loop for
   every other target (the map read taking one check per entry is x86/x86_64 only: on Arm64 it held the key/value pair
   in a SIMD register across the hash call and Neoverse-N2 ran 3 to 4 % slower). Test both paths (`platforms`).
+- Flatten the TypeScript runtime modules into one lexical scope for npm and nino-gen. On Node 22.23.4, #247's
+  single-file output kept the bytecode lengths and TurboFan inlining of the monolith's string and Latin-1 paths,
+  numeric blocks, and generated IntArray, BoolArray and ByteArray readers, both with and without `Buffer`.
+  Compare `--print-bytecode` lengths and `--trace-turbo-inlining` call edges after warming both paths of each build.
+  The MixedStrings runner A/B and same-revision controls (44329792122) put the modular bundle within 5 %
+  by per-CPU median on every measured x64 CPU and Neoverse-N2. On Neoverse-N2 the medians moved −1.13 % for
+  serialize, −1.17 % for serializeInto and −0.11 % for deserialize.
 - TypeScript output is the bytes it writes: a slower serialize in a large heap is often GC, not the loop. Before changing
   a write loop for a case that got slower, run it with `--trace-gc` and read whose pauses land in its task. Every new
   `ArrayBuffer` counts as external memory, and Node 24 starts a full GC for each 64 MB of them that no scavenge

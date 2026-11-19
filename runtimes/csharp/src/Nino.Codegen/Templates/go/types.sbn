@@ -214,6 +214,10 @@ func write_members(c)
   ret $o
 end
 
+func check_unique_values(s, value)
+  ret key_check(gotype(s)) + ".Values(r, " + value + ")"
+end
+
 func helper_body(h)
   $s = h.shape
   $n = h.name
@@ -253,7 +257,7 @@ func helper_body(h)
     end
     $each = read_into($s.element, "e")
     ret $o + read_into_loop(gotype($s.element), $s.element.min, $each, $each != "e = " + read($s.element)) + "}\n"
-  else if h.mode == "read" && reads_into($s)
+  else if h.mode == "read" && reads_into($s) && $s.mode != "fixed"
     # The loop of the into form (a nil slice: a new one).
     ret "func " + $n + "(r *nino.Reader) (v " + $t + ") {\n\t" + helper($s, "readinto") + "(r, &v)\n\treturn v\n}\n"
   else if h.mode == "read"
@@ -273,38 +277,52 @@ func helper_body(h)
       ret $o + "\treturn v\n}\n"
     when "grid"
       $o = $o + "\tg := readGrid[" + gotype($s.element) + "](r, " + $s.rank + ", " + compact($s.element.min) + ")\n\tif g == nil {\n\t\treturn nil\n\t}\n"
+      if $s.element.block
+        ret $o + "\tnino.ReadPrimitivesInto(r, g.Items)\n\tif r.Failed() {\n\t\treturn nil\n\t}\n\treturn g\n}\n"
+      end
+      if $s.element.size > 0
+        $each = "_ = b[" + ($s.element.size - 1) + "]\n\t\tg.Items[i] = " + decode($s.element, 0)
+        ret $o + read_fixed_block($s.element.size, "len(g.Items)", "", $each, "", "for i := range g.Items", !$s.element.runnable) + "\treturn g\n}\n"
+      end
       ret $o + "\tfor i := range g.Items {\n\t\tg.Items[i] = " + read($s.element) + "\n\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn g\n}\n"
     when "map"
       $e = "nino.Entry[" + gotype($s.key) + ", " + gotype($s.value) + "]"
-      $o = $o + read_loop($e, plus($s.key, $s.value), "k := " + read($s.key) + "\n\t\te = " + $e + "{Key: k, Value: " + read($s.value) + "}")
+      if $s.mode == "fixed"
+        $z = $s.key.size + $s.value.size
+        $each = "e = " + $e + "{Key: " + decode($s.key, 0) + ", Value: " + decode($s.value, $s.key.size) + "}"
+        $o = $o + read_fixed($e, $z, $each, !$s.key.runnable || !$s.value.runnable)
+      else
+        $o = $o + read_loop($e, plus($s.key, $s.value), "k := " + read($s.key) + "\n\t\te = " + $e + "{Key: k, Value: " + read($s.value) + "}")
+      end
       # Keys read twice fail, checked once over the pairs.
-      ret $o + ($s.mode == "unique" ? "\treturn nino.CheckUniqueKeys(r, v)\n}\n" : "\treturn v\n}\n")
+      ret $o + ($s.unique_keys ? "\treturn nino.CheckUniqueKeysWith(r, v, &" + key_check(gotype($s.key)) + ")\n}\n" : "\treturn v\n}\n")
     end
     # A sequence.
     case $s.mode
-    when "unique"
+    when "unique", "fixed"
       # Elements read twice fail, checked once over the elements (primitives read as one block).
-      if $s.element.block
-        ret $o + "\treturn nino.CheckUniqueValues(r, nino.ReadPrimitives[" + gotype($s.element) + "](r))\n}\n"
+      if $s.mode == "unique" && $s.element.block
+        ret $o + "\treturn " + check_unique_values($s.element, "nino.ReadPrimitives[" + gotype($s.element) + "](r)") + "\n}\n"
       end
-      ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.CheckUniqueValues(r, v)\n}\n"
+      if $s.element.block_value
+        ret $o + "\treturn " + check_unique_values($s.element, "nino.ReadBlock[" + gotype($s.element) + "](r)") + "\n}\n"
+      end
+      if $s.element.kind == "prim" && $s.element.primitive == "Bool"
+        ret $o + "\treturn " + check_unique_values($s.element, "nino.ReadBools(r)") + "\n}\n"
+      end
+      $unique = $s.mode == "unique" || $s.unique_slots
+      $b = $s.element.raw_block
+      if $b
+        $o = $o + "\tif v, ok := nino.TryReadRaw[" + gotype($s.element) + "](r, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + "); ok {\n\t\treturn " + ($unique ? check_unique_values($s.element, "v") : "v") + "\n\t}\n"
+      end
+      ret $o + read_fixed(gotype($s.element), $s.element.size, "e = " + decode($s.element, 0), !$s.element.runnable) + "\treturn " + ($unique ? check_unique_values($s.element, "v") : "v") + "\n}\n"
     when "stringset"
       # A set of strings in the order of the data: a string (or null) read twice fails.
       ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.CheckUniqueStrings(r, v)\n}\n"
     when "nullableslots"
       # A set of the slots of a number (any other sequence of them calls the block directly): an element read twice
       # fails, null included.
-      ret $o + "\treturn nino.CheckUniqueValues(r, nino.ReadNullableSlots[" + gotype($s.element.inner) + "](r))\n}\n"
-    when "fixed"
-      $b = $s.element.raw_block
-      if $b
-        ret $o + "\treturn nino.ReadRaw(r, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + ", " + decode_fn($s.element) + ")\n}\n"
-      end
-      # The elements' bytes with one bounds check, then each element's from a cursor.
-      $z = $s.element.size
-      $o = $o + "\tn := r.Length(" + $z + ")\n\tif n < 0 {\n\t\treturn nil\n\t}\n\tb := r.Take(n * " + $z + ")\n\tif len(b) != n*" + $z + " {\n\t\treturn nil\n\t}\n"
-      $o = $o + make_slice(gotype($s.element)) + "\tfor len(b) >= " + $z + " {\n\t\te = " + decode_fn($s.element) + "(r, b[:" + $z + ":" + $z + "])\n"
-      ret $o + "\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t\tv = append(v, e)\n\t\tb = b[" + $z + ":]\n\t}\n\treturn " + ($s.unique_slots ? "nino.CheckUniqueValues(r, v)" : "v") + "\n}\n"
+      ret $o + "\treturn " + check_unique_values($s.element, "nino.ReadNullableSlots[" + gotype($s.element.inner) + "](r)") + "\n}\n"
     end
     ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn v\n}\n"
   end
@@ -323,27 +341,84 @@ func helper_body(h)
     end
     ret $o + "}\n"
   when "grid"
-    ret $o + "\tif !writeGrid(w, v, " + $s.rank + ") {\n\t\treturn\n\t}\n\tfor _, e := range v.Items {\n\t\t" + write($s.element, "e") + "\n\t}\n}\n"
+    $o = $o + "\tif !writeGrid(w, v, " + $s.rank + ") {\n\t\treturn\n\t}\n"
+    if $s.element.block
+      ret $o + "\tnino.WritePrimitivesRaw(w, v.Items)\n}\n"
+    end
+    if $s.element.size > 0
+      ret $o + write_fixed_block("v.Items", $s.element.size, $s.element, "e", null, "") + "}\n"
+    end
+    ret $o + "\tfor _, e := range v.Items {\n\t\t" + write($s.element, "e") + "\n\t}\n}\n"
   when "map"
+    if $s.mode == "fixed"
+      ret $o + write_length() + write_fixed_block("v", $s.key.size + $s.value.size, $s.key, "e.Key", $s.value, "e.Value") + "}\n"
+    end
     ret $o + write_loop(write($s.key, "e.Key") + "\n\t\t" + write($s.value, "e.Value"))
   end
-  if $s.mode == "fixed"
+  if $s.element.block
+    ret $o + "\tnino.WritePrimitives(w, v)\n}\n"
+  else if $s.element.block_value
+    ret $o + "\tnino.WriteBlock(w, v)\n}\n"
+  else if $s.element.kind == "prim" && $s.element.primitive == "Bool"
+    ret $o + "\tnino.WriteBools(w, v)\n}\n"
+  else if $s.mode == "fixed" || $s.mode == "unique"
     $b = $s.element.raw_block
     if $b
-      ret $o + "\tnino.WriteRaw(w, v, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + ", " + $b.pads + ", " + encode_fn($s.element) + ")\n}\n"
+      $o = $o + "\tif nino.TryWriteRaw(w, v, " + $s.element.size + ", " + $b.as_is + ", " + $b.bools + ", " + $b.pads + ") {\n\t\treturn\n\t}\n"
     end
-    # One reservation, cleared (padding is written as zeros), then each element's bytes from a cursor.
-    $z = $s.element.size
-    $o = $o + "\tif v == nil {\n\t\tw.NullLength()\n\t\treturn\n\t}\n\tw.Length(len(v))\n\tb := w.ExtendZero(len(v) * " + $z + ")\n\tif len(b) != len(v)*" + $z + " {\n\t\treturn\n\t}\n"
-    ret $o + "\tfor _, e := range v {\n\t\t" + encode_fn($s.element) + "(b[:" + $z + ":" + $z + "], e)\n\t\tb = b[" + $z + ":]\n\t}\n}\n"
-  else if $s.element.block
-    ret $o + "\tnino.WritePrimitives(w, v)\n}\n"
+    ret $o + write_length() + write_fixed_block("v", $s.element.size, $s.element, "e", null, "") + "}\n"
   else if $s.element.kind == "string" && !$s.element.field
     ret $o + "\tnino.WriteStringPtrs(w, v)\n}\n"
   else if $s.element.kind == "keystring" && !$s.element.field
     ret $o + "\tnino.WriteStrings(w, v)\n}\n"
   end
   ret $o + write_loop(write($s.element, "e"))
+end
+
+# A fixed run's cursor. The count was checked against the input by Length or ReadShape.
+func read_fixed_block(size, n, setup, each, after, loop, checked)
+  $o = "\tb := r.Take(" + n + " * " + size + ")\n\tif r.Failed() {\n\t\treturn nil\n\t}\n" + setup + "\t" + loop + " {\n\t\t" + each + "\n"
+  if checked
+    $o = $o + "\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n"
+  end
+  ret $o + after + "\t\tb = b[" + size + ":]\n\t}\n"
+end
+
+func read_fixed(t, size, each, checked)
+  $o = "\tn := r.Length(" + size + ")\n\tif n < 0 {\n\t\treturn nil\n\t}\n"
+  ret $o + read_fixed_block(size, "n", make_slice(t), each, "\t\tv = append(v, e)\n", "for len(b) >= " + size, checked)
+end
+
+# Preflight range-limited fields. If one is invalid, use the scalar writer on the prefix ending at that field
+# so it reports the same offset as the element loop.
+func write_fixed_block(values, size, first, a, second, b)
+  $o = ""
+  if first.checked_write || (second && second.checked_write)
+    $test = first.checked_write ? "!" + a + ".Valid()" : ""
+    if second && second.checked_write
+      $test = $test + ($test == "" ? "" : " || ") + "!" + b + ".Valid()"
+    end
+    $scalar = "\t\t\t\t" + write(first, a) + "\n"
+    if second
+      $scalar = $scalar + "\t\t\t\t" + write(second, b) + "\n"
+    end
+    $o = "\tfor i, e := range " + values + " {\n\t\tif " + $test + " {\n\t\t\tfor _, e := range " + values + "[:i+1] {\n" + $scalar + "\t\t\t}\n\t\t\treturn\n\t\t}\n\t}\n"
+  end
+  $code = encode(first, 0, a)
+  if second
+    $code = array.concat $code (encode(second, first.size, b))
+  end
+  $zero = first.needs_zero || (second && second.needs_zero) ? "true" : "false"
+  $o = $o + "\tb := w.ExtendFixed(len(" + values + "), " + size + ", " + $zero + ")\n\tif b == nil {\n\t\treturn\n\t}\n"
+  if $code.size != 0
+    if second
+      $o = $o + "\tfor i := range " + values + " {\n\t\te := &" + values + "[i]\n"
+    else
+      $o = $o + "\tfor _, e := range " + values + " {\n"
+    end
+    $o = $o + "\t\t_ = b[" + (size - 1) + "]\n" + lines($code, "\t\t") + "\t\tb = b[" + size + ":]\n\t}\n"
+  end
+  ret $o
 end
 
 # The loop of a sequence's read helper: its length (n), then each element, read by `each` into `e` (of type `t`)
@@ -374,7 +449,11 @@ end
 
 # The rest of a sequence's write helper: null for nil, else its length and each element `e`, written by `each`.
 func write_loop(each)
-  ret "\tif v == nil {\n\t\tw.NullLength()\n\t\treturn\n\t}\n\tw.Length(len(v))\n\tfor _, e := range v {\n\t\t" + each + "\n\t}\n}\n"
+  ret write_length() + "\tfor _, e := range v {\n\t\t" + each + "\n\t}\n}\n"
+end
+
+func write_length()
+  ret "\tif v == nil {\n\t\tw.NullLength()\n\t\treturn\n\t}\n\tw.Length(len(v))\n"
 end
 
 # A slot's dispatch: the type id, then the body of one of the types the declared type allows. `read` and `write`
@@ -946,6 +1025,11 @@ $i = 0
 while $i < helper_count()
   "\n" + helper_body(helper_at($i))
   $i = $i + 1
+end
+
+# The duplicate check initializers shared across helpers by the Go key type.
+for $type in key_check_types()
+  "\nvar keyCheck" + for.index + " = nino.PrepareKeyCheck[" + $type + "]()\n"
 end
 
 for n in tuples

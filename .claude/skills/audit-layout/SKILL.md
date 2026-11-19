@@ -109,6 +109,12 @@ its own `AGENTS.md` maps every file in it.
 - In the Unity project an asmdef, not the folder name, decides where an assembly compiles: `Assets/Test/Editor/Model`
   and `CrossRef` build for players too and sit under `Editor/` because only the editor tests use them (their
   namespaces say `Test.Editor`); move them only together with their namespaces.
+- **Preserve the original module and item order when splitting Rust files whose machine code must stay identical.**
+  Moving impls to child modules can change rustc's codegen-unit partitioning and alter even untouched hot functions
+  (`DateOnly::new` in #248). Use ordered `include!` fragments when ordinary modules change the instructions.
+  Compare the release binaries from the same checkout path and flags with the same hot-path implementations on both
+  sides (`optimize-runtimes`). Check the fragments with `rustfmt --check` as well as `cargo fmt --all --check`,
+  which does not follow `include!`.
 
 ## Adding files that nothing builds
 
