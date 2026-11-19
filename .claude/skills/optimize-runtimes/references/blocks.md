@@ -105,11 +105,12 @@ value check in a runtime or a template.
   Ordinary read measurements shifted by about 25–30 % even with the same revision on both sides.
 - Keep Rust's standard counted byte copy. A write-only AVX2 candidate gated to AMD family 19h
   ([44443778134](https://github.com/JasonXuDeveloper/Nino/actions/runs/44443778134)) lowered reused
-  2,113 / 4,096-byte writes by 32 % / 29 % on EPYC 7763 and 19 % / 26 % on 9V74 with the forced
-  historical threshold. Under the default loader, 9V74 improved 13 % / 21 %, and 7763 was on par.
-  The default 4,096-byte 9V45 fallback control took 19 % longer, with no matching same-CPU floor in that
-  batch. The old-threshold gain is reproducible on the targeted CPUs. The default fallback still lacks
-  enough evidence to ship this dispatch.
+  2,113-byte writes by 31 % on EPYC 7763 and 19 % on 9V74 with the forced historical glibc threshold.
+  At 4,096 bytes the apparent gains were 30 % and 26 %, while the same-revision floors themselves
+  moved 27 % and 17 % lower by median. With the default loader, the 2,113-byte case improved 13 % on
+  9V74 and was on par on 7763. The 4,096-byte 9V45 control took 19 % longer, with no matching same-CPU
+  floor. The 2,113-byte legacy gain is repeatable. Evidence for the full range and fallback remains
+  inconclusive.
 - Keep `TypedArray.set` for ordinary TypeScript buffers. In 44339615693, copying through Wasm memory with both
   staging copies took 82–339 % more time than `TypedArray.set` across the default and historical threshold
   runs. For views already backed by Wasm memory, `memory.copy` varied from 8 % lower to 17 % higher by size and
