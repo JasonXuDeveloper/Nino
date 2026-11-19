@@ -17,7 +17,7 @@ namespace Nino.Core
     /// int, ref Writer)"/>, <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>), or merges pairs one at a time into an
     /// existing dictionary, the only code that reads a pair's key and value apart. Its element is its entry for every
     /// key and value (#355): a storage element of the key and the value at their offsets in it
-    /// (<see cref="NinoStorageFormatter{TElement,TA,TB,TFormatterA,TFormatterB,TFields}"/>), a block where both are raw
+    /// (<see cref="NinoMapEntryFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/>), a block where both are raw
     /// or blocks, which the block kernels move skipping the hash code and the link.
     /// </summary>
     internal static class NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>

@@ -150,7 +150,7 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// <see cref="INinoFormatter.WriteRun"/> of the entries of <paramref name="run"/> (not empty,
-        /// <see cref="NinoRuns.PairRuns{TKey,TValue,TKeyFormatter,TValueFormatter}"/>): the value's loop over the run of
+        /// <see cref="NinoPairs{TA,TB,TFormatterA,TFormatterB}.RunLoop"/>): the value's loop over the run of
         /// the values, each after its key. A static method, which code shared over a class inlines (a dictionary's top
         /// layer calls it), its offsets the entry's fields', constants there too.
         /// </summary>
