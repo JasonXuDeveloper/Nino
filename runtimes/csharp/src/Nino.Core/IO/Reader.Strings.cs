@@ -157,37 +157,6 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// The bytes the UTF-8 string at <paramref name="source"/> (<paramref name="available"/> bytes) takes, both
-        /// counts checked as <see cref="ReadUtf8At(ref byte, int)"/> checks them (and a char count above the byte
-        /// count, which no UTF-8 holds) and its bytes against the data, without allocating or decoding: the first pass
-        /// of a run's read (<see cref="NinoStringRuns"/>). Bytes that are not UTF-8 are found by the read.
-        /// </summary>
-        internal static int MeasureUtf8(ref byte source, int available)
-        {
-            if (available <= 0)
-                NinoThrow.EndOfData();
-            ulong read = NinoStrings.ReadHeader(ref source, available);
-            uint header = (uint)read;
-            int at = (int)(read >> 32);
-            if (header < 2)
-                return at;
-            if (header > (uint)int.MaxValue + 1)
-                NinoThrow.InvalidData("invalid UTF-8 string.");
-            if (at >= available)
-                NinoThrow.EndOfData();
-            read = NinoStrings.ReadHeader(ref Unsafe.Add(ref source, at), available - at);
-            uint bytes = (uint)read;
-            at += (int)(read >> 32);
-            if (bytes > int.MaxValue)
-                NinoThrow.InvalidData("invalid UTF-8 string.");
-            if (bytes > (uint)(available - at))
-                NinoThrow.EndOfData();
-            if (bytes < header - 1)
-                NinoThrow.InvalidData("invalid UTF-8 string.");
-            return at + (int)bytes;
-        }
-
-        /// <summary>
         /// Reads a string like <see cref="ReadString()"/>, but returns <paramref name="current"/> when it holds the
         /// same chars: reading into an existing object keeps an unchanged string instead of allocating a copy.
         /// </summary>
