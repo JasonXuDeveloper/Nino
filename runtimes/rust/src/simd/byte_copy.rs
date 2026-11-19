@@ -4,12 +4,15 @@ use std::arch::x86_64::__cpuid;
 use std::sync::OnceLock;
 
 #[cold]
+#[allow(unused_unsafe)] // CPUID intrinsics are unsafe in Rust 1.88.
 fn use_avx2() -> bool {
-    let vendor = __cpuid(0);
+    // SAFETY: Basic CPUID leaves 0 and 1 are supported on x86-64.
+    let vendor = unsafe { __cpuid(0) };
     if (vendor.ebx, vendor.edx, vendor.ecx) != (0x6874_7541, 0x6974_6e65, 0x444d_4163) {
         return false;
     }
-    let version = __cpuid(1).eax;
+    // SAFETY: Basic CPUID leaves 0 and 1 are supported on x86-64.
+    let version = unsafe { __cpuid(1) }.eax;
     let family = (version >> 8) & 0xf;
     let extended_family = (version >> 20) & 0xff;
     family == 0xf && extended_family == 0xa && std::arch::is_x86_feature_detected!("avx2")
