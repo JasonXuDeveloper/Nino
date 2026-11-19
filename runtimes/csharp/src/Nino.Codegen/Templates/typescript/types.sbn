@@ -276,7 +276,13 @@ func union_type(c)
   $n = c.name
   $o = "/** `" + c.model.full_name + "`, a C# union: "
   if c.tagged
-    $o = $o + "direct values and tagged alternatives; null is the empty union. */\nexport type " + $n + " =\n"
+    # The comment says how to narrow: a direct case by its runtime test, a tagged one by `case`.
+    $direct = []
+    for $k in c.plain_cases
+      $direct = array.add $direct ("`" + $k.model.name + "` (`" + $k.test + "`)")
+    end
+    $o = $o + ($direct.size == 0 ? "its cases" : (array.join $direct ", ") + " as plain values, the other cases")
+    $o = $o + " as `{ case, value }`; null is the empty union. */\nexport type " + $n + " =\n"
     for $k in c.cases
       $t = case_ts($k)
       $o = $o + "  | " + ($k.test ? $t : "{ readonly case: \"" + $k.model.name + "\"; readonly value: " + $t + " }") + (for.last ? ";" : "") + "\n"

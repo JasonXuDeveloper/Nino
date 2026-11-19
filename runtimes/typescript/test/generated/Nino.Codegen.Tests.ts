@@ -1436,7 +1436,7 @@ function writeBody$BasedInt(w: NinoWriter, v: BasedInt): void {
   w.i32(v.value);
 }
 
-/** `Shapes.Measure`, a C# union: direct values and tagged alternatives; null is the empty union. */
+/** `Shapes.Measure`, a C# union: `Int32` (`typeof v === "number"`), `ListInt32` (`Array.isArray(v)`) as plain values, the other cases as `{ case, value }`; null is the empty union. */
 export type Measure =
   | number
   | { readonly case: "Double"; readonly value: number }

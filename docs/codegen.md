@@ -208,7 +208,9 @@ union as they hold a struct, and null (nil, `Empty`) is the empty union:
   direct representation. Later cases in that group, and cases without a test (such as an interface), use
   `{ case, value }` with the case's name as the tag. For example, for `Measure(int, double, List<int>, List<string>)`,
   `Measure.Int32(42)` is the number `42` and `Measure.Double(42)` is `{ case: "Double", value: 42 }`.
-  The writer dispatches direct class cases from most derived to base. `null` represents the empty union, so
+  Narrow a direct case with its test and a tagged one with `case` (`typeof m === "number"`, then `Array.isArray(m)`,
+  then `switch (m.case)`): a direct case has no `case` to switch on, since a tag on every value would cost an object
+  per value. The generated type's comment lists each direct case with its test. The writer dispatches direct class cases from most derived to base. `null` represents the empty union, so
   a `T?` of a union has no TypeScript form (NINOGEN002).
 - **Go** uses a sealed interface with a type per case. A case whose value is a non-generic generated struct or
   class uses a pointer to that type, with the union's marker method. Other cases use a struct holding `Value` and
