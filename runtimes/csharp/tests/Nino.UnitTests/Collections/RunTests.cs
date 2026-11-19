@@ -207,10 +207,10 @@ namespace Nino.UnitTests
             Assert.AreNotEqual(CollectionViews.FreeEntries.Unknown, CollectionViews.SetFree);
             Assert.AreNotEqual(CollectionViews.FreeEntries.Unknown, CollectionViews.MapFree);
             var dictionary = Enumerable.Range(0, 10).ToDictionary(i => i, i => "v" + i);
-            Assert.IsTrue(CollectionFields.Run(dictionary, dictionary.Count, NinoRun.NoKey, out var run));
+            Assert.IsTrue(CollectionFields.Run(dictionary, dictionary.Count, out var run));
             Assert.AreEqual(NinoRun.AllInUse, run.InUse);
             dictionary.Remove(4);
-            Assert.IsTrue(CollectionFields.Run(dictionary, dictionary.Count, NinoRun.NoKey, out run));
+            Assert.IsTrue(CollectionFields.Run(dictionary, dictionary.Count, out run));
             Assert.AreNotEqual(NinoRun.AllInUse, run.InUse);
             Assert.AreEqual(10, run.Count);
             var set = new HashSet<int>(Enumerable.Range(0, 10));
@@ -265,11 +265,15 @@ namespace Nino.UnitTests
             using var buffer = new NinoArrayBufferWriter();
             var writer = new Writer(buffer);
             writer.WriteLength(dictionary.Count);
-            int key = typeof(TKey) == typeof(string)
-                ? NinoRuns.KeyOf<string, StringFormatter>()
-                : NinoRuns.KeyOf<int, UnmanagedFormatter<int>>();
-            Assert.IsTrue(CollectionFields.Run(dictionary, dictionary.Count, key, out var run));
-            WriteRun<RootFormatter>(run, ref writer);
+            // The run of the pairs (the entries, which hold references), written by the entry's formatter: its value's
+            // generated loop over the values with their keys.
+            Assert.IsTrue(CollectionFields.Run(dictionary, dictionary.Count, out var run));
+            if (typeof(TKey) == typeof(string))
+                WriteRun<CollectionFields.MapEntryFormatter<string, DispatchRoot, StringFormatter, RootFormatter>>(run,
+                    ref writer);
+            else
+                WriteRun<CollectionFields.MapEntryFormatter<int, DispatchRoot, UnmanagedFormatter<int>,
+                    RootFormatter>>(run, ref writer);
             writer.Flush();
             return buffer.WrittenSpan.ToArray();
         }
@@ -362,6 +366,146 @@ namespace Nino.UnitTests
 
                 dictionary.Add(key(values.Length + round), values[0]);
                 dictionary.Remove(key(round));
+            }
+        }
+
+        /// <summary>
+        /// Pairs are elements (#355): a list's and an array's pairs take the paths a dictionary's take. A pair of a
+        /// polymorphic value composes onto the value's run loop (one call per collection, keys written by it), pairs of
+        /// strings take the cursor loop, pairs of raw values are a block, in a row and in a dictionary's entries alike;
+        /// each writes the bytes of its pairs written one by one, and reads them back.
+        /// </summary>
+        [TestMethod]
+        public void PairsInRowsTakeTheDictionaryPaths()
+        {
+            DispatchRoot[] values = Enumerable.Range(0, 9).Select(Root).ToArray();
+            var pairs = values.Select((v, i) => new KeyValuePair<int, DispatchRoot>(i * 3, v)).ToList();
+            var named = values.Select((v, i) => new KeyValuePair<string, DispatchRoot>("p" + i, v)).ToArray();
+            Assert.IsTrue(NinoKind<KeyValuePairFormatter<int, DispatchRoot, UnmanagedFormatter<int>,
+                RecordingRootFormatter>>.Runs);
+            Assert.IsTrue(NinoKind<KeyValuePairFormatter<string, DispatchRoot, StringFormatter,
+                RecordingRootFormatter>>.Runs);
+            // A key the loop cannot write (UTF-8): value by value.
+            Assert.IsFalse(NinoKind<KeyValuePairFormatter<string, DispatchRoot, Utf8StringFormatter,
+                RecordingRootFormatter>>.Runs);
+
+            int calls = RecordingRootFormatter.RunCalls;
+            CollectionAssert.AreEqual(ExpectedPairs(pairs), Write<List<KeyValuePair<int, DispatchRoot>>,
+                ListFormatter<List<KeyValuePair<int, DispatchRoot>>, KeyValuePair<int, DispatchRoot>,
+                    KeyValuePairFormatter<int, DispatchRoot, UnmanagedFormatter<int>, RecordingRootFormatter>>>(pairs));
+            CollectionAssert.AreEqual(ExpectedPairs(named), Write<KeyValuePair<string, DispatchRoot>[],
+                ArrayFormatter<KeyValuePair<string, DispatchRoot>,
+                    KeyValuePairFormatter<string, DispatchRoot, StringFormatter, RecordingRootFormatter>>>(named));
+            var dictionary = pairs.ToDictionary(p => p.Key, p => p.Value);
+            dictionary.Remove(6);
+            CollectionAssert.AreEqual(ExpectedPairs(dictionary), Write<Dictionary<int, DispatchRoot>,
+                DictionaryFormatter<int, DispatchRoot, UnmanagedFormatter<int>, RecordingRootFormatter>>(dictionary));
+            Assert.AreEqual(calls + 3, RecordingRootFormatter.RunCalls);
+            CollectionAssert.AreEqual(ExpectedPairs(pairs), NinoSerializer.Serialize(
+                NinoDeserializer.Deserialize<List<KeyValuePair<int, DispatchRoot>>>(NinoSerializer.Serialize(pairs))));
+
+            // Strings: the cursor loop, in a row and in a dictionary's entries (each the entry, composed).
+            Assert.IsTrue(NinoCursor.Own<KeyValuePair<string, string>,
+                KeyValuePairFormatter<string, string, StringFormatter, StringFormatter>>());
+            Assert.IsTrue(NinoCursor.Own<CollectionFields.MapEntry<string, string>,
+                CollectionFields.MapEntryFormatter<string, string, StringFormatter, StringFormatter>>());
+            var texts = Enumerable.Range(0, 40).Select(i => new KeyValuePair<string, string>("k" + i, "v" + i)).ToArray();
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(texts.ToDictionary(p => p.Key, p => p.Value)),
+                NinoSerializer.Serialize(texts));
+
+            // Raw pairs: a block, the same element in a list and in a dictionary's entries where this runtime lays
+            // the entry out as a set's entry of the pair.
+            Assert.AreEqual(NinoElementKind.Block, NinoKind.Of<KeyValuePair<int, int>,
+                KeyValuePairFormatter<int, int, UnmanagedFormatter<int>, UnmanagedFormatter<int>>>());
+            Assert.IsTrue(CollectionFields.PairLayout.Entries);
+            Assert.IsTrue(CollectionFields.PairLayout<int, int>.InEntries);
+            var ints = Enumerable.Range(0, 100).Select(i => new KeyValuePair<int, int>(i * 7, -i)).ToList();
+            var map = ints.ToDictionary(p => p.Key, p => p.Value);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(ints), NinoSerializer.Serialize(map));
+            CollectionAssert.AreEqual(ints, NinoDeserializer.Deserialize<Dictionary<int, int>>(
+                NinoSerializer.Serialize(ints)).ToList());
+            // Pairs with references: the entry is the element (CoreCLR moves references first in it).
+            Assert.IsFalse(CollectionFields.PairLayout<string, int>.InEntries);
+        }
+
+        private static byte[] Write<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
+        {
+            using var buffer = new NinoArrayBufferWriter();
+            var writer = new Writer(buffer);
+            default(TFormatter).Serialize(value, ref writer);
+            writer.Flush();
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        private static byte[] ExpectedPairs<TKey>(ICollection<KeyValuePair<TKey, DispatchRoot>> pairs)
+        {
+            using var buffer = new NinoArrayBufferWriter();
+            var writer = new Writer(buffer);
+            writer.WriteLength(pairs.Count);
+            foreach (var pair in pairs)
+            {
+                if (typeof(TKey) == typeof(string))
+                    default(StringFormatter).Serialize((string)(object)pair.Key, ref writer);
+                else
+                    default(UnmanagedFormatter<int>).Serialize((int)(object)pair.Key, ref writer);
+                default(RootFormatter).Serialize(pair.Value, ref writer);
+            }
+
+            writer.Flush();
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        /// <summary>
+        /// Hostile input on every read of a dictionary's pairs: the block fill (raw pairs), the cursor fill and adds
+        /// (strings), the per-pair fill and adds, into new and existing dictionaries: every cut, a repeated key and a
+        /// null key are <see cref="NinoDataException"/>, and a rejected read leaves a dictionary it filled empty (one
+        /// the dictionary adds to itself holds at most the pairs before the rejected one).
+        /// </summary>
+        [TestMethod]
+        public void HostilePairsAreRejected()
+        {
+            Hostile(Enumerable.Range(0, 20).ToDictionary(i => i, i => -i), 3, k => k);
+            Hostile(Enumerable.Range(0, 20).ToDictionary(i => "k" + i, i => i), 3, k => "k" + k);
+            Hostile(Enumerable.Range(0, 20).ToDictionary(i => i, i => "v" + i), 3, k => k);
+            Hostile(Enumerable.Range(0, 20).ToDictionary(i => "k" + i, Root), 3, k => "k" + k);
+            Hostile(Enumerable.Range(0, 20).ToDictionary(i => i, i => (int?)i), 3, k => k);
+            // Two pairs: below HashTables.FillFrom, added one at a time.
+            Hostile(Enumerable.Range(0, 2).ToDictionary(i => "k" + i, i => "v" + i), 1, k => "k" + k);
+        }
+
+        private static void Hostile<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int at, Func<int, TKey> key)
+        {
+            byte[] bytes = NinoSerializer.Serialize(dictionary);
+            Truncated(bytes, d => NinoDeserializer.Deserialize<Dictionary<TKey, TValue>>(d));
+            for (int length = 0; length < bytes.Length; length++)
+            {
+                var existing = new Dictionary<TKey, TValue>(dictionary);
+                var prefix = bytes.AsSpan(0, length).ToArray();
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(prefix, ref existing),
+                    $"{typeof(TKey).Name}/{typeof(TValue).Name} into an existing one, {length} bytes");
+            }
+
+            // The pair at `at` given the key of the first: a repeated key.
+            var repeated = dictionary.ToList();
+            repeated[at] = new KeyValuePair<TKey, TValue>(key(0), repeated[at].Value);
+            byte[] twice = NinoSerializer.Serialize(repeated);
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<TKey, TValue>>(twice));
+            var into = new Dictionary<TKey, TValue>();
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(twice, ref into));
+            // Filled then linked here: left empty; added by the dictionary itself (string keys on .NET, which guards
+            // them): the pairs before the rejected one, never it.
+            if (HashTables.Plan<TKey, TValue>.Inserts && dictionary.Count >= HashTables.FillFrom)
+                Assert.AreEqual(0, into.Count, typeof(TKey).Name + "/" + typeof(TValue).Name);
+            else
+                Assert.IsTrue(into.Count <= at, typeof(TKey).Name + "/" + typeof(TValue).Name);
+
+            // A null key, where a key can be null.
+            if (default(TKey) == null)
+            {
+                repeated[at] = new KeyValuePair<TKey, TValue>(default, repeated[at].Value);
+                byte[] nulls = NinoSerializer.Serialize(repeated);
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                    NinoDeserializer.Deserialize<Dictionary<TKey, TValue>>(nulls));
             }
         }
 

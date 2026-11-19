@@ -171,6 +171,8 @@ public static class Program
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "Dictionary"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "SetFree"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "MapFree"),
+        (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionFields+PairLayout", "Mirrors"),
+        (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionFields+PairLayout", "Entries"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.SortedSetNodes", "Layout"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.HashTables", "Set"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.HashTables", "Map"),
@@ -377,6 +379,12 @@ public static class Program
         Case("List<Shape>", Enumerable.Range(0, 50).Select(Shape).ToList());
         Case("Dictionary<int,Shape>", Enumerable.Range(0, 50).ToDictionary(i => i * 3, Shape));
         Case("Dictionary<str,Shape>", Enumerable.Range(0, 50).ToDictionary(i => "k" + i, Shape));
+        // Pairs of a polymorphic value in a list: the pair's formatter composes onto the base's run loop.
+        Case("List<KVP<int,Shape>>", Enumerable.Range(0, 50).Select(i => new KeyValuePair<int, RtShape>(i * 5, Shape(i))).ToList());
+        Case("KVP<str,Shape>[]", Enumerable.Range(0, 50).Select(i => new KeyValuePair<string, RtShape>("k" + i, Shape(i))).ToArray());
+        var namedHole = Enumerable.Range(0, 50).ToDictionary(i => "k" + i, i => i);
+        namedHole.Remove("k7");
+        Case("Dictionary<str,int>-1", namedHole);
         Case("Dictionary<Guid,Shape>", Enumerable.Range(0, 50).ToDictionary(i => new Guid(i, 1, 2, new byte[8]), Shape));
         var withHole = Enumerable.Range(0, 50).ToDictionary(i => i, Shape);
         withHole.Remove(7);
