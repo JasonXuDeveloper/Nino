@@ -26,6 +26,7 @@ namespace Nino.CodeGen
             sb.Append("using System;\n");
             sb.Append("using System.Runtime.CompilerServices;\n");
             sb.Append("using Nino.Core.CompilerServices;\n");
+            sb.Append("using Nino.Core.Internal;\n");
             sb.Append("\n");
             sb.Append("namespace Nino.Core\n");
             sb.Append("{\n");
@@ -212,7 +213,71 @@ namespace Nino.CodeGen
             foreach (int i in s.Items)
                 sb.Append($"            {s.Call("ReadItem", i)}(ref value.{s.Name(i)}, ref {s.At("source", i)});\n");
             sb.Append("        }\n");
+            AppendRecycling(sb, s, type);
+            if (s.Arity == 2 && !s.Rest)
+                AppendPairRuns(sb, type);
             sb.Append("    }\n");
+        }
+
+        /// <summary>
+        /// The recycling of a dropped value tuple, composed from its items (<c>NinoRecycler.Recycle</c> of each, a
+        /// nested value tuple composing its own): a collection dropping its tuples recycles every item once.
+        /// </summary>
+        private static void AppendRecycling(StringBuilder sb, Shape s, string type)
+        {
+            sb.Append("\n");
+            sb.Append("        // A dropped tuple recycles its items, each as its own type.\n");
+            sb.Append("        bool INinoFormatter.RecyclesItems => true;\n");
+            sb.Append("\n");
+            sb.Append($"        bool INinoFormatter<{type}>.ItemsMayRecycle =>\n");
+            sb.Append("            " + string.Join(" ||\n            ",
+                s.Items.Select(i => $"NinoRecycler.MayRecycle<{s.Type(i)}, TF{i}>()")) + ";\n");
+            sb.Append("\n");
+            sb.Append($"        void INinoFormatter<{type}>.RecycleItems(in {type} value)\n");
+            sb.Append("        {\n");
+            foreach (int i in s.Items)
+                sb.Append($"            NinoRecycler.Recycle<{s.Type(i)}, TF{i}>(value.{s.Name(i)});\n");
+            sb.Append("        }\n");
+        }
+
+        /// <summary>
+        /// What a value tuple of two does on a run, composed from its items as a <c>KeyValuePair</c> is
+        /// (<c>NinoPairs</c>): the cursor form of a run holding strings and the run loop of a polymorphic second item.
+        /// </summary>
+        private static void AppendPairRuns(StringBuilder sb, string type)
+        {
+            sb.Append("\n");
+            sb.Append("        // Where each item lies in the tuple: JIT-time constants, also in code shared over a class.\n");
+            foreach (int i in new[] { 1, 2 })
+            {
+                sb.Append($"        private static int Offset{i}\n");
+                sb.Append("        {\n");
+                sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+                sb.Append("            get\n");
+                sb.Append("            {\n");
+                sb.Append($"                var value = default({type});\n");
+                sb.Append($"                return NinoBlocks.Offset(ref value, ref value.Item{i});\n");
+                sb.Append("            }\n");
+                sb.Append("        }\n");
+                sb.Append("\n");
+            }
+
+            const string pairs = "NinoPairs<T1, T2, TF1, TF2>";
+            sb.Append("        // A run of tuples with a string among their items through the string run kernels, one call per run; a\n");
+            sb.Append("        // polymorphic second item's run loop, the first written by it.\n");
+            sb.Append($"        bool INinoFormatter.HasCursor => {pairs}.Cursor(Offset1, Offset2);\n");
+            sb.Append("\n");
+            sb.Append("        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>\n");
+            sb.Append($"            {pairs}.WriteStrings(run, Offset1, Offset2, writer);\n");
+            sb.Append("\n");
+            sb.Append("        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>\n");
+            sb.Append($"            {pairs}.ReadStrings(run, Offset1, Offset2, ref data, end);\n");
+            sb.Append("\n");
+            sb.Append($"        bool INinoFormatter.HasRunLoop => {pairs}.RunLoop(Offset1, Offset2);\n");
+            sb.Append("\n");
+            sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append("        void INinoFormatter.WriteRun(NinoRun run, ref Writer writer) =>\n");
+            sb.Append($"            {pairs}.WriteRun(run, Offset1, Offset2, ref writer);\n");
         }
 
         private static void AppendTuple(StringBuilder sb, Shape s)

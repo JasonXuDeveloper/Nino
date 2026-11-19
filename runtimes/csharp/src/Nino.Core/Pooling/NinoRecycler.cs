@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -87,9 +88,9 @@ namespace Nino.Core
     /// instance recycled once.</item>
     /// </list>
     /// Elements a collection drops (it shrinks, it is cleared and refilled, a dictionary key disappears) are each
-    /// recycled once as the element type, by the collection formatter, through the <c>DiscardAll</c>,
-    /// <c>DiscardPairs</c> and <c>DrainAndDiscard</c> helpers (dictionaries and priority queues recycle both halves
-    /// of each dropped pair).
+    /// recycled once as the element type, by the collection formatter, through the <c>DiscardAll</c> and
+    /// <c>DrainAndDiscard</c> helpers; an element composed of items (a dictionary's or a list's pairs, a priority
+    /// queue's element and priority, a value tuple) recycles each item once instead, composed by its formatter.
     /// An instance read as a back reference (<see cref="Reader.ReadReference{T}"/>) replaces the slot without
     /// recycling: it may still be referenced elsewhere in the graph. Recycling means
     /// <see cref="NinoRecycler{T}.Recycle"/> with the declared type of the slot (or element).
@@ -199,31 +200,66 @@ namespace Nino.Core
             NinoRecycler<T>.Recycle(old);
         }
 
+        /// <summary>
+        /// Whether a dropped <typeparamref name="T"/> may recycle anything (<see cref="NinoRecycler{T}.MayRecycle"/>),
+        /// its items included where <typeparamref name="TFormatter"/> composes it of items (a pair, a value tuple,
+        /// <see cref="INinoFormatter.RecyclesItems"/>): what a collection asks before it walks the elements it drops.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool MayRecycle<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            NinoRecycler<T>.MayRecycle ||
+            typeof(T).IsValueType && NinoKind<TFormatter>.RecyclesItems && ItemsMayRecycle<T, TFormatter>();
+
+        // Out of line: inlined, a composite's items' tests and the walk took the budget of the read around them (asm.py:
+        // a List<(int, long)>'s read 1,196 to 1,678 bytes, 4 to 10 stack accesses).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool ItemsMayRecycle<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            default(TFormatter).ItemsMayRecycle;
+
+        /// <summary>
+        /// Recycles a dropped <paramref name="value"/> once: as <typeparamref name="T"/>
+        /// (<see cref="NinoRecycler{T}.Recycle"/>), or, for a value composed of items without a handler of its own,
+        /// each item as its own type (a <c>KeyValuePair</c>'s key and value, a value tuple's items).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void Recycle<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
+        {
+            if (typeof(T).IsValueType && NinoKind<TFormatter>.RecyclesItems && NinoRecycler<T>.Handler == null)
+                default(TFormatter).RecycleItems(in value);
+            else
+                NinoRecycler<T>.Recycle(value);
+        }
+
         /// <summary>Discards elements a collection drops (the tail it shrinks by): each is recycled once.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void DiscardAll<T>(ReadOnlySpan<T> values)
+        internal static void DiscardAll<T, TFormatter>(ReadOnlySpan<T> values) where TFormatter : struct, INinoFormatter<T>
         {
-            if (!NinoRecycler<T>.MayRecycle)
-                return;
+            if (MayRecycle<T, TFormatter>())
+                DiscardEach<T, TFormatter>(values);
+        }
 
+        // The walk out of line, as ItemsMayRecycle: rare, and a composite's recycle inlined per item.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void DiscardEach<T, TFormatter>(ReadOnlySpan<T> values) where TFormatter : struct, INinoFormatter<T>
+        {
             // By reference, as in NinoElements.WriteOnLocal.
             ref T item = ref MemoryMarshal.GetReference(values);
             for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
-                NinoRecycler<T>.Recycle(item);
+                Recycle<T, TFormatter>(item);
         }
 
         /// <summary>
-        /// Discards the elements of a collection that is about to be cleared and refilled: each is recycled once. The
-        /// caller clears the collection.
+        /// Discards the elements of a collection that is about to be cleared and refilled: each is recycled once (a
+        /// dictionary's pairs, a priority queue's element and priority pairs, each item once). The caller clears the
+        /// collection.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void DiscardAll<T>(IEnumerable<T> items)
+        internal static void DiscardAll<T, TFormatter>(IEnumerable<T> items) where TFormatter : struct, INinoFormatter<T>
         {
-            if (!NinoRecycler<T>.MayRecycle)
+            if (!MayRecycle<T, TFormatter>())
                 return;
 
             foreach (var item in items)
-                NinoRecycler<T>.Recycle(item);
+                Recycle<T, TFormatter>(item);
         }
 
         /// <summary>
@@ -232,66 +268,25 @@ namespace Nino.Core
         /// the caller to clear it.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool DiscardAll<T>(IEnumerable<T> items, int count)
+        internal static bool DiscardAll<T, TFormatter>(IEnumerable<T> items, int count)
+            where TFormatter : struct, INinoFormatter<T>
         {
             if (count == 0)
                 return false;
-            DiscardAll(items);
+            DiscardAll<T, TFormatter>(items);
             return true;
         }
 
         /// <summary>Empties a producer/consumer collection, recycling each element once.</summary>
-        internal static void DrainAndDiscard<T>(IProducerConsumerCollection<T> items)
+        internal static void DrainAndDiscard<T, TFormatter>(IProducerConsumerCollection<T> items)
+            where TFormatter : struct, INinoFormatter<T>
         {
-            bool recycle = NinoRecycler<T>.MayRecycle;
+            bool recycle = MayRecycle<T, TFormatter>();
             while (items.TryTake(out var item))
             {
                 if (recycle)
-                    NinoRecycler<T>.Recycle(item);
+                    Recycle<T, TFormatter>(item);
             }
         }
-
-        /// <summary>
-        /// Discards the pairs a dictionary drops (all of them before it is cleared, or the stale ones): each key
-        /// and value is recycled once. The caller removes them.
-        /// </summary>
-        internal static void DiscardPairs<TKey, TValue>(IEnumerable<KeyValuePair<TKey, TValue>> pairs)
-        {
-            bool keys = NinoRecycler<TKey>.MayRecycle;
-            bool values = NinoRecycler<TValue>.MayRecycle;
-            if (!keys && !values)
-                return;
-
-            foreach (var pair in pairs)
-            {
-                if (keys)
-                    NinoRecycler<TKey>.Recycle(pair.Key);
-                if (values)
-                    NinoRecycler<TValue>.Recycle(pair.Value);
-            }
-        }
-
-#if NET8_0_OR_GREATER
-        /// <summary>
-        /// Discards the (element, priority) pairs of a priority queue that is about to be cleared and refilled: each
-        /// element and priority is recycled once. The caller clears the queue.
-        /// </summary>
-        internal static void DiscardPairs<TElement, TPriority>(
-            PriorityQueue<TElement, TPriority>.UnorderedItemsCollection pairs)
-        {
-            bool elements = NinoRecycler<TElement>.MayRecycle;
-            bool priorities = NinoRecycler<TPriority>.MayRecycle;
-            if (!elements && !priorities)
-                return;
-
-            foreach (var (element, priority) in pairs)
-            {
-                if (elements)
-                    NinoRecycler<TElement>.Recycle(element);
-                if (priorities)
-                    NinoRecycler<TPriority>.Recycle(priority);
-            }
-        }
-#endif
     }
 }

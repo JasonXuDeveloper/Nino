@@ -165,7 +165,7 @@ namespace Nino.Core
                 return;
             }
 
-            var array = NinoElements.EnsureLength(ref value, length, uninitialized: true);
+            var array = NinoElements.EnsureLength<T, UnmanagedFormatter<T>>(ref value, length, uninitialized: true);
             ref byte destination = ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array));
             ref byte source = ref reader.UnsafeAdvance((int)bytes);
 #if NET8_0_OR_GREATER

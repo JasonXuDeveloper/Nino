@@ -70,7 +70,7 @@ namespace Nino.Core
 
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
             var collection = value ??= NinoActivator<TCollection>.Create();
-            NinoRecycler.DrainAndDiscard(collection);
+            NinoRecycler.DrainAndDiscard<T, TFormatter>(collection);
 
             // A chunk at a time where the run's read loop moves several, then added.
             reader = NinoCollections.AddAll<TCollection, T, TFormatter, Adder>(collection, length, reader);

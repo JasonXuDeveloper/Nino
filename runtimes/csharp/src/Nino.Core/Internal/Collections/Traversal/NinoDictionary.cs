@@ -57,9 +57,8 @@ namespace Nino.Core
             if (RuntimeHelpers.IsReferenceOrContainsReferences<CollectionFields.MapEntry<TKey, TValue>>())
                 writer = WriteEntries(value, count, writer);
             else if (CollectionFields.Run(value, count, out var run))
-                NinoRuns.Write<CollectionFields.MapEntry<TKey, TValue>, NinoStorageFormatter<CollectionFields.MapEntry<
-                    TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter, CollectionFields.MapFields<TKey,
-                    TValue>>>(run, count, ref writer);
+                NinoRuns.Write<CollectionFields.MapEntry<TKey, TValue>, NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run,
+                    count, ref writer);
             else
                 writer = WriteEnumerated(value, count, writer);
         }
@@ -87,24 +86,22 @@ namespace Nino.Core
             if (!CollectionFields.Run(value, count, out var run))
                 return WriteEnumerated(value, count, writer);
 
-            if (NinoRuns.PairRuns<TKey, TValue, TKeyFormatter, TValueFormatter>())
+            if (NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.RunLoop(KeyOffset, ValueOffset))
             {
                 // The value's run loop, through a copy of the writer (HashSetFormatter).
                 writer.WriteLength(count);
-                ref var first = ref Unsafe.As<byte, CollectionFields.MapEntry<TKey, TValue>>(ref run.First);
                 Writer copy = default;
                 writer.CopyTo(ref copy);
-                NinoRuns.WritePairRun<TKey, TValue, TKeyFormatter, TValueFormatter>(run,
-                    NinoStorage.Distance(ref run.First, ref Unsafe.As<TValue, byte>(ref first.Value)),
-                    NinoStorage.Distance(ref run.First, ref Unsafe.As<TKey, byte>(ref first.Key)), ref copy);
+                NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>.WriteRun(run, ref copy);
                 copy.CopyTo(ref writer);
                 return writer;
             }
 
             if (!CursorPairs)
-                return NinoRuns.WriteEach<CollectionFields.MapEntry<TKey, TValue>, Entries>(run, count, writer);
+                return NinoRuns.WriteEach<CollectionFields.MapEntry<TKey, TValue>, NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run,
+                    count, writer);
             writer.WriteLength(count);
-            return NinoStringRuns.WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyOffset, ValueOffset,
+            return NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.WriteStrings(run, KeyOffset, ValueOffset,
                 writer);
         }
 
@@ -160,11 +157,23 @@ namespace Nino.Core
 
         private static readonly bool HeavyKeys = NinoElements.Heavy(Unsafe.SizeOf<TKey>(), MinPairSize);
 
+        /// <summary>
+        /// Whether a dropped pair has a key or a value to recycle (<see cref="NinoPairs{TA,TB,TFormatterA,
+        /// TFormatterB}.MayRecycle"/>, the items asked directly: in code shared over a class, the pair's formatter
+        /// would be asked through lookups and an indirect call).
+        /// </summary>
+        private static bool PairsMayRecycle
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.MayRecycle;
+        }
+
         /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/>
         /// pairs.</summary>
         public static void Reset(Dictionary<TKey, TValue> dictionary, int length, int remaining)
         {
-            NinoRecycler.DiscardPairs<TKey, TValue>(dictionary);
+            if (PairsMayRecycle)
+                NinoRecycler.DiscardAll<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(dictionary);
             dictionary.Clear();
 #if NETSTANDARD2_1 || NET8_0_OR_GREATER
             dictionary.EnsureCapacity(Capacity(length, remaining));
@@ -281,7 +290,7 @@ namespace Nino.Core
 
 #if NET8_0_OR_GREATER
             if (count <= 2 && dictionary.Count <= (count == 1 ? 16 : 4) &&
-                !NinoRecycler<TKey>.MayRecycle && !NinoRecycler<TValue>.MayRecycle)
+                !PairsMayRecycle)
             {
                 if (count == 1)
                     RemoveExcept(dictionary, keys[0]);
@@ -290,7 +299,7 @@ namespace Nino.Core
                 return;
             }
             if (count is 3 or 4 && dictionary.Count <= 4 &&
-                !NinoRecycler<TKey>.MayRecycle && !NinoRecycler<TValue>.MayRecycle)
+                !PairsMayRecycle)
             {
                 RemoveExcept(dictionary, keys, count);
                 return;
@@ -381,7 +390,7 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
             // Remove keeps a .NET Core dictionary enumerator valid. Only keep the dropped pairs when they
             // must be recycled, after every stale entry has been removed.
-            if (!NinoRecycler<TKey>.MayRecycle && !NinoRecycler<TValue>.MayRecycle)
+            if (!PairsMayRecycle)
             {
                 foreach (var pair in dictionary)
                     if (read == null || !read.Contains(pair.Key))
@@ -410,7 +419,7 @@ namespace Nino.Core
 
             foreach (var pair in stale)
                 dictionary.Remove(pair.Key);
-            NinoRecycler.DiscardPairs<TKey, TValue>(stale);
+            NinoRecycler.DiscardAll<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(stale);
         }
 
         /// <summary>
@@ -420,22 +429,17 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Read(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
-            if (RuntimeHelpers.IsReferenceOrContainsReferences<CollectionFields.MapEntry<TKey, TValue>>())
+            // Pairs holding strings: the string run kernels, the data and the bytes left to the call. Asked behind the
+            // intrinsic: entries without references are blocks or values of their own, which read no field of the kind.
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<CollectionFields.MapEntry<TKey, TValue>>() && CursorPairs)
             {
-                // Pairs holding strings: the string run kernels, the data and the bytes left to the call.
-                if (CursorPairs)
-                {
-                    if (length != 0)
-                        reader.UnsafeAdvance(ReadStrings(dictionary, length, ref reader.Peek(), reader.Remaining));
-                    return;
-                }
-
-                NinoEntries<CollectionFields.MapEntry<TKey, TValue>, Entries, MapTable<TKey, TValue>>.Read(
-                    new MapTable<TKey, TValue>(dictionary), length, ref reader);
+                if (length != 0)
+                    reader.UnsafeAdvance(ReadStrings(dictionary, length, ref reader.Peek(), reader.Remaining));
+                return;
             }
-            else
-                NinoEntries<CollectionFields.MapEntry<TKey, TValue>, NinoStorageFormatter<CollectionFields.MapEntry<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter, CollectionFields.MapFields<TKey, TValue>>, MapTable<TKey, TValue>>.Read(
-                    new MapTable<TKey, TValue>(dictionary), length, ref reader);
+
+            NinoEntries<CollectionFields.MapEntry<TKey, TValue>, NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, MapTable<TKey, TValue>>
+                .Read(new MapTable<TKey, TValue>(dictionary), length, ref reader);
         }
 
         /// <summary>
@@ -492,59 +496,16 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>Where an entry keeps its key, in bytes from its start: a JIT-time constant, also in code shared
-        /// over a class (its fields' offsets are known there).</summary>
         private static int KeyOffset
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get
-            {
-                CollectionFields.MapEntry<TKey, TValue> entry = default;
-                return NinoStorage.Distance(ref Unsafe.As<CollectionFields.MapEntry<TKey, TValue>, byte>(ref entry),
-                    ref Unsafe.As<TKey, byte>(ref entry.Key));
-            }
+            get => CollectionFields.MapEntry<TKey, TValue>.KeyOffset;
         }
 
-        /// <summary>As <see cref="KeyOffset"/>, the value.</summary>
         private static int ValueOffset
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get
-            {
-                CollectionFields.MapEntry<TKey, TValue> entry = default;
-                return NinoStorage.Distance(ref Unsafe.As<CollectionFields.MapEntry<TKey, TValue>, byte>(ref entry),
-                    ref Unsafe.As<TValue, byte>(ref entry.Value));
-            }
-        }
-
-        /// <summary>
-        /// The element formatter of entries holding references that the string run kernels do not move (a class among
-        /// the key and value): the key and value composed as the storage element composes them, each item's
-        /// formatter, reached as the entry's own fields. Such entries are compiled once for every class they hold,
-        /// and there each call of the storage element's fields struct is an indirect call, and offsets kept in its
-        /// statics a helper call each (asm.py; a Dictionary&lt;string, string&gt; written 1.9 times, then 1.2 times as
-        /// long, local, before the string run kernels took it); a field of the entry is at an offset the JIT knows in
-        /// shared code too. Entries without references are blocks or values of their own instantiation and take the
-        /// storage element.
-        /// </summary>
-        private struct Entries : INinoFormatter<CollectionFields.MapEntry<TKey, TValue>>
-        {
-            int INinoFormatter.BodyTraits =>
-                NinoBodyTraits.Nests | NinoBlocks.Dispatches<TKeyFormatter>() | NinoBlocks.Dispatches<TValueFormatter>();
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Serialize(CollectionFields.MapEntry<TKey, TValue> value, ref Writer writer)
-            {
-                default(TKeyFormatter).Serialize(value.Key, ref writer);
-                default(TValueFormatter).Serialize(value.Value, ref writer);
-            }
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Deserialize(ref Reader reader, ref CollectionFields.MapEntry<TKey, TValue> value)
-            {
-                default(TKeyFormatter).Deserialize(ref reader, ref value.Key);
-                default(TValueFormatter).Deserialize(ref reader, ref value.Value);
-            }
+            get => CollectionFields.MapEntry<TKey, TValue>.ValueOffset;
         }
 
         /// <summary>

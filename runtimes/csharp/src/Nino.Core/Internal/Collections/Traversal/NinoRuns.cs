@@ -12,7 +12,7 @@ namespace Nino.Core.Internal
     /// writes its elements through them and reads them into its storage through the same view: values in a row (an
     /// array, a list, a span, each half of a ring, a gathered chunk), the entries of a set and of a dictionary, each
     /// the element (a storage element whose formatter composes its items at their offsets,
-    /// <see cref="NinoStorageFormatter{TElement,TA,TFormatterA,TFields}"/>, filled then linked by
+    /// <see cref="NinoMapEntryFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/>, filled then linked by
     /// <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>), and the values of a set's entries at the entries' stride:
     /// never a loop shape of its own. Each element kind is moved by its kernel, and what no kernel moves by the one
     /// loop of values one by one per direction (<see cref="WriteLoop{T,TFormatter}"/>,
@@ -25,7 +25,7 @@ namespace Nino.Core.Internal
     /// <item>slots: one block, through the slot kernels;</item>
     /// <item>a polymorphic base's values: its generated loop over the run (<see cref="INinoFormatter.WriteRun"/>),
     /// the dispatch inline and the writer in a local; a pair of them, its value formatter's loop over the run of its
-    /// values with their keys (<see cref="WritePairRun{TKey,TValue,TKeyFormatter,TValueFormatter}"/>);</item>
+    /// values with their keys (<see cref="NinoPairs{TA,TB,TFormatterA,TFormatterB}.WriteRun"/>);</item>
     /// <item>strings and pairs holding them: the string run kernels (<see cref="NinoStringRuns"/>), one call not
     /// generic over the element;</item>
     /// <item>others: value by value through the formatter, a constrained call.</item>
@@ -56,6 +56,38 @@ namespace Nino.Core.Internal
             Write<T, TFormatter>(NinoRun.Of(values), true, true, length, ref writer);
 
         /// <summary>
+        /// Writes the length of a run in two segments, then the <paramref name="firstCount"/> elements in a row from
+        /// <paramref name="first"/> and the <paramref name="secondCount"/> from <paramref name="second"/>: a ring that wraps (a <c>Queue</c>'s, head to the end of its array,
+        /// then from its start), the two-segment form of the one write. Elements of a fixed size take one reservation
+        /// and one capacity check for both, each segment its own block (each its own alignment and, on AMD, its own
+        /// 4K-aliasing test: the second starts at the array's start); the others write each segment as a run in a row.
+        /// A form of the write rather than a second segment in <see cref="NinoRun"/>, whose fields the JIT does not
+        /// fold: two more would be read by every loop over a run.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Write<T, TFormatter>(ref T first, int firstCount, ref T second, int secondCount,
+            ref Writer writer)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int count = firstCount + secondCount;
+            int block = NinoKind.Stride<T, TFormatter>();
+            if (block > 0)
+            {
+                ref byte target = ref writer.ReserveCounted(count, block);
+                if (firstCount != 0)
+                    NinoElements.WriteBlock<T, TFormatter>(ref target, ref first, firstCount);
+                if (secondCount != 0)
+                    NinoElements.WriteBlock<T, TFormatter>(ref Unsafe.Add(ref target, firstCount * block), ref second,
+                        secondCount);
+                return;
+            }
+
+            writer.WriteLength(count);
+            Write<T, TFormatter>(ref first, firstCount, ref writer);
+            Write<T, TFormatter>(ref second, secondCount, ref writer);
+        }
+
+        /// <summary>
         /// Writes <paramref name="count"/> elements in a row starting at <paramref name="first"/> (a multi-dimensional
         /// array's; the count is the caller's).
         /// </summary>
@@ -67,8 +99,8 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Writes <paramref name="length"/> (not <see cref="NoLength"/>: the elements in use), then the elements of
         /// <paramref name="run"/>, a run of any stride whose free entries are skipped: a set's or a dictionary's
-        /// entries, each the element (a storage element, <see cref="NinoStorageFormatter{TElement,TA,TFormatterA,
-        /// TFields}"/>: its items at their offsets, the rest of its stride skipped), or the values of a set's entries
+        /// entries, each the element (a storage element, <see cref="NinoSetEntryFormatter{T,TFormatter}"/>: its items
+        /// at their offsets, the rest of its stride skipped), or the values of a set's entries
         /// at the entries' stride (values with references). Never empty: the caller writes an empty collection itself.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -268,31 +300,6 @@ namespace Nino.Core.Internal
                 return BitConverter.IsLittleEndian && memory && size is > 0 and < 0xFF ? NinoRun.KeyAt(0, size) : NinoRun.NoKey;
             }
         }
-
-        /// <summary>
-        /// Whether a pair of <typeparamref name="TKey"/> and <typeparamref name="TValue"/> writes a run in one loop
-        /// (<see cref="INinoFormatter.HasRunLoop"/> of a pair's formatter): its values are a polymorphic base's with a
-        /// run loop, and its keys are written by that loop (<see cref="KeyOf{TKey,TKeyFormatter}"/>).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool PairRuns<TKey, TValue, TKeyFormatter, TValueFormatter>()
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue> =>
-            !typeof(TValue).IsValueType && NinoKind<TValueFormatter>.Runs &&
-            KeyOf<TKey, TKeyFormatter>() != NinoRun.NoKey;
-
-        /// <summary>
-        /// Writes a run of pairs (<see cref="PairRuns{TKey,TValue,TKeyFormatter,TValueFormatter}"/>; the count is the
-        /// caller's), each value at <paramref name="value"/> bytes from its pair and its key at <paramref name="key"/>:
-        /// the value's generated loop over the run of the values (<see cref="NinoRun.Values"/>), each written after its
-        /// key. A pair's formatter composes onto its value's: the one place a key is written apart from its value.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void WritePairRun<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run, int value, int key,
-            ref Writer writer)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue> =>
-            default(TValueFormatter).WriteRun(run.Values(value, key, KeyOf<TKey, TKeyFormatter>()), ref writer);
 
         /// <summary>Reads into the elements of <paramref name="values"/>, reusing the existing values.</summary>
         /// <param name="prechecked">The collection length already proved its entire fixed-stride payload fits.</param>

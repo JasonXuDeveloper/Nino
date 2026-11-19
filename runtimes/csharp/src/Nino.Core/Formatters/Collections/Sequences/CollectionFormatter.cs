@@ -58,7 +58,7 @@ namespace Nino.Core
 
             if (collection.IsReadOnly)
                 NinoThrow.ReadOnlyCollection(collection.GetType());
-            if (NinoRecycler.DiscardAll(collection, collection.Count))
+            if (NinoRecycler.DiscardAll<T, TFormatter>(collection, collection.Count))
                 collection.Clear();
 
             if (BclCollections<T, TFormatter>.TryRead(collection, length, ref reader))

@@ -39,7 +39,7 @@ namespace Nino.Core
                 return;
             }
 
-            NinoNullables<T>.ReadPrechecked(NinoElements.EnsureLength(ref value, length, overwritten: true), ref reader);
+            NinoNullables<T>.ReadPrechecked(NinoElements.EnsureLength<T?, UnmanagedNullableFormatter<T>>(ref value, length, overwritten: true), ref reader);
         }
     }
 }

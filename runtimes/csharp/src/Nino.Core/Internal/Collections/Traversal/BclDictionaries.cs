@@ -321,23 +321,17 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>Pairs added through TryAdd, each key's bucket walked after (hash flooding).</summary>
-        private struct TryAdds : INinoGatherTarget<KeyValuePair<TKey, TValue>>
+        /// <summary>A pair added through TryAdd, its key's bucket walked after (hash flooding).</summary>
+        private struct TryAdd : INinoAdder<ConcurrentDictionary<TKey, TValue>, KeyValuePair<TKey, TValue>>
         {
-            private readonly ConcurrentDictionary<TKey, TValue> _concurrent;
-
-            public TryAdds(ConcurrentDictionary<TKey, TValue> concurrent) => _concurrent = concurrent;
-
-            public void Add(Span<KeyValuePair<TKey, TValue>> chunk)
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Add(ConcurrentDictionary<TKey, TValue> target, KeyValuePair<TKey, TValue> pair)
             {
-                foreach (var pair in chunk)
-                {
-                    if (pair.Key == null)
-                        NinoThrow.NullKey(_concurrent);
-                    if (!_concurrent.TryAdd(pair.Key, pair.Value))
-                        NinoThrow.DuplicateKey(_concurrent.GetType());
-                    ConcurrentTables.Added(_concurrent, pair.Key);
-                }
+                if (pair.Key == null)
+                    NinoThrow.NullKey(target);
+                if (!target.TryAdd(pair.Key, pair.Value))
+                    NinoThrow.DuplicateKey(target.GetType());
+                ConcurrentTables.Added(target, pair.Key);
             }
         }
 
@@ -346,8 +340,11 @@ namespace Nino.Core
         /// </summary>
         private static void ReadConcurrent(ConcurrentDictionary<TKey, TValue> concurrent, int length, ref Reader reader)
         {
-            var adds = new TryAdds(concurrent);
-            reader = NinoGather.ReadAll<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, TryAdds>(ref adds, length, reader);
+            var adds = new NinoGather.Adds<ConcurrentDictionary<TKey, TValue>, KeyValuePair<TKey, TValue>, TryAdd>(
+                concurrent);
+            reader = NinoGather.ReadAll<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter,
+                TValueFormatter>, NinoGather.Adds<ConcurrentDictionary<TKey, TValue>, KeyValuePair<TKey, TValue>,
+                TryAdd>>(ref adds, length, reader);
         }
 
         /// <summary>

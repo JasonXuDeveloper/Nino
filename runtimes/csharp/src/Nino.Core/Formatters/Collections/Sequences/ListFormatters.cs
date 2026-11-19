@@ -60,7 +60,7 @@ namespace Nino.Core
             }
             // The dropped tail (a factory may hand out a pooled list that is not empty: treated the same way).
             else if (list.Count > length)
-                NinoRecycler.DiscardAll(ListAccess.AsSpan<T>(list).Slice(length));
+                NinoRecycler.DiscardAll<T, TFormatter>(ListAccess.AsSpan<T>(list).Slice(length));
 
             var span = ListAccess.Open(list, length, overwritten, out var buffer);
             NinoRuns.Read<T, TFormatter>(span, ref reader, prechecked: true);
