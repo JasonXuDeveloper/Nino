@@ -9,6 +9,35 @@ import (
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
+func TestUnionPointerCasesInMapsAndGrids(t *testing.T) {
+	first := &PickPickPair{Value: PickPair{A: 1, B: -2}}
+	second := &PickPickPair{Value: PickPair{A: 3, B: -4}}
+	tracked := &TrackedPick{Value: 9}
+	tracked.Next = tracked
+	want := &Picks{
+		Pick:     tracked,
+		Many:     []Pick{tracked},
+		ByNumber: []nino.Entry[int32, Pick]{{Key: 1, Value: first}, {Key: 2, Value: second}},
+		Grid:     &NinoGrid[Pick]{Lengths: []int{2, 2}, Items: []Pick{first, second, nil, PickByte{Value: 7}}},
+	}
+	data, err := nino.Serialize(want, WritePicks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := nino.DeserializeExact(data, ReadPicks)
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("round trip: %v %#v", err, got)
+	}
+	got.ByNumber[0].Value.(*PickPickPair).Value.A = 100
+	if got.Grid.Items[0].(*PickPickPair).Value.A != 1 {
+		t.Fatal("cases share an instance across collections")
+	}
+	node := got.Pick.(*TrackedPick)
+	if node != got.Many[0] || node.Next != node {
+		t.Fatal("tracked case lost shared identity across collections")
+	}
+}
+
 // The shapes the corpus does not declare (runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs), as nino-gen writes them: compiled,
 // and written and read back.
 func TestShapesRoundTrip(t *testing.T) {

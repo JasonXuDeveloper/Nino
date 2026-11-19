@@ -379,8 +379,30 @@ namespace Nino.Codegen.Targets
         /// </summary>
         public bool Direct { get; }
 
-        /// <summary>An untracked concrete class is already a pointer case, so a sequence can batch its allocation.</summary>
+        /// <summary>Whether the decoder returns a pointer where the case would otherwise need an interface box.</summary>
+        public bool PointerCase => Direct
+            ? Shape.Kind == "struct"
+            : Shape.Kind switch
+            {
+                "string" or "utf8" or "grid" or "bigint" or "version" or "class" or "emptystruct" => false,
+                "rawnullable" or "nullable" => Shape.Holder != null,
+                "generic" => Shape.Type!.IsValueType,
+                "prim" => !HasStaticBox(Shape.Primitive),
+                "enum" => !HasStaticBox(Shape.Inner!.Primitive),
+                _ => true,
+            };
+
+        private static bool HasStaticBox(string? primitive) => primitive is "Bool" or "I8" or "U8";
+
+        /// <summary>An untracked concrete class is already a pointer case, so a collection can batch its allocation.</summary>
         public bool UsesClassSlab => Direct && Shape.Kind == "class" && !Shape.Type!.TrackReferences;
+
+        public bool UsesSlab => PointerCase || UsesClassSlab;
+
+        public string SlabType => Name.TrimStart('*');
+
+        /// <summary>Use larger blocks for fixed-size payloads, and keep smaller blocks for object graphs.</summary>
+        public int SlabLimit => Shape.Size >= 0 ? 32 : 8;
 
         public UnionCaseModel Model { get; }
 
@@ -417,7 +439,7 @@ namespace Nino.Codegen.Targets
         /// <summary>A union's cases, in declaration order: each a struct named after the union and the case.</summary>
         public List<GoCase> Cases => _target.UnionCases(Model);
 
-        public List<GoCase> ClassSlabCases => Cases.Where(c => c.UsesClassSlab).ToList();
+        public List<GoCase> SlabCases => Cases.Where(c => c.UsesSlab).ToList();
 
         /// <summary>The id it is written behind (its name's hash for a closed generic type).</summary>
         public int Id => GoTarget.IdOf(Model);

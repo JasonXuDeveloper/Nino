@@ -23862,7 +23862,7 @@ func WriteUnionPoint(w *nino.Writer, v UnionPoint) {
 	writeUnionPoint(w, v)
 }
 
-// UnionTagged is the C# union `Nino.Benchmark.UnionTagged`: UnionTaggedInt32, UnionTaggedInt16, UnionTaggedString, or nil for the empty union.
+// UnionTagged is the C# union `Nino.Benchmark.UnionTagged`: *UnionTaggedInt32, *UnionTaggedInt16, UnionTaggedString, or nil for the empty union.
 type UnionTagged interface {
 	isUnionTagged()
 }
@@ -23872,7 +23872,7 @@ type UnionTaggedInt32 struct {
 	Value int32 `json:"value"`
 }
 
-func (UnionTaggedInt32) isUnionTagged() {
+func (*UnionTaggedInt32) isUnionTagged() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -23885,7 +23885,7 @@ type UnionTaggedInt16 struct {
 	Value int16 `json:"value"`
 }
 
-func (UnionTaggedInt16) isUnionTagged() {
+func (*UnionTaggedInt16) isUnionTagged() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -23919,17 +23919,40 @@ func (UnionTaggedObject) NinoTypeName() string {
 	return "Nino.Benchmark.UnionTagged"
 }
 
+type ninoUnionTaggedSlabs struct {
+	UnionTaggedInt32 ninoUnionSlab[UnionTaggedInt32]
+	UnionTaggedInt16 ninoUnionSlab[UnionTaggedInt16]
+}
+
 // ReadUnionTagged reads a UnionTagged: the type id of its case (0 for the empty union), then the case's value.
 func ReadUnionTagged(r *nino.Reader) UnionTagged {
+	return readUnionTaggedSlab(r, nil)
+}
+
+func readUnionTaggedSlab(r *nino.Reader, slabs *ninoUnionTaggedSlabs) UnionTagged {
 	id := r.TypeID()
 	if id == nino.NullTypeID {
 		return nil
 	}
 	switch id {
 	case 546808484:
-		return UnionTaggedInt32{Value: r.I32()}
+		var p *UnionTaggedInt32
+		if slabs == nil {
+			p = new(UnionTaggedInt32)
+		} else {
+			p = slabs.UnionTaggedInt32.next(r, 32)
+		}
+		p.Value = r.I32()
+		return p
 	case 1083077026:
-		return UnionTaggedInt16{Value: r.I16()}
+		var p *UnionTaggedInt16
+		if slabs == nil {
+			p = new(UnionTaggedInt16)
+		} else {
+			p = slabs.UnionTaggedInt16.next(r, 32)
+		}
+		p.Value = r.I16()
+		return p
 	case -65934901:
 		if value := r.StringPtr(); value != nil {
 			return UnionTaggedString{Value: value}
@@ -23948,11 +23971,17 @@ func ReadUnionTaggedInto(r *nino.Reader, v *UnionTagged) {
 
 func WriteUnionTagged(w *nino.Writer, v UnionTagged) {
 	switch v := v.(type) {
-	case UnionTaggedInt32:
+	case *UnionTaggedInt32:
+		if v == nil {
+			break
+		}
 		w.TypeID(546808484)
 		w.I32(v.Value)
 		return
-	case UnionTaggedInt16:
+	case *UnionTaggedInt16:
+		if v == nil {
+			break
+		}
 		w.TypeID(1083077026)
 		w.I16(v.Value)
 		return
@@ -23967,7 +23996,7 @@ func WriteUnionTagged(w *nino.Writer, v UnionTagged) {
 	w.TypeID(nino.NullTypeID)
 }
 
-// UnionValue is the C# union `Nino.Benchmark.UnionValue`: UnionValueInt32, UnionValueInt64, UnionValueString, UnionValueUnionPoint, *UnionItem, or nil for the empty union.
+// UnionValue is the C# union `Nino.Benchmark.UnionValue`: *UnionValueInt32, *UnionValueInt64, UnionValueString, *UnionValueUnionPoint, *UnionItem, or nil for the empty union.
 type UnionValue interface {
 	isUnionValue()
 }
@@ -23977,7 +24006,7 @@ type UnionValueInt32 struct {
 	Value int32 `json:"value"`
 }
 
-func (UnionValueInt32) isUnionValue() {
+func (*UnionValueInt32) isUnionValue() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -23990,7 +24019,7 @@ type UnionValueInt64 struct {
 	Value int64 `json:"value"`
 }
 
-func (UnionValueInt64) isUnionValue() {
+func (*UnionValueInt64) isUnionValue() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -24016,7 +24045,7 @@ type UnionValueUnionPoint struct {
 	Value UnionPoint `json:"value"`
 }
 
-func (UnionValueUnionPoint) isUnionValue() {
+func (*UnionValueUnionPoint) isUnionValue() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -24041,7 +24070,10 @@ func (UnionValueObject) NinoTypeName() string {
 }
 
 type ninoUnionValueSlabs struct {
-	UnionItem ninoClassSlab[UnionItem]
+	UnionValueInt32      ninoUnionSlab[UnionValueInt32]
+	UnionValueInt64      ninoUnionSlab[UnionValueInt64]
+	UnionValueUnionPoint ninoUnionSlab[UnionValueUnionPoint]
+	UnionItem            ninoUnionSlab[UnionItem]
 }
 
 // ReadUnionValue reads a UnionValue: the type id of its case (0 for the empty union), then the case's value.
@@ -24060,9 +24092,23 @@ func readUnionValueSlab(r *nino.Reader, slabs *ninoUnionValueSlabs) UnionValue {
 	var v UnionValue
 	switch id {
 	case 546808484:
-		v = UnionValueInt32{Value: r.I32()}
+		var p *UnionValueInt32
+		if slabs == nil {
+			p = new(UnionValueInt32)
+		} else {
+			p = slabs.UnionValueInt32.next(r, 32)
+		}
+		p.Value = r.I32()
+		v = p
 	case 337757159:
-		v = UnionValueInt64{Value: r.I64()}
+		var p *UnionValueInt64
+		if slabs == nil {
+			p = new(UnionValueInt64)
+		} else {
+			p = slabs.UnionValueInt64.next(r, 32)
+		}
+		p.Value = r.I64()
+		v = p
 	case -65934901:
 		if value := r.StringPtr(); value != nil {
 			v = UnionValueString{Value: value}
@@ -24070,13 +24116,20 @@ func readUnionValueSlab(r *nino.Reader, slabs *ninoUnionValueSlabs) UnionValue {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
 	case 791437675:
-		v = UnionValueUnionPoint{Value: readUnionPoint(r)}
+		var p *UnionValueUnionPoint
+		if slabs == nil {
+			p = new(UnionValueUnionPoint)
+		} else {
+			p = slabs.UnionValueUnionPoint.next(r, 32)
+		}
+		p.Value = readUnionPoint(r)
+		v = p
 	case 635318394:
 		var value *UnionItem
 		if slabs == nil {
 			value = ReadUnionItem(r)
 		} else if r.Present() {
-			value = slabs.UnionItem.next(r)
+			value = slabs.UnionItem.next(r, 8)
 			if d, ok := r.EnterBody(); ok {
 				readUnionItemBody(r, value)
 				r.ExitBody(d)
@@ -24106,7 +24159,10 @@ func ReadUnionValueInto(r *nino.Reader, v *UnionValue) {
 
 func WriteUnionValue(w *nino.Writer, v UnionValue) {
 	switch v := v.(type) {
-	case UnionValueInt32:
+	case *UnionValueInt32:
+		if v == nil {
+			break
+		}
 		w.TypeID(546808484)
 		if !w.EnterStruct() {
 			return
@@ -24114,7 +24170,10 @@ func WriteUnionValue(w *nino.Writer, v UnionValue) {
 		w.I32(v.Value)
 		w.ExitStruct()
 		return
-	case UnionValueInt64:
+	case *UnionValueInt64:
+		if v == nil {
+			break
+		}
 		w.TypeID(337757159)
 		if !w.EnterStruct() {
 			return
@@ -24133,7 +24192,10 @@ func WriteUnionValue(w *nino.Writer, v UnionValue) {
 		w.StringPtr(v.Value)
 		w.ExitStruct()
 		return
-	case UnionValueUnionPoint:
+	case *UnionValueUnionPoint:
+		if v == nil {
+			break
+		}
 		w.TypeID(791437675)
 		if !w.EnterStruct() {
 			return
@@ -24899,16 +24961,16 @@ func writeZooBody(w *nino.Writer, v *Zoo) {
 	writeV57(w, v.Animals)
 }
 
-// ninoClassSlab gives the class cases of a union sequence fresh storage in small blocks.
-type ninoClassSlab[T any] struct {
+// ninoUnionSlab gives pointer cases fresh storage in small blocks.
+type ninoUnionSlab[T any] struct {
 	slots []T
 	size  int
 }
 
-func (s *ninoClassSlab[T]) next(r *nino.Reader) *T {
+func (s *ninoUnionSlab[T]) next(r *nino.Reader, limit int) *T {
 	if len(s.slots) == 0 {
 		var z T
-		s.size = r.SliceCap(min(8, max(1, s.size*2)), int(unsafe.Sizeof(z)))
+		s.size = r.SliceCap(min(limit, max(1, s.size*2)), int(unsafe.Sizeof(z)))
 		s.slots = make([]T, s.size)
 	}
 	v := &s.slots[0]
@@ -29747,12 +29809,10 @@ func readintoV91(r *nino.Reader, p *[]UnionTagged) {
 		var z UnionTagged
 		v = make([]UnionTagged, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
 	}
-	for i := range n {
-		var e UnionTagged
-		if i < len(old) {
-			e = old[i]
-		}
-		ReadUnionTaggedInto(r, &e)
+	var slabs ninoUnionTaggedSlabs
+	var e UnionTagged
+	for range n {
+		e = readUnionTaggedSlab(r, &slabs)
 		if r.Failed() {
 			*p = nil
 			return

@@ -519,7 +519,7 @@ namespace Nino.Codegen.Tests
         {
             var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts");
             // Every case told apart by its value: a plain union, written by testing the value.
-            StringAssert.Contains(ts, "export type Pick = Empty | PickPair | number;");
+            StringAssert.Contains(ts, "export type Pick = Empty | TrackedPick | number | PickPair;");
             StringAssert.Contains(ts, "  if (v instanceof Empty) {");
             StringAssert.Contains(ts, "  else if (typeof v === \"number\") {");
             // An int and a double, two lists: a union tagged with each case's name, and its constructors.
@@ -533,6 +533,11 @@ namespace Nino.Codegen.Tests
             // A generated class is the case itself; a byte and a raw struct are held by a struct of their own.
             StringAssert.Contains(go, "func (*Empty) isPick() {");
             StringAssert.Contains(go, "type PickByte struct {\n\tValue uint8");
+            StringAssert.Contains(go, "func (PickByte) isPick() {");
+            StringAssert.Contains(go, "func (*PickPickPair) isPick() {");
+            StringAssert.Contains(go, "func (*MeasureInt32) isMeasure() {");
+            StringAssert.Contains(go, "Value: readPickSlab(r, &valueSlabs)");
+            StringAssert.Contains(go, "g.Items[i] = readPickSlab(r, &slabs)");
             StringAssert.Contains(go, "func ReadPick(r *nino.Reader) Pick {");
             var (rust, _) = Run("rust", "nino_types.rs");
             StringAssert.Contains(rust, "pub enum Pick {\n    /// The empty union.\n    #[default]\n    Empty,");

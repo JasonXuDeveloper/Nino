@@ -213,11 +213,12 @@ union as they hold a struct, and null (nil, `Empty`) is the empty union:
   `export type Measure = { readonly case: "Int32"; readonly value: number } | ...`, with a constructor per case
   (`Measure.Int32(42)`), so `switch (m.case)` narrows. A `T?` of a union has no TypeScript form (NINOGEN002): null
   would be both no value and the empty union.
-- **Go** has no sum types; a sealed interface with a type per case is the idiom. A case whose value is a generated
-  struct or class that is not generic (`Point`, `*Point`) is that type, marked with the union's method (`isChoice()`),
-  so its value is not wrapped again; one type can be a case of several unions, a method each. Any other case is a
-  struct holding its `Value` (`ChoiceInt32{Value: 42}`, with `NinoUnionCase()`, the case's .NET name). Two cases of
-  one union whose values are one named type (`Point` and `*Point` share their method set) are both wrapped.
+- **Go** uses a sealed interface with a type per case. A case whose value is a non-generic generated struct or
+  class uses a pointer to that type, with the union's marker method. Other cases use a struct holding `Value` and
+  exposing `NinoUnionCase()`, the .NET name. Wrappers that need a heap allocation when stored by value in a Go
+  interface use a pointer, for example `&ChoiceInt32{Value: 42}`. Wrappers that fit directly or use static backing
+  storage, such as the string and byte cases, remain values. Each collection allocates typed blocks for its pointer
+  cases. Two cases of one union whose values share a named type are both wrapped.
 - **Rust**: an enum, by value, with `Empty` (the default) and a variant per case holding its value
   (`Choice::Int32(42)`; a case named `Empty` is `EmptyCase`).
 
@@ -228,8 +229,7 @@ Go, `Value`, which keeps an empty union apart from a null object); Rust's `AnyOb
 
 A case holding null in another language (a `None`, a nil pointer) is written as the empty union, as .NET writes it.
 Every read and write dispatches through one `switch` on the case's id and one chain of type tests, a type switch or a
-`match`: no map, closure or reflection per value, and no allocation beyond the case's value (a tagged TypeScript case
-is one object literal; a Go case that is not a generated type is boxed once, in its interface). The depth is counted
+`match`. A tagged TypeScript case is one object literal, and Go interfaces store the case pointer directly. The depth is counted
 only for a union with a case that can hold it again, as .NET counts it (`UnionNests`). `nino-gen inspect` reads the
 case id, names the case, and rejects an id that is not a case and a null value. The corpus's `Choice` and `UnionTree`
 (`unions-*`, `union-root`, `type-id-union-*`), `Shapes.Pick` (plain) and `Shapes.Measure` (tagged), and the
