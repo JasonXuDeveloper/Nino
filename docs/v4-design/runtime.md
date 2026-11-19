@@ -55,7 +55,7 @@ public interface INinoFormatter<T> : INinoFormatter
     void ReadBlock(ref T value, ref byte source) => ...;      // throws: called only when BlockMap is not null
     // internal: SlotStride and the slot members of a raw T? (UnmanagedNullableFormatter); Size, WriteSized and
     // TryWriteExternal of collection formatters (top-level calls write into an array of the exact size, or straight
-    // into a caller's IBufferWriter<byte>); MaxSize, WriteAt and ReadAt, the cursor form of strings and pairs
+    // into a caller's IBufferWriter<byte>)
 }
 
 public interface INinoFormatter                               // what does not depend on T (hidden)
@@ -66,43 +66,44 @@ public interface INinoFormatter                               // what does not d
     int PrefetchBytes => 0;                                   // long collections of a class prefetch its objects
     bool HasMemberPrefetch => false;                          // ... and the objects its members point to
     int PrefetchMembers(object value) => ...;                 // throws: only when HasMemberPrefetch
-    // internal: HasSizedWrite, HasExternalWrite, HasCursor (the queries of Size, TryWriteExternal and the cursor form)
+    // internal: HasSizedWrite, HasExternalWrite (the queries of Size, TryWriteExternal); HasCursor, WriteStrings,
+    // ReadStrings (a run of pairs holding strings through the string run kernels)
 }
 ```
 
-Every contiguous collection (arrays, lists, spans, `Memory<T>`, `ArraySegment<T>`, `ImmutableArray<T>`, each half of
-a `Queue<T>`'s ring, `Stack<T>`, and the entries of `HashSet<T>` and `Dictionary<TKey, TValue>`) writes its elements as
-a run (`NinoRun`): the first value, the count, the stride between entries and how a free entry is told apart (a set and
-a dictionary that removed elements; the rule is found at startup). One loop per element kind writes a run
-(`NinoRuns`), over `<T, TFormatter>` only: raw elements and blocks as one block, slots through the slot kernels, values
-with the cursor form through the cursor loop, others value by value; a polymorphic base's values through its generated
-`WriteRun`, the compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep path are
-Nino.Core's. A pair (a `KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes its
-items (block, cursor form, dispatch bit), never a loop of its own. A pair of a polymorphic value composes onto its
+Every contiguous collection (arrays, lists, spans, `Memory<T>`, `ArraySegment<T>`, `ImmutableArray<T>`, each half of a
+`Queue<T>`'s ring, `Stack<T>`, and the entries of `HashSet<T>` and `Dictionary<TKey, TValue>`) writes its elements as a
+run (`NinoRun`): the first value, the count, the stride between entries and how a free entry is told apart (a set and a
+dictionary that removed elements; the rule is found at startup). One loop per element kind writes a run (`NinoRuns`),
+over `<T, TFormatter>` only: raw elements and blocks as one block, slots through the slot kernels, strings and pairs
+holding them through the string run kernels (below), others value by value; a polymorphic base's values through its
+generated `WriteRun`, the compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep
+path are Nino.Core's. A pair (a `KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes
+its items (block, string items, dispatch bit), never a loop of its own. A pair of a polymorphic value composes onto its
 value's `WriteRun`: the run of its values, each key at an offset from its value (`NinoRun.Key`) and written by the loop,
-the one place a key is written apart from its value. The member is not generic, so one serves every collection and
-every key written as its bytes or a string; any other key goes value by value (#355).
+the one place a key is written apart from its value. The member is not generic, so one serves every collection and every
+key written as its bytes or a string; any other key goes value by value (#355).
 
 A collection's storage element is the element of its run, whatever else it holds. A `HashSet<T>`'s and a
 `Dictionary<TKey, TValue>`'s entries are a run of the entries themselves, the stride the entry's size, each written by a
 storage element formatter (`NinoStorageFormatter`): the entry's wire bytes are one item (a set's value) or two (a
 dictionary's key and value) at offsets measured on this runtime (CoreCLR moves references first: a
-`Dictionary<string, int>`'s entry has its key at 0, the hash code at 8, the link at 12, the value at 16), and every other
-byte (the hash code, the link, padding) is skipped. The formatter composes its items as a value tuple does, so where they
-are raw or blocks the entry is a block whose map (`NinoBlockMap`) names only the items' bytes, and the existing block
-kernels (`NinoBlockPlan`: AVX-512 groups, 16-byte lanes, 64-byte permutes, the netstandard2.1 build's registered
-kernels) pack a run of entries into the wire's bytes and scatter the data back into new entries, with no code of their
-own for entries; otherwise it is the items' cursor form, run loop or formatter, through the entry. The piece is written
-once and generic over the element and the fields that reach its items, so a collection's own code is only its top
-layer: reaching the storage, the startup check that measures where the fields are, and what it does after a fill (a
-table links its entries). The same piece is the extension point for storage not yet on it: a `SortedList`'s two arrays,
-a `Queue`'s ring in two segments, the chunks of nodes the gather walks, and later user collections through a storage
-contract. Reads fill the same runs, one loop per element kind: a run of values in a row (an array, the backing array of
-a list, whose count is set once it is filled, a ring from its start, a span) through the copy, slot and block kernels or
-value by value; and the entries of a new `HashSet<T>` or `Dictionary<TKey, TValue>` through one read for both
-(`NinoEntries`): a block scattered into the entries by the block kernels (every byte written, the hash code and link 0),
-the cursor loop or value by value into their places, then linked (below); into a collection that is not new, each entry
-read apart and added.
+`Dictionary<string, int>`'s entry has its key at 0, the hash code at 8, the link at 12, the value at 16), and every
+other byte (the hash code, the link, padding) is skipped. The formatter composes its items as a value tuple does, so
+where they are raw or blocks the entry is a block whose map (`NinoBlockMap`) names only the items' bytes, and the
+existing block kernels (`NinoBlockPlan`: AVX-512 groups, 16-byte lanes, 64-byte permutes, the netstandard2.1 build's
+registered kernels) pack a run of entries into the wire's bytes and scatter the data back into new entries, with no code
+of their own for entries; strings among the items are moved by the string run kernels at their offsets in the entry;
+otherwise it is the items' run loop or formatter, through the entry. The piece is written once and generic over the
+element and the fields that reach its items, so a collection's own code is only its top layer: reaching the storage, the
+startup check that measures where the fields are, and what it does after a fill (a table links its entries). The same
+piece is the extension point for storage not yet on it: a `SortedList`'s two arrays, a `Queue`'s ring in two segments,
+the chunks of nodes the gather walks, and later user collections through a storage contract. Reads fill the same runs,
+one loop per element kind: a run of values in a row (an array, the backing array of a list, whose count is set once it
+is filled, a ring from its start, a span) through the copy, slot and block kernels or value by value; and the entries of
+a new `HashSet<T>` or `Dictionary<TKey, TValue>` through one read for both (`NinoEntries`): a block scattered into the
+entries by the block kernels (every byte written, the hash code and link 0), the string run kernels or value by value
+into their places, then linked (below); into a collection that is not new, each entry read apart and added.
 
 A collection that is not one contiguous run (a `SortedSet<T>` or `SortedDictionary<TKey, TValue>` tree, a
 `LinkedList<T>` ring, a concurrent dictionary or queue, any other `ICollection<T>` or `IEnumerable<T>`) is gathered: its
@@ -122,21 +123,26 @@ blocks, strings), else one at a time. Until published, a collection holds none o
 trees (`SortedSet<T>`, `SortedDictionary<TKey, TValue>`) and the concurrent stack, queue and bag, which are built in
 one go, still read the whole count into a rented array first.
 
-Strings (the default encoding and UTF-8), raw values, blocks and pairs of them have a cursor form of their write and
-read (`NinoCursor`, #347): a value written at a reference into free space once its longest form fits (`MaxSize`,
-`WriteAt`), read from a reference and the bytes left (`ReadAt`), each returning the bytes it took. Raw values and
-blocks have it through their kind; the string formatters and the pair formatters (`KeyValuePairFormatter`, a
-dictionary's entry; where both items have it, composed by `NinoCursor`'s pair helpers) through internal members of
-`INinoFormatter<T>`, asked once (`HasCursor`). One cursor loop per direction runs over them (`NinoRuns.WriteCursors`,
-`ReadCursors`, over `<T, TFormatter>`) with only the data, the position and the end in registers, never the writer or
-the reader: the write takes the free part of the buffer and returns where it stopped, the caller grows the buffer and
-goes on; the read fills each value in place and hands it to a store (`NinoCursor.InPlace`: a run's entries; a
-dictionary's adds: each pair read into one pair of locals, a run with no stride, and added by the dictionary's own
-layer). A dictionary read again merges in its own layer, each key read before its value's place is known. So strings
-in a row, a set's strings, and every pairing of strings, UTF-8 strings, raw values and blocks in a list of pairs or a
-dictionary (`Dictionary<string, int>` among them), and the pairs of a sorted or concurrent dictionary (a chunk of the
-gather above, or a rented array of a tree's pairs), go through the same two loops, with the per-pair checks of the
-per-value ones: a null or repeated key, hash flooding through `HashTables`, every length checked before allocating.
+Strings are an element kind of the bottom layer, as raw values are (`NinoStringRuns`, #355): a run of strings in the
+default encoding or UTF-8, or of pairs with a string among their items and a string or a value of a fixed size (raw, or
+a block read as one) as the other, each item at its offset in the element, is moved by kernels of its own that the top
+layers call once per run under a constant test of the formatter's type (`NinoKind<TFormatter>.Strings`). The write
+transcodes each string with the SIMD kernels into the free part of the buffer after one check of its longest form
+against the bytes left, growing the buffer only where one does not fit (a first pass that summed the run's longest forms
+to reserve them once took longer); the read measures every length of the run against the data first (a header out of
+range or not minimal, a length past the data, a UTF-8 string of more chars than bytes), so nothing is allocated for data
+it rejects, then allocates and transcodes each string into its place (an unchanged one kept, `ReadAt`) or hands the
+element to a store (a set's or a dictionary's adds, every element read into the one entry the store hands on, whose
+fields stay in its home on the stack). Their items (`NinoUtf16Item`, `NinoUtf8Item`, `NinoValueItem`, composed by
+`NinoItemPair`) and stores are not generic over a class, so the kernels are never shared code: a collection of strings
+is compiled once for every class (`__Canon`), and there a method of a struct type parameter is an indirect call the JIT
+does not inline and a static of a generic class a helper call, where the kernels pay none per string. A pair kernel is
+generic over its items only, so a `Dictionary<string, int>`'s is exact, a `Dictionary<string, string>`'s not generic at
+all; a dictionary's adds go through a store generic over the side that is not a string. Every collection of strings
+takes them (arrays, lists, gathered chunks, sets with free entries skipped, dictionaries, `KeyValuePair` runs through
+their formatter's `WriteStrings`/`ReadStrings`, the pairs of a sorted or concurrent dictionary), with the per-pair
+checks of the per-value loops: a null or repeated key, hash flooding through `HashTables`. A dictionary read again
+merges in its own layer, each key read before its value's place is known (`NinoCursor.ReadAt`).
 
 A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members
 too (generated formatters of fixed-size and block structs, of class bodies and of polymorphic bases, the tuple and
@@ -418,11 +424,11 @@ Cache-line reasoning assumes 64-byte lines.
   from the data are removed.
 * Strings are compared, not replaced: a string member, a list or array element, or the value of a key already in a
   dictionary keeps its string when the data holds the same chars, so an unchanged string costs no allocation
-  (`Reader.ReadString(string current)` and `ReadUtf8(string current)`, which generated code passes the member's
-  current value; the collections' loops compare each element and each value through the formatter's cursor form,
-  `ReadAt`). A `[NinoUtf8]` string is compared without decoding, so only ASCII text (as many bytes as chars) is kept;
-  other UTF-8 text is decoded into a new string. A `null` slot, a new instance and a dictionary read from empty read
-  new strings.
+  (`Reader.ReadString(string current)` and `ReadUtf8(string current)`, which generated code passes the member's current
+  value; the string run kernels compare each element and each value, and a dictionary's merge each value through
+  `NinoCursor.ReadAt`). A `[NinoUtf8]` string is compared without decoding, so only ASCII text (as many bytes as chars)
+  is kept; other UTF-8 text is decoded into a new string. A `null` slot, a new instance and a dictionary read from empty
+  read new strings.
 * Types whose members cannot be assigned after construction (constructor parameters, `init`-only, get-only or
   `readonly` members) are re-created, and the old instance is recycled. So are types with C# 11 `required`
   members whose parameterless constructor is not `[SetsRequiredMembers]`: a `[SetsRequiredMembers]` constructor
