@@ -345,11 +345,18 @@ namespace Shapes
 
     /// <summary>A union case of a type named Empty (Rust's empty union variant), and of a raw struct.</summary>
     [NinoType]
-    public union Pick(Empty, PickPair, byte);
+    public union Pick(Empty, PickPair, byte, TrackedPick);
 
     [NinoType]
     public sealed class Empty
     {
+    }
+
+    [NinoType(trackReferences: true)]
+    public sealed class TrackedPick
+    {
+        public int Value;
+        public TrackedPick Next;
     }
 
     /// <summary>Raw: a case that cannot hold its union again.</summary>
@@ -381,6 +388,8 @@ namespace Shapes
         public Pick Pick;
         public Pick[] Many;
         public Measure Measure;
+        public Dictionary<int, Pick> ByNumber;
+        public Pick[,] Grid;
     }
 }
 
