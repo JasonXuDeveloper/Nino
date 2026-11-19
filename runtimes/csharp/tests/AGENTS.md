@@ -70,7 +70,10 @@ Serialization/               round trips of the public API: private members, cus
 Collections/                 arrays, BCL and user collections, empty ones, Stack/Queue through their arrays, the
                              runs every contiguous collection writes through (RunTests: every collection with every
                              element kind, free entries, the polymorphic run loop's keys and bytes, composites'
-                             dispatch bit), the prefetch of long top-level arrays and lists of scattered objects and the
+                             dispatch bit), the pair loop and its element loop over values with the cursor form
+                             (CursorTests: every string, UTF-8, raw and block pairing, [NinoUtf8] members, sorted and
+                             concurrent dictionaries, merges and hostile pairs), the prefetch of long top-level arrays
+                             and lists of scattered objects and the
                              interceptors that route them there (PrefetchTests)
   FastPaths/                 the collection fast paths (arrays, blocks, dictionaries, linked lists, priority queues,
                              sorted collections and lists; CollectionFastPathFixtures) and the HashTables fill

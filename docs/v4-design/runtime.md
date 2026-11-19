@@ -55,7 +55,7 @@ public interface INinoFormatter<T> : INinoFormatter
     void ReadBlock(ref T value, ref byte source) => ...;      // throws: called only when BlockMap is not null
     // internal: SlotStride and the slot members of a raw T? (UnmanagedNullableFormatter); Size, WriteSized and
     // TryWriteExternal of collection formatters (top-level calls write into an array of the exact size, or straight
-    // into a caller's IBufferWriter<byte>)
+    // into a caller's IBufferWriter<byte>); MaxSize, WriteAt and ReadAt, the cursor form of strings and pairs
 }
 
 public interface INinoFormatter                               // what does not depend on T (hidden)
@@ -66,7 +66,7 @@ public interface INinoFormatter                               // what does not d
     int PrefetchBytes => 0;                                   // long collections of a class prefetch its objects
     bool HasMemberPrefetch => false;                          // ... and the objects its members point to
     int PrefetchMembers(object value) => ...;                 // throws: only when HasMemberPrefetch
-    // internal: HasSizedWrite, HasExternalWrite (the queries of Size and TryWriteExternal)
+    // internal: HasSizedWrite, HasExternalWrite, HasCursor (the queries of Size, TryWriteExternal and the cursor form)
 }
 ```
 
@@ -84,6 +84,21 @@ the backing array of a list, whose count is set once it is filled, a ring from i
 slot and block kernels or value by value, and the entries of a new `HashSet<T>` or `Dictionary<TKey, TValue>`: raw
 values and blocks read as one block and scattered into the entries by the block kernels (the entry block formatter's
 read), others value by value into their places, then linked (below).
+
+Strings (the default encoding and UTF-8), raw values, blocks and pairs of them have a cursor form of their write and
+read (`NinoCursor`, #347): a value written at a reference into free space once its longest form fits (`MaxSize`,
+`WriteAt`), read from a reference and the bytes left (`ReadAt`), each returning the bytes it took. Raw values and
+blocks have it through their kind; the string formatters and `KeyValuePairFormatter` (where both items have it)
+through internal members of `INinoFormatter<T>`, asked once (`HasCursor`). One pair loop per direction runs over them
+(`NinoRuns.WriteCursors`, `ReadCursors`) with only the data, the position and the end in registers, never the writer or
+the reader: the write takes the free part of the buffer and returns where it stopped, the caller grows the buffer and
+goes on; the read fills the places a store gives (`NinoCursor.Entries`: a run's entries in place, `Adds`: a
+dictionary's adds one pair at a time, `Merges`: its merge into the pairs there; plain structs the loop dispatches on
+by type, so nothing is called per pair). The element loop is the pair loop without keys
+(`NinoCursor.None`). So strings in a row, a set's strings, and every pairing of strings, UTF-8 strings, raw values and
+blocks in a dictionary (`Dictionary<string, int>` among them), and the pairs of a sorted or concurrent dictionary (a
+rented array of pairs), go through the same two loops, with the per-pair checks of the per-value ones: a null or
+repeated key, hash flooding through `HashTables`, every length checked before allocating.
 
 A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members
 too (generated formatters of fixed-size and block structs, of class bodies and of polymorphic bases, the tuple and
@@ -107,8 +122,8 @@ code knows.
 `NinoKind` (`Internal/Collections/Traversal/NinoKind.cs`), never again in a collection formatter, by two classes keyed by
 what decides. `NinoKind<TFormatter>`, keyed on the formatter alone, holds what the formatter says of every value:
 `Traits` (`BodyTraits`, now a member of the non-generic `INinoFormatter`, with the `NinoBodyTraits.Dispatches` bit the
-generator sets on a polymorphic base's formatter), `IsString` (a `typeof` of `StringFormatter`), the element and pair
-loops, the prefetch and the top-level write queries; its fields fold in code shared over a class element, where a field
+generator sets on a polymorphic base's formatter), `IsString` (a `typeof` of `StringFormatter`: the keys a polymorphic
+value's run loop writes), `Cursor` (`HasCursor`), the run loop, the prefetch and the top-level write queries; its fields fold in code shared over a class element, where a field
 of a class generic over the element is a lookup per collection. `NinoKind<T, TFormatter>` holds the kind of a value
 type without references, in this order: raw (an `INinoRawFormatter` whose `NinoLayout` is canonical on this runtime,
 `RawFormatter`'s check read as it is: being unmanaged is not enough), slot (a raw `T?`), block (a `BlockMap`: `DateTimeOffset`,
@@ -366,9 +381,10 @@ Cache-line reasoning assumes 64-byte lines.
 * Strings are compared, not replaced: a string member, a list or array element, or the value of a key already in a
   dictionary keeps its string when the data holds the same chars, so an unchanged string costs no allocation
   (`Reader.ReadString(string current)` and `ReadUtf8(string current)`, which generated code passes the member's
-  current value; `ReadStrings` compares each element). A `[NinoUtf8]` string is compared without decoding, so only
-  ASCII text (as many bytes as chars) is kept; other UTF-8 text is decoded into a new string. A `null` slot, a new
-  instance and a dictionary read from empty (`ReadStringPairs`) read new strings.
+  current value; the collections' loops compare each element and each value through the formatter's cursor form,
+  `ReadAt`). A `[NinoUtf8]` string is compared without decoding, so only ASCII text (as many bytes as chars) is kept;
+  other UTF-8 text is decoded into a new string. A `null` slot, a new instance and a dictionary read from empty read
+  new strings.
 * Types whose members cannot be assigned after construction (constructor parameters, `init`-only, get-only or
   `readonly` members) are re-created, and the old instance is recycled. So are types with C# 11 `required`
   members whose parameterless constructor is not `[SetsRequiredMembers]`: a `[SetsRequiredMembers]` constructor
