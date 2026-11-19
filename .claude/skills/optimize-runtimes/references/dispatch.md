@@ -81,17 +81,16 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   policy as other fixed shapes. On runtime A/B 44333395182, Node's `UnionArray` / `TaggedUnionArray` serialize
   medians fell 17 % / 22 % on Neoverse-N2. The plain union wrote its 1,000 values in 37.1 µs against JSON's 38.8 µs
   on that CPU, within 5 %. The sampled x64 medians fell 10–14 % / 17–23 %.
-- Treat the dynamic type of a generated Go union case as part of its API: callers assert the concrete value wrapper.
-  `go build -gcflags=-m ./model` in the Go bench module reports heap escape for `UnionValueInt32`,
-  `UnionValueInt64`, `UnionValueUnionPoint`, `UnionTaggedInt32` and `UnionTaggedInt16`. Go's small-integer
-  conversion table can still supply some of those boxes. The string wrapper has a single pointer field and fits
-  directly in an interface. Returning pointers into a typed slice would change what callers' type assertions accept.
+- Use pointer cases for generated Go union values that would allocate an interface box. Before the pointer change,
+  `go build -gcflags=-m ./model` reported escapes for `UnionValueInt32`, `UnionValueInt64`, `UnionValueUnionPoint`,
+  `UnionTaggedInt32` and `UnionTaggedInt16`. Keep one-pointer wrappers such as the string case and wrappers using
+  static storage such as byte cases as values. A case's concrete type is part of its generated Go API.
 - Allocate existing pointer class cases in small typed blocks owned by one union sequence decode. A retained class
   pointer keeps its block of up to eight slots alive, and a later read cannot reuse them. On
   [44451141322](https://github.com/JasonXuDeveloper/Nino/actions/runs/44451141322), Go `UnionArray` dropped from
   808 to 636 allocations on x64 and Arm64. The Neoverse-N2 read took 7 % less time and its same-revision control
   shifted less than 1 %. The allocated bytes rose by 0.4 %, and tagged reads and the write controls stayed on par.
-- Keep value wrappers on the direct Go path. In the same runner batch, staging wrappers in immutable typed arrays
-  and extracting them through reflection cut the tagged probe's allocations from 581 to 54. Tagged reads took
-  19–27 % more time on the sampled x64 CPUs and 11 % more on Neoverse-N2. This is a diagnostic for preserving
-  the concrete dynamic value type and its allocation cost.
+- Give a collection local typed blocks per pointer case. Allocate through the reader's capacity budget and use
+  smaller blocks for cases with variable-size payloads. The earlier experiment with immutable value blocks and
+  reflection cut the tagged probe's allocations from 581 to 54, but tagged reads took 19–27 % more time on the
+  sampled x64 CPUs and 11 % more on Neoverse-N2.
