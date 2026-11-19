@@ -275,7 +275,10 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Format
-        run: cargo fmt --all --check
+        run: |
+          cargo fmt --all --check
+          # rustfmt does not follow the ordered include! fragments.
+          rustfmt --edition 2021 --check src/impls/*.rs
 
       - name: Clippy
         if: ${{ !cancelled() }}
