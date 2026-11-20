@@ -142,9 +142,10 @@ namespace Nino.Core
         /// <summary>
         /// Its two arrays zipped into its pairs (<see cref="Zip"/>) and written through the gather, the one write of a
         /// run of pairs whatever the keys and values are (#350): pairs whose memory is their wire form zipped straight
-        /// into the writer's buffer by the interleave kernels, the others a chunk at a time through the run loops. Out
-        /// of line with the caller's writer by reference: that is a reference already (DictionaryLikeFormatter's), and
-        /// by value its copies in and out cost the caller 5 stack accesses (asm.py: SortedList&lt;int, int&gt;).
+        /// into the writer's buffer by the interleave kernels (the gather's in-place write, here on the caller's writer),
+        /// the others a chunk at a time through the run loops. Out of line with the caller's writer by reference: that is
+        /// a reference already (DictionaryLikeFormatter's), and by value its copies in and out cost the caller 5 stack
+        /// accesses (asm.py: SortedList&lt;int, int&gt;).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void WriteSortedList(SortedList<TKey, TValue> list, ref Writer writer)
@@ -154,9 +155,12 @@ namespace Nino.Core
             TValue[] values = CollectionFields.Values(list);
             if ((uint)count > (uint)keys.Length || (uint)count > (uint)values.Length)
                 NinoThrow.ModifiedDuringWrite();
-            writer = NinoGather.Write<KeyValuePair<TKey, TValue>,
-                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, Zip>(new Zip(keys, values, count),
-                count, writer);
+            var zip = new Zip(keys, values, count);
+            if (NinoGather.InPlace<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>())
+                NinoGather.WriteInPlace<KeyValuePair<TKey, TValue>, Zip>(ref zip, count, ref writer);
+            else
+                writer = NinoGather.Write<KeyValuePair<TKey, TValue>,
+                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, Zip>(zip, count, writer);
         }
 
         /// <summary>

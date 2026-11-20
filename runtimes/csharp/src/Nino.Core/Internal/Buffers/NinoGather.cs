@@ -91,11 +91,7 @@ namespace Nino.Core.Internal
         {
             if (count >= 0 && InPlace<T, TFormatter>())
             {
-                // The writer's free space is the chunk: no copy but the walk's.
-                ref byte at = ref writer.ReserveCounted(count, Unsafe.SizeOf<T>());
-                if (count != 0 && source.Fill(MemoryMarshal.CreateSpan(ref Unsafe.As<byte, T>(ref at), count)) != count)
-                    NinoThrow.ModifiedDuringWrite();
-                source.End();
+                WriteInPlace<T, TSource>(ref source, count, ref writer);
                 return writer;
             }
 
@@ -130,6 +126,24 @@ namespace Nino.Core.Internal
             if (patch >= 0)
                 writer.PatchInt32(patch, (int)total);
             return writer;
+        }
+
+        /// <summary>
+        /// The count and the <paramref name="count"/> elements of <paramref name="source"/>, values whose memory is their
+        /// wire form (<see cref="InPlace{T,TFormatter}"/>), walked straight into the writer's buffer: its free space is
+        /// the chunk, and the walk's copy the write. Inlined into <see cref="Write{T,TFormatter,TSource}"/> and into a
+        /// caller whose writer is a reference already (a SortedList's write: through the gather's call, the writer's
+        /// copies in and out made 1,000 <c>SortedList&lt;int, int&gt;</c> pairs 1.1 to 1.15 times as long to write, local
+        /// quick runs).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteInPlace<T, TSource>(ref TSource source, int count, ref Writer writer)
+            where TSource : struct, INinoGatherSource<T>
+        {
+            ref byte at = ref writer.ReserveCounted(count, Unsafe.SizeOf<T>());
+            if (count != 0 && source.Fill(MemoryMarshal.CreateSpan(ref Unsafe.As<byte, T>(ref at), count)) != count)
+                NinoThrow.ModifiedDuringWrite();
+            source.End();
         }
 
         /// <summary>
