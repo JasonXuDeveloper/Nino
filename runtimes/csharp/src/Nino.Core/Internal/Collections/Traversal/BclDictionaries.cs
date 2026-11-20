@@ -25,7 +25,7 @@ namespace Nino.Core
                     writer = WriteSorted(sorted, writer);
                     return true;
                 case SortedList<TKey, TValue> list when CollectionViews.SortedList:
-                    writer = WriteSortedList(list, writer);
+                    WriteSortedList(list, ref writer);
                     return true;
                 case ConcurrentDictionary<TKey, TValue> concurrent:
                     writer = WriteConcurrent(concurrent, writer);
@@ -64,7 +64,7 @@ namespace Nino.Core
                     ReadSorted(sorted, length, ref reader);
                     return true;
                 case SortedList<TKey, TValue> list:
-                    ReadSortedList(list, length, ref reader);
+                    reader = ReadSortedList(list, length, reader);
                     return true;
                 case ConcurrentDictionary<TKey, TValue> concurrent:
                     ReadConcurrent(concurrent, length, ref reader);
@@ -143,17 +143,18 @@ namespace Nino.Core
         /// Its two arrays zipped into its pairs (<see cref="Zip"/>) and written through the gather, the one write of a
         /// run of pairs whatever the keys and values are (#350): pairs whose memory is their wire form zipped straight
         /// into the writer's buffer by the interleave kernels, the others a chunk at a time through the run loops. Out
-        /// of line with the writer by value, as <see cref="WriteSorted"/>.
+        /// of line with the caller's writer by reference: that is a reference already (DictionaryLikeFormatter's), and
+        /// by value its copies in and out cost the caller 5 stack accesses (asm.py: SortedList&lt;int, int&gt;).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteSortedList(SortedList<TKey, TValue> list, Writer writer)
+        private static void WriteSortedList(SortedList<TKey, TValue> list, ref Writer writer)
         {
             int count = CollectionFields.Size(list);
             TKey[] keys = CollectionFields.Keys(list);
             TValue[] values = CollectionFields.Values(list);
             if ((uint)count > (uint)keys.Length || (uint)count > (uint)values.Length)
                 NinoThrow.ModifiedDuringWrite();
-            return NinoGather.Write<KeyValuePair<TKey, TValue>,
+            writer = NinoGather.Write<KeyValuePair<TKey, TValue>,
                 KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, Zip>(new Zip(keys, values, count),
                 count, writer);
         }
@@ -352,15 +353,17 @@ namespace Nino.Core
         /// comparer (as Nino writes them), whatever the keys and values are; otherwise, or where its layout is not
         /// known or the arrays would take far more memory than the data, added one by one.
         /// </summary>
-        private static void ReadSortedList(SortedList<TKey, TValue> list, int length, ref Reader reader)
+        /// <remarks>Out of line with the reader by value and returned: inlined into a top-level read, its paths
+        /// doubled the caller (asm.py: SortedList&lt;int, int&gt;'s 598 to 1,166 bytes, 17 to 34 stack accesses).</remarks>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadSortedList(SortedList<TKey, TValue> list, int length, Reader reader)
         {
             if (!CollectionViews.SortedList || length == 0 ||
                 !NinoElements.Fits(length, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>(), reader.Remaining))
             {
                 var adds = new NinoGather.Adds<SortedList<TKey, TValue>, KeyValuePair<TKey, TValue>, AddUnique>(list);
-                reader = NinoGather.ReadAll<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                return NinoGather.ReadAll<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
                     NinoGather.Adds<SortedList<TKey, TValue>, KeyValuePair<TKey, TValue>, AddUnique>>(ref adds, length, reader);
-                return;
             }
 
             // Its own arrays when they are large enough (Clear cleared them), otherwise new ones; the list stays empty
@@ -386,7 +389,7 @@ namespace Nino.Core
             {
                 CollectionFields.Size(list) = length;
                 CollectionFields.Version(list)++;
-                return;
+                return reader;
             }
 
             // Out of order under this comparer (or a null key): moved out of the arrays and added one by one.
@@ -396,6 +399,7 @@ namespace Nino.Core
             Array.Clear(keys, 0, length);
             Array.Clear(values, 0, length);
             AddEach(list, pairs, length);
+            return reader;
         }
 
         /// <summary>The pairs of each chunk split into a <see cref="SortedList{TKey,TValue}"/>'s keys and values.</summary>
