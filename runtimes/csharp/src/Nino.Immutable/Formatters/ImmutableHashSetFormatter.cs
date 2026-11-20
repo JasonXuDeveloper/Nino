@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Immutable
 {
@@ -30,9 +31,22 @@ namespace Nino.Immutable
                 return;
             }
 
-            // Its enumerator otherwise (empty sets, runtimes whose trees HashTrees cannot read), through Nino.Core's
-            // write of an enumerable: each element as a collection of them writes it (a raw T? as a slot).
-            writer = ImmutableCollections.WriteEnumerated<T, TFormatter>(value, writer);
+            // Element by element with its own (struct) enumerator: through IEnumerable<T>, each step is an
+            // interface call.
+            writer = WriteItems(value, count, writer);
+        }
+
+        // Out of line, the count too: inlined into the caller, the large enumerator is kept in memory instead of
+        // registers, and this path (empty sets, runtimes whose trees HashTrees cannot read) takes the inlining
+        // budget of the common one. The writer by value and returned: one passed by reference would keep the
+        // caller's in memory.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteItems(ImmutableHashSet<T> value, int count, Writer writer)
+        {
+            writer.WriteLength(count);
+            foreach (var item in value)
+                NinoElement.Write<T, TFormatter>(in item, ref writer);
+            return writer;
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableHashSet<T> value)
@@ -48,7 +62,7 @@ namespace Nino.Immutable
         }
 
         // Built as its tree where it can be (HashTrees), else added one by one to a builder (CreateRange enumerates
-        // through IEnumerable<T>); out of line.
+        // through IEnumerable<T>); out of line like WriteItems.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ImmutableHashSet<T> Build(T[] items)
         {

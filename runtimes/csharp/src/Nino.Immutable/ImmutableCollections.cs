@@ -18,21 +18,6 @@ namespace Nino.Immutable
             Return(array);
         }
 
-        /// <summary>
-        /// Writes <paramref name="items"/> (not null) as Nino.Core writes a collection it can only enumerate
-        /// (<see cref="InterfaceListFormatter{TInterface,T,TFormatter}"/>): the count, then each element as a collection
-        /// of them writes it, so a raw <c>T?</c> is a slot of a fixed size, never its formatter's single value, without
-        /// a guess at which elements are slots. Out of line, the writer by value and returned: one passed by reference
-        /// would keep the caller's in memory.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static Writer WriteEnumerated<T, TFormatter>(IEnumerable<T> items, Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            default(InterfaceListFormatter<IEnumerable<T>, T, TFormatter>).Serialize(items, ref writer);
-            return writer;
-        }
-
         /// <summary>Returns a rented array, cleared if it may hold references (as Nino.Core returns its own).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Return<T>(T[] array) =>
