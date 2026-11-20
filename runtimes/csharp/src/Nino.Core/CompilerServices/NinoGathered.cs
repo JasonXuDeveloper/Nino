@@ -122,9 +122,9 @@ namespace Nino.Core.CompilerServices
     /// (<see cref="NinoGathered"/>): the one walk of every tree, where each collection says only where a node's
     /// children are (byte offsets, <see cref="OffsetOf"/>) and what its element is (<see cref="INinoTreeNodes{T}"/>);
     /// a subtree ends at null or at the tree's own empty node. Recursive, so the path to a node lives in the frames:
-    /// only when a chunk is full is it saved, on a stack of nodes (a chunk of the gather's buffer of objects), and
-    /// resumed from there. A path deeper than any balanced tree, or a null child where subtrees end at an empty node,
-    /// is a tree changed during the walk.
+    /// only when a fill stops inside the tree is it saved, on a stack of nodes (a chunk of the gather's buffer of
+    /// objects, taken then), and resumed from there; a tree written in one fill takes none. A path deeper than any
+    /// balanced tree, or a null child where subtrees end at an empty node, is a tree changed during the walk.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public struct NinoTreeWalk
@@ -139,13 +139,13 @@ namespace Nino.Core.CompilerServices
         private object _node;
         private int _depth, _deepest;
         private readonly object _end;
-        private readonly object[] _stack;
+        private object[] _stack;
         private readonly int _left, _right;
 
         /// <summary>
         /// The walk of the tree under <paramref name="root"/>, whose subtrees end at <paramref name="end"/> (null, or
         /// its empty node), with each node's children at the offsets <paramref name="left"/> and
-        /// <paramref name="right"/>. Give its stack back with <see cref="Finish"/>.
+        /// <paramref name="right"/>. Give back the stack it may take with <see cref="Finish"/>.
         /// </summary>
         public NinoTreeWalk(object root, object end, int left, int right)
         {
@@ -153,7 +153,7 @@ namespace Nino.Core.CompilerServices
             _end = end;
             _left = left;
             _right = right;
-            _stack = NinoGather<object>.Take().Array;
+            _stack = null;
             _depth = _deepest = 0;
         }
 
@@ -182,7 +182,7 @@ namespace Nino.Core.CompilerServices
                 next = path.End;
                 if (depth == 0 || path.Filled == path.Length)
                     break;
-                object top = _stack[--depth];
+                object top = path.Stack[--depth];
                 next = ObjectFields.At<object>(top, _right);
                 if (!nodes.Take(top, ref Unsafe.Add(ref at, path.Filled++)))
                     break;
@@ -190,6 +190,7 @@ namespace Nino.Core.CompilerServices
 
             _node = next;
             _depth = depth;
+            _stack = path.Stack;
             if (depth > _deepest)
                 _deepest = depth;
             return path.Filled;
@@ -202,7 +203,8 @@ namespace Nino.Core.CompilerServices
         public void Finish()
         {
             bool more = _node != _end || _depth != 0;
-            NinoGather<object>.Return(new NinoGather<object>.Chunk(_stack, 0), _deepest);
+            if (_stack != null)
+                NinoGather<object>.Return(new NinoGather<object>.Chunk(_stack, 0), _deepest);
             if (more)
                 NinoThrow.ModifiedDuringWrite();
         }
@@ -228,7 +230,7 @@ namespace Nino.Core.CompilerServices
 
                 if (path.Filled == path.Length)
                 {
-                    path.Stack[depth] = node;
+                    path.Save(depth, node);
                     path.Top = depth + 1;
                     path.Next = path.End;
                     return false;
@@ -237,6 +239,7 @@ namespace Nino.Core.CompilerServices
                 object right = ObjectFields.At<object>(node, path.Right);
                 if (!nodes.Take(node, ref Unsafe.Add(ref at, path.Filled++)))
                 {
+                    path.Take();
                     path.Top = depth;
                     path.Next = right;
                     return false;
@@ -252,7 +255,7 @@ namespace Nino.Core.CompilerServices
         private struct Path
         {
             public readonly object End;
-            public readonly object[] Stack;
+            public object[] Stack;
             public readonly int Left, Right, Length;
             public int Filled, Top;
             public object Next;
@@ -266,6 +269,21 @@ namespace Nino.Core.CompilerServices
                 Length = length;
                 Filled = Top = 0;
                 Next = null;
+            }
+
+            /// <summary>The stack the path is saved on, taken by the fill that first stops inside the tree.</summary>
+            public void Take()
+            {
+                if (Stack == null)
+                    Stack = NinoGather<object>.Take().Array;
+            }
+
+            /// <summary>Where the innermost frame stopped: its node, before its element, saved first.</summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public void Save(int depth, object node)
+            {
+                Take();
+                Stack[depth] = node;
             }
         }
     }
