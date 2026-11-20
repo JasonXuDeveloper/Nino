@@ -527,6 +527,39 @@ namespace Nino.UnitTests
             Truncated(NinoSerializer.Serialize(set), d => NinoDeserializer.Deserialize<HashSet<int>>(d));
         }
 
+        /// <summary>
+        /// Raw values Nino checks (bools) are read by the run's one block read in every collection, checked in the data
+        /// before the copy: read back as written, and a byte other than 0 or 1 anywhere in the run rejected, with the
+        /// existing values left as they were.
+        /// </summary>
+        [TestMethod]
+        public void CheckedRawRunsAreBlockChecked()
+        {
+            var values = Enumerable.Range(0, 40).Select(i => i % 3 == 0).ToArray();
+            byte[] bytes = NinoSerializer.Serialize(values);
+            CollectionAssert.AreEqual(values,
+                NinoDeserializer.Deserialize<ArraySegment<bool>>(bytes).ToArray());
+            CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<Queue<bool>>(bytes).ToArray());
+            CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<Memory<bool>>(bytes).ToArray());
+            CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<ImmutableArray<bool>>(bytes).ToArray());
+            foreach (int at in new[] { 0, 17, 39 })
+            {
+                var bad = (byte[])bytes.Clone();
+                bad[4 + at] = 2;
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ArraySegment<bool>>(bad));
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Queue<bool>>(bad));
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Memory<bool>>(bad));
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ImmutableArray<bool>>(bad));
+                var existing = new bool[40];
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                {
+                    var reader = new Reader(bad);
+                    default(ArrayFormatter<bool, UnmanagedFormatter<bool>>).Deserialize(ref reader, ref existing);
+                });
+                CollectionAssert.AreEqual(new bool[40], existing);
+            }
+        }
+
         private static void Truncated<T>(byte[] bytes, Func<byte[], T> read)
         {
             for (int length = 0; length < bytes.Length; length++)
