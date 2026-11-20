@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Nino.Core.CompilerServices;
@@ -98,13 +99,14 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            bool walk = table.Walks;
+            // The one loop of the adds that does not read from the reader: the caller took the block.
+            var adds = new NinoTableAdds<TEntry, TTable>(table, false, table.Walks);
             int size = NinoKind.Stride<TEntry, TFormatter>();
             for (int i = 0; i < length; i++, source = ref Unsafe.Add(ref source, size))
             {
                 TEntry entry = default;
                 default(TFormatter).ReadBlock(ref entry, ref source);
-                table.Add(ref entry, insert: false, walk);
+                adds.Add(ref entry);
             }
         }
 
@@ -144,17 +146,10 @@ namespace Nino.Core.Internal
             if (insert && length >= HashTables.FillFrom)
                 return FillEach(table, length, reader);
 
-            bool walk = table.Walks;
-            // One loop (the formatter inlined once), the choice made per entry: predicted, and cheaper than a second
-            // copy of the loop, which kept more of its state on the stack.
-            for (int i = 0; i < length; i++)
-            {
-                TEntry entry = default;
-                default(TFormatter).Deserialize(ref reader, ref entry);
-                table.Add(ref entry, insert, walk);
-            }
-
-            return reader;
+            // The one loop that reads values one by one and hands each on (the gather's), the choice made per entry:
+            // predicted, and cheaper than a second copy of the loop, which kept more of its state on the stack.
+            var adds = new NinoTableAdds<TEntry, TTable>(table, insert, table.Walks);
+            return NinoGather.ReadEach<TEntry, TFormatter, NinoTableAdds<TEntry, TTable>>(ref adds, length, reader);
         }
 
         /// <summary>
@@ -179,6 +174,39 @@ namespace Nino.Core.Internal
                 table.Unlink();
                 throw;
             }
+        }
+    }
+
+    /// <summary>
+    /// The adds of a hashed collection's entries read apart, one store for a set's and a dictionary's: each entry
+    /// inserted (<see cref="HashTables.Insert{T}"/>) where the table takes it, else added by the collection and its
+    /// bucket walked as <see cref="HashTables.Plan{T}"/> says. What <see cref="NinoGather"/>'s read loops hand a chunk
+    /// (slots read by their kernels) or each value to, and <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>' adds
+    /// from a block.
+    /// </summary>
+    internal readonly struct NinoTableAdds<TEntry, TTable> : INinoGatherTarget<TEntry>
+        where TTable : struct, INinoHashTable<TEntry, TTable>
+    {
+        private readonly TTable _table;
+        private readonly bool _insert, _walk;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public NinoTableAdds(TTable table, bool insert, bool walk)
+        {
+            _table = table;
+            _insert = insert;
+            _walk = walk;
+        }
+
+        /// <summary>Adds <paramref name="entry"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Add(ref TEntry entry) => _table.Add(ref entry, _insert, _walk);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Add(Span<TEntry> chunk)
+        {
+            foreach (ref var entry in chunk)
+                Add(ref entry);
         }
     }
 
@@ -210,7 +238,8 @@ namespace Nino.Core.Internal
             CollectionFields.Run(HashTables.Entries(_set), count);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        NinoRun INinoHashTable<T, SetTable<T>>.Run(int count) => CollectionFields.Values(HashTables.Entries(_set), count);
+        NinoRun INinoHashTable<T, SetTable<T>>.Run(int count) =>
+            CollectionFields.Run(HashTables.Entries(_set), count).Items(CollectionFields.SetEntry<T>.ValueOffset);
 
         public void Link(int count) => HashTables.Link(_set, count);
 

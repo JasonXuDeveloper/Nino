@@ -87,7 +87,7 @@ namespace Nino.Core
                     ? NinoElements.Capacity(length, Unsafe.SizeOf<T>(), reader.Remaining)
                     : length)
                 : NinoActivator<TStack>.Create();
-            if (NinoRecycler.DiscardAll(stack, stack.Count))
+            if (NinoRecycler.DiscardAll<T, TFormatter>(stack, stack.Count))
                 stack.Clear();
 
             if (CollectionViews.Stack)

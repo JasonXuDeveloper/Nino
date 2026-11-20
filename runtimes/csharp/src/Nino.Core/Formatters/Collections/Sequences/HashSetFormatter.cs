@@ -12,7 +12,7 @@ namespace Nino.Core
     /// <summary>
     /// <c>HashSet&lt;T&gt;</c> (or a type derived from it): count (-1 = null), then the elements. The set's thin layer:
     /// its entries are a run whose elements are the entries themselves (<see cref="CollectionFields.SetEntry{T}"/>, its
-    /// value composed at its offset by <see cref="NinoStorageFormatter{TElement,TA,TFormatterA,TFields}"/>), written by
+    /// value composed at its offset by <see cref="NinoSetEntryFormatter{T,TFormatter}"/>), written by
     /// <see cref="NinoRuns.Write{T,TFormatter}(NinoRun, int, ref Writer)"/> and read by <see cref="NinoEntries{TEntry,TFormatter,
     /// TTable}"/>, as a dictionary's are; what is the set's own is reaching the entries, its slots, and the add of one
     /// value (<see cref="SetTable{T}"/>).
@@ -56,10 +56,9 @@ namespace Nino.Core
             // in the entries (SetTable's item view): in code shared over a class the entry formatter's accessor is a
             // call. The intrinsic itself, as in NinoRuns.Write.
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-                NinoRuns.Write<T, TFormatter>(CollectionFields.Values<T>(run), count, ref writer);
+                NinoRuns.Write<T, TFormatter>(run.Items(CollectionFields.SetEntry<T>.ValueOffset), count, ref writer);
             else
-                NinoRuns.Write<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T,
-                    TFormatter, CollectionFields.SetFields<T>>>(run, count, ref writer);
+                NinoRuns.Write<CollectionFields.SetEntry<T>, NinoSetEntryFormatter<T, TFormatter>>(run, count, ref writer);
         }
 
         /// <summary>
@@ -73,7 +72,7 @@ namespace Nino.Core
         {
             int size = Unsafe.SizeOf<T>();
             ref byte elements = ref writer.ReserveCounted(count, size);
-            NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T, NinoMemoryItem<T>, CollectionFields.SetFields<T>>>(ref elements,
+            NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, NinoSetEntryFormatter<T, NinoMemoryItem<T>>>(ref elements,
                 ref Unsafe.As<byte, CollectionFields.SetEntry<T>>(ref run.First), count, size);
             default(TFormatter).WriteSlots(ref elements,
                 MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, T>(ref elements), count));
@@ -97,7 +96,7 @@ namespace Nino.Core
             var set = value ??= typeof(TSet) == typeof(HashSet<T>)
                 ? (TSet)(NinoLimits.Untrusted ? NinoSeededHash.NewSet<T>() : new HashSet<T>())
                 : NinoActivator<TSet>.Create();
-            if (NinoRecycler.DiscardAll(set, set.Count))
+            if (NinoRecycler.DiscardAll<T, TFormatter>(set, set.Count))
                 set.Clear();
             if (length == 0)
                 return;
@@ -115,15 +114,16 @@ namespace Nino.Core
                 // Slots that are not their memory: read as one run into a rented array, then added, out of line.
                 if (!default(TFormatter).SlotsAreMemory)
                 {
-                    var adds = new Adds(set, length);
-                    reader = NinoGather.ReadAll<T, TFormatter, Adds>(ref adds, length, reader);
+                    var table = new SetTable<T>(set);
+                    var adds = new NinoTableAdds<T, SetTable<T>>(table, table.CanInsert(length), table.Walks);
+                    reader = NinoGather.ReadAll<T, TFormatter, NinoTableAdds<T, SetTable<T>>>(ref adds, length, reader);
                     return;
                 }
 
                 // Slots that are: their presence bytes checked on the block, then moved as their memory.
                 ref byte slots = ref reader.ReadElements(length, NinoKind.Stride<T, TFormatter>());
                 default(TFormatter).CheckSlots(ref slots, length);
-                NinoEntries<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T, NinoMemoryItem<T>, CollectionFields.SetFields<T>>, SetTable<T>>.AddBlock(new SetTable<T>(set),
+                NinoEntries<CollectionFields.SetEntry<T>, NinoSetEntryFormatter<T, NinoMemoryItem<T>>, SetTable<T>>.AddBlock(new SetTable<T>(set),
                     ref slots, length);
                 return;
             }
@@ -143,7 +143,7 @@ namespace Nino.Core
                 reader = ReadValues(set, length, reader);
             }
             else
-                NinoEntries<CollectionFields.SetEntry<T>, NinoStorageFormatter<CollectionFields.SetEntry<T>, T, TFormatter, CollectionFields.SetFields<T>>, SetTable<T>>.Read(
+                NinoEntries<CollectionFields.SetEntry<T>, NinoSetEntryFormatter<T, TFormatter>, SetTable<T>>.Read(
                     new SetTable<T>(set), length, ref reader);
         }
 
@@ -158,30 +158,6 @@ namespace Nino.Core
         {
             NinoEntries<T, TFormatter, SetTable<T>>.Read(new SetTable<T>(set), length, ref reader);
             return reader;
-        }
-
-        /// <summary>
-        /// Slots (raw <c>T?</c>) that are not their memory, read a chunk at a time by the run's kernels (checked and
-        /// converted), then added: one element at a time through the reader took two and a half times as long (1,000
-        /// <c>int?</c>: 12,174 ns against 4,842 before slots, local).
-        /// </summary>
-        private readonly struct Adds : INinoGatherTarget<T>
-        {
-            private readonly TSet _set;
-            private readonly bool _insert, _walk;
-
-            public Adds(TSet set, int length)
-            {
-                _set = set;
-                _insert = HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length);
-                _walk = HashTables.Plan<T>.Walks;
-            }
-
-            public void Add(Span<T> chunk)
-            {
-                foreach (var item in chunk)
-                    SetTable<T>.Add(_set, item, _insert, _walk);
-            }
         }
     }
 }

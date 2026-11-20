@@ -122,6 +122,14 @@ namespace Nino.Core
             NinoThrow.MissingCapability(GetType(), nameof(ReadStrings));
             return 0;
         }
+
+        /// <summary>
+        /// Whether a dropped value's items are recycled as the items' types (false, the default): a composite of
+        /// items (a pair, a value tuple), whose <see cref="INinoFormatter{T}.ItemsMayRecycle"/> and
+        /// <see cref="INinoFormatter{T}.RecycleItems"/> <see cref="NinoRecycler"/> calls for the elements a collection
+        /// drops. Nino.Core's alone (<see cref="NinoPairs{TA,TB,TFormatterA,TFormatterB}"/>, the tuples). Called once.
+        /// </summary>
+        internal bool RecyclesItems => false;
     }
 
     /// <summary>
@@ -237,6 +245,21 @@ namespace Nino.Core
 
         /// <summary>Rejects a presence byte other than 0 or 1 in <paramref name="count"/> slots (not zero).</summary>
         internal void CheckSlots(ref byte slots, int count) => NinoThrow.MissingCapability(GetType(), nameof(CheckSlots));
+
+        /// <summary>
+        /// Whether a dropped value has an item that may be recycled now (<see cref="INinoFormatter.RecyclesItems"/>),
+        /// asked as <see cref="NinoRecycler{T}.MayRecycle"/> is, each time a collection drops elements. Called only
+        /// where <see cref="INinoFormatter.RecyclesItems"/> is true.
+        /// </summary>
+        internal bool ItemsMayRecycle => false;
+
+        /// <summary>
+        /// Recycles the items of a dropped <paramref name="value"/>, each once as its own type. Called only where
+        /// <see cref="INinoFormatter.RecyclesItems"/> is true.
+        /// </summary>
+        internal void RecycleItems(in T value)
+        {
+        }
 
         /// <summary>
         /// The bytes <paramref name="value"/> is written as, or -1 when they are not known up front (for a given element

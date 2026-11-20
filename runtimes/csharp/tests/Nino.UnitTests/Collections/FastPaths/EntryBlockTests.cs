@@ -26,14 +26,11 @@ public class EntryBlockTests
     {
         Assert.IsTrue(CollectionFields.EntryBlocks.Mapped);
         Assert.AreEqual(NinoElementKind.Block, NinoKind.Of<CollectionFields.SetEntry<int>,
-            NinoStorageFormatter<CollectionFields.SetEntry<int>, int, UnmanagedFormatter<int>,
-                CollectionFields.SetFields<int>>>());
+            NinoSetEntryFormatter<int, UnmanagedFormatter<int>>>());
         // A block item (a tuple) inside a dictionary's entry: still one block of the entry.
         Assert.AreEqual(NinoElementKind.Block, NinoKind.Of<CollectionFields.MapEntry<int, (int, long)>,
-            NinoStorageFormatter<CollectionFields.MapEntry<int, (int, long)>, int, (int, long),
-                UnmanagedFormatter<int>,
-                ValueTupleFormatter<int, long, UnmanagedFormatter<int>, UnmanagedFormatter<long>>,
-                CollectionFields.MapFields<int, (int, long)>>>());
+            NinoMapEntryFormatter<int, (int, long), UnmanagedFormatter<int>,
+                ValueTupleFormatter<int, long, UnmanagedFormatter<int>, UnmanagedFormatter<long>>>>());
     }
 
     [TestMethod]

@@ -12,7 +12,7 @@ namespace Nino.Core.CompilerServices
     /// dictionary (each element its pair, a <c>KeyValuePair</c> or the entry itself, composed by the pair's formatter
     /// from its key and value). Entries a set or a dictionary freed are skipped by the in-use test <see cref="InUse"/>
     /// describes. A pair's formatter hands a polymorphic value's generated loop the run of its values, each with its
-    /// key at <see cref="Key"/>'s offset (<see cref="Values"/>): the one place a key is written apart from its value. Not generic: generated code
+    /// key at <see cref="Key"/>'s offset (<see cref="Items"/>): the one place a key is written apart from its value. Not generic: generated code
     /// takes it (<see cref="INinoFormatter.WriteRun"/>), so one member of a polymorphic base serves every collection of
     /// it, whatever holds the values, without a generic member IL2CPP 2022.3 cannot build (#405).
     /// </summary>
@@ -150,14 +150,15 @@ namespace Nino.Core.CompilerServices
         internal static int KeyAt(int offset, int size) => (offset << 8) | (size < 0 ? StringKey : size);
 
         /// <summary>
-        /// The run of the values of this run's pairs (a run without keys): each value at <paramref name="value"/>
-        /// bytes from its pair, its key at <paramref name="key"/> bytes, written as <paramref name="keyForm"/> says (a
-        /// <see cref="Key"/> without its offset, not <see cref="NoKey"/>). What a pair's formatter hands its value's
-        /// generated loop (<see cref="INinoFormatter.WriteRun"/>).
+        /// The run of the items <paramref name="offset"/> bytes into each entry of this run: the same entries and
+        /// stride, the in-use test rebased, each item written after the key <paramref name="key"/> describes (a
+        /// <see cref="Key"/> from the item, or <see cref="NoKey"/>). The one way a run of items is made: a set's values
+        /// at their entries' stride, the values of a pair's run with their keys (what a pair's formatter hands its
+        /// value's generated loop, <see cref="INinoFormatter.WriteRun"/>), a set entry's polymorphic value.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal NinoRun Values(int value, int key, int keyForm) =>
-            new(ref Unsafe.Add(ref First, value), Count, Stride, keyForm + ((key - value) << 8), Rebase(InUse, value));
+        internal NinoRun Items(int offset, int key = NoKey) =>
+            new(ref Unsafe.Add(ref First, offset), Count, Stride, key, Rebase(InUse, offset));
 
         /// <summary>
         /// The <see cref="InUse"/> of <paramref name="inUse"/> for a run whose values start <paramref name="shift"/>

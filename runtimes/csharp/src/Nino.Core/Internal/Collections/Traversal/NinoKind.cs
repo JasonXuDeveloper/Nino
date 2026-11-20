@@ -109,6 +109,10 @@ namespace Nino.Core.Internal
         /// generated loop.</summary>
         public static readonly bool Runs = default(TFormatter).HasRunLoop;
 
+        /// <summary><see cref="INinoFormatter.RecyclesItems"/>: a dropped value's items recycled
+        /// (<see cref="NinoRecycler"/>).</summary>
+        public static readonly bool RecyclesItems = default(TFormatter).RecyclesItems;
+
         /// <summary><see cref="INinoFormatter.HasSizedWrite"/>.</summary>
         public static readonly bool SizedWrite = default(TFormatter).HasSizedWrite;
 

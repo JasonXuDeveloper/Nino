@@ -197,8 +197,13 @@ namespace Nino.Core.Internal
                 : ReadEach<T, TFormatter, TTarget>(ref target, length, reader);
         }
 
+        /// <summary>
+        /// Reads <paramref name="length"/> elements one at a time, each handed to <paramref name="target"/> as it is
+        /// read: the one loop of reads one by one into a store (a collection's adds, a hashed collection's entries read
+        /// apart, NinoEntries' adds).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Reader ReadEach<T, TFormatter, TTarget>(scoped ref TTarget target, int length, Reader reader)
+        internal static Reader ReadEach<T, TFormatter, TTarget>(scoped ref TTarget target, int length, Reader reader)
             where TFormatter : struct, INinoFormatter<T>
             where TTarget : struct, INinoGatherTarget<T>
         {

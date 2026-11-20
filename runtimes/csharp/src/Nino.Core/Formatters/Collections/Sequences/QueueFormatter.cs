@@ -38,29 +38,15 @@ namespace Nino.Core
 
             if (CollectionViews.Queue)
             {
-                // Head to tail: the backing ring as at most two spans (a block each for raw elements).
+                // Head to tail: the backing ring as at most two runs, the second from the array's start.
                 var ring = CollectionFields.Array<T>(value);
                 int count = CollectionFields.Size<T>(value);
                 int head = CollectionFields.Head<T>(value);
                 int first = Math.Min(count, ring.Length - head);
-                int block = NinoKind.Stride<T, TFormatter>();
-                if (block > 0)
-                {
-                    // The prefix and both parts of a wrapped ring fit in the same reservation.
-                    ref byte target = ref writer.ReserveCounted(count, block);
-                    // The ring bounds both runs: head to the end of the array, then the remaining elements at zero.
-                    ref T start = ref NinoUnsafe.GetArrayDataReference(ring);
-                    if (first != 0)
-                        NinoElements.WriteBlock<T, TFormatter>(ref target, ref Unsafe.Add(ref start, head), first);
-                    if (first != count)
-                        NinoElements.WriteBlock<T, TFormatter>(ref Unsafe.Add(ref target, first * block),
-                            ref start, count - first);
-                    return;
-                }
-
-                writer.WriteLength(count);
-                NinoRuns.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, head, first), ref writer);
-                NinoRuns.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, 0, count - first), ref writer);
+                // The ring bounds both runs (its layout checked at startup), so neither is checked again.
+                ref T start = ref NinoUnsafe.GetArrayDataReference(ring);
+                NinoRuns.Write<T, TFormatter>(ref Unsafe.Add(ref start, head), first, ref start, count - first,
+                    ref writer);
                 return;
             }
 
@@ -93,7 +79,7 @@ namespace Nino.Core
                     ? NinoElements.Capacity(length, Unsafe.SizeOf<T>(), reader.Remaining)
                     : length)
                 : NinoActivator<TQueue>.Create();
-            if (NinoRecycler.DiscardAll(queue, queue.Count))
+            if (NinoRecycler.DiscardAll<T, TFormatter>(queue, queue.Count))
                 queue.Clear();
 
             if (CollectionViews.Queue)

@@ -43,7 +43,7 @@ namespace Nino.Core
             }
 
             NinoRuns.Read<T, TFormatter>(
-                NinoElements.EnsureLength(ref value, length, NinoElements.CopiedWhole<T, TFormatter>(),
+                NinoElements.EnsureLength<T, TFormatter>(ref value, length, NinoElements.CopiedWhole<T, TFormatter>(),
                     NinoElements.ReadOverwrites<T, TFormatter>()), ref reader, prechecked: true);
         }
     }

@@ -6,6 +6,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using Nino.Core.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -89,6 +90,17 @@ namespace Nino.Core
         private static void ReadItems(ref ValueTuple<T1> value, ref byte source)
         {
             NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<ValueTuple<T1>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>();
+
+        void INinoFormatter<ValueTuple<T1>>.RecycleItems(in ValueTuple<T1> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
         }
     }
 
@@ -237,6 +249,56 @@ namespace Nino.Core
             NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
             NinoBlocks.ReadItem<T2, TF2>(ref value.Item2, ref Unsafe.Add(ref source, At2));
         }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<ValueTuple<T1, T2>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>();
+
+        void INinoFormatter<ValueTuple<T1, T2>>.RecycleItems(in ValueTuple<T1, T2> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+        }
+
+        // Where each item lies in the tuple: JIT-time constants, also in code shared over a class.
+        private static int Offset1
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2>);
+                return NinoBlocks.Offset(ref value, ref value.Item1);
+            }
+        }
+
+        private static int Offset2
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2>);
+                return NinoBlocks.Offset(ref value, ref value.Item2);
+            }
+        }
+
+        // A run of tuples with a string among their items through the string run kernels, one call per run; a
+        // polymorphic second item's run loop, the first written by it.
+        bool INinoFormatter.HasCursor => NinoPairs<T1, T2, TF1, TF2>.Cursor(Offset1, Offset2);
+
+        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
+            NinoPairs<T1, T2, TF1, TF2>.WriteStrings(run, Offset1, Offset2, writer);
+
+        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
+            NinoPairs<T1, T2, TF1, TF2>.ReadStrings(run, Offset1, Offset2, ref data, end);
+
+        bool INinoFormatter.HasRunLoop => NinoPairs<T1, T2, TF1, TF2>.RunLoop(Offset1, Offset2);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter.WriteRun(NinoRun run, ref Writer writer) =>
+            NinoPairs<T1, T2, TF1, TF2>.WriteRun(run, Offset1, Offset2, ref writer);
     }
 
     /// <summary><c>Tuple&lt;T1, T2&gt;</c>: a presence byte, then the items in order (one block where every item
@@ -399,6 +461,21 @@ namespace Nino.Core
             NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
             NinoBlocks.ReadItem<T2, TF2>(ref value.Item2, ref Unsafe.Add(ref source, At2));
             NinoBlocks.ReadItem<T3, TF3>(ref value.Item3, ref Unsafe.Add(ref source, At3));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<ValueTuple<T1, T2, T3>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>();
+
+        void INinoFormatter<ValueTuple<T1, T2, T3>>.RecycleItems(in ValueTuple<T1, T2, T3> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
         }
     }
 
@@ -578,6 +655,23 @@ namespace Nino.Core
             NinoBlocks.ReadItem<T2, TF2>(ref value.Item2, ref Unsafe.Add(ref source, At2));
             NinoBlocks.ReadItem<T3, TF3>(ref value.Item3, ref Unsafe.Add(ref source, At3));
             NinoBlocks.ReadItem<T4, TF4>(ref value.Item4, ref Unsafe.Add(ref source, At4));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<ValueTuple<T1, T2, T3, T4>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>() ||
+            NinoRecycler.MayRecycle<T4, TF4>();
+
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4>>.RecycleItems(in ValueTuple<T1, T2, T3, T4> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
+            NinoRecycler.Recycle<T4, TF4>(value.Item4);
         }
     }
 
@@ -773,6 +867,25 @@ namespace Nino.Core
             NinoBlocks.ReadItem<T3, TF3>(ref value.Item3, ref Unsafe.Add(ref source, At3));
             NinoBlocks.ReadItem<T4, TF4>(ref value.Item4, ref Unsafe.Add(ref source, At4));
             NinoBlocks.ReadItem<T5, TF5>(ref value.Item5, ref Unsafe.Add(ref source, At5));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<ValueTuple<T1, T2, T3, T4, T5>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>() ||
+            NinoRecycler.MayRecycle<T4, TF4>() ||
+            NinoRecycler.MayRecycle<T5, TF5>();
+
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5>>.RecycleItems(in ValueTuple<T1, T2, T3, T4, T5> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
+            NinoRecycler.Recycle<T4, TF4>(value.Item4);
+            NinoRecycler.Recycle<T5, TF5>(value.Item5);
         }
     }
 
@@ -984,6 +1097,27 @@ namespace Nino.Core
             NinoBlocks.ReadItem<T4, TF4>(ref value.Item4, ref Unsafe.Add(ref source, At4));
             NinoBlocks.ReadItem<T5, TF5>(ref value.Item5, ref Unsafe.Add(ref source, At5));
             NinoBlocks.ReadItem<T6, TF6>(ref value.Item6, ref Unsafe.Add(ref source, At6));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>() ||
+            NinoRecycler.MayRecycle<T4, TF4>() ||
+            NinoRecycler.MayRecycle<T5, TF5>() ||
+            NinoRecycler.MayRecycle<T6, TF6>();
+
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.RecycleItems(in ValueTuple<T1, T2, T3, T4, T5, T6> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
+            NinoRecycler.Recycle<T4, TF4>(value.Item4);
+            NinoRecycler.Recycle<T5, TF5>(value.Item5);
+            NinoRecycler.Recycle<T6, TF6>(value.Item6);
         }
     }
 
@@ -1211,6 +1345,29 @@ namespace Nino.Core
             NinoBlocks.ReadItem<T5, TF5>(ref value.Item5, ref Unsafe.Add(ref source, At5));
             NinoBlocks.ReadItem<T6, TF6>(ref value.Item6, ref Unsafe.Add(ref source, At6));
             NinoBlocks.ReadItem<T7, TF7>(ref value.Item7, ref Unsafe.Add(ref source, At7));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>() ||
+            NinoRecycler.MayRecycle<T4, TF4>() ||
+            NinoRecycler.MayRecycle<T5, TF5>() ||
+            NinoRecycler.MayRecycle<T6, TF6>() ||
+            NinoRecycler.MayRecycle<T7, TF7>();
+
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.RecycleItems(in ValueTuple<T1, T2, T3, T4, T5, T6, T7> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
+            NinoRecycler.Recycle<T4, TF4>(value.Item4);
+            NinoRecycler.Recycle<T5, TF5>(value.Item5);
+            NinoRecycler.Recycle<T6, TF6>(value.Item6);
+            NinoRecycler.Recycle<T7, TF7>(value.Item7);
         }
     }
 
@@ -1455,6 +1612,31 @@ namespace Nino.Core
             NinoBlocks.ReadItem<T6, TF6>(ref value.Item6, ref Unsafe.Add(ref source, At6));
             NinoBlocks.ReadItem<T7, TF7>(ref value.Item7, ref Unsafe.Add(ref source, At7));
             NinoBlocks.ReadItem<TRest, TF8>(ref value.Rest, ref Unsafe.Add(ref source, At8));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>() ||
+            NinoRecycler.MayRecycle<T4, TF4>() ||
+            NinoRecycler.MayRecycle<T5, TF5>() ||
+            NinoRecycler.MayRecycle<T6, TF6>() ||
+            NinoRecycler.MayRecycle<T7, TF7>() ||
+            NinoRecycler.MayRecycle<TRest, TF8>();
+
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>.RecycleItems(in ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
+            NinoRecycler.Recycle<T4, TF4>(value.Item4);
+            NinoRecycler.Recycle<T5, TF5>(value.Item5);
+            NinoRecycler.Recycle<T6, TF6>(value.Item6);
+            NinoRecycler.Recycle<T7, TF7>(value.Item7);
+            NinoRecycler.Recycle<TRest, TF8>(value.Rest);
         }
     }
 }

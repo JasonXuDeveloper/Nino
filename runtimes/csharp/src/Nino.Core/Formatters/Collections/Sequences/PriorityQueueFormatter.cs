@@ -73,7 +73,8 @@ namespace Nino.Core
             }
             else
             {
-                NinoRecycler.DiscardPairs(queue.UnorderedItems);
+                NinoRecycler.DiscardAll<(TElement, TPriority),
+                    ValueTupleFormatter<TElement, TPriority, TElementFormatter, TPriorityFormatter>>(queue.UnorderedItems);
                 queue.Clear();
             }
 

@@ -54,7 +54,8 @@ namespace Nino.Core
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
             if (dictionary.Count != 0)
             {
-                NinoRecycler.DiscardPairs<TKey, TValue>(dictionary);
+                NinoRecycler.DiscardAll<KeyValuePair<TKey, TValue>,
+                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(dictionary);
                 dictionary.Clear();
             }
 

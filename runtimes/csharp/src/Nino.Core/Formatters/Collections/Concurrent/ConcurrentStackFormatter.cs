@@ -39,10 +39,10 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void Refill(ConcurrentStack<T> stack, int length, ref Reader reader)
         {
-            if (NinoRecycler<T>.MayRecycle)
+            if (NinoRecycler.MayRecycle<T, TFormatter>())
             {
                 while (stack.TryPop(out var old))
-                    NinoRecycler<T>.Recycle(old);
+                    NinoRecycler.Recycle<T, TFormatter>(old);
             }
             else
             {

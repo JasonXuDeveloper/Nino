@@ -183,7 +183,7 @@ namespace Nino.Core.Internal
             int done = 0;
             while (true)
             {
-                var items = EnsureLength(ref array, count);
+                var items = EnsureLength<T, TFormatter>(ref array, count);
                 NinoRuns.Read<T, TFormatter>(new Span<T>(items, done, count - done), ref reader);
                 if (count == length)
                     return reader;
@@ -285,8 +285,9 @@ namespace Nino.Core.Internal
         /// the old array).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T[] EnsureLength<T>(ref T[] array, int length, bool uninitialized = false,
+        public static T[] EnsureLength<T, TFormatter>(ref T[] array, int length, bool uninitialized = false,
             bool overwritten = false)
+            where TFormatter : struct, INinoFormatter<T>
         {
             var current = array;
             if (current == null)
@@ -303,7 +304,7 @@ namespace Nino.Core.Internal
             // Resize takes the old array by value and the slot is stored here: the slot's address reaching a call
             // would keep it in memory when it is a local (the value of a property, read into a local and stored back
             // after), with a store and a reload around the call, and zeroed in the prolog.
-            var resized = Resize(current, length, uninitialized, overwritten | uninitialized);
+            var resized = Resize<T, TFormatter>(current, length, uninitialized, overwritten | uninitialized);
             array = resized;
             // As NinoRecycler.Replace: the old array is recycled once the new one took the slot (the shared empty
             // array never is).
@@ -344,7 +345,8 @@ namespace Nino.Core.Internal
         /// the old array. The caller stores the result and recycles the old array.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static T[] Resize<T>(T[] old, int length, bool uninitialized, bool overwritten)
+        private static T[] Resize<T, TFormatter>(T[] old, int length, bool uninitialized, bool overwritten)
+            where TFormatter : struct, INinoFormatter<T>
         {
             var result = NinoUnsafe.NewArray<T>(length, uninitialized);
             // Nothing to move or drop (the shared empty array is never recycled).
@@ -355,7 +357,7 @@ namespace Nino.Core.Internal
             // them too), the rest are dropped, and the emptied old array is replaced.
             int keep = overwritten ? 0 : Math.Min(old.Length, length);
             Array.Copy(old, result, keep);
-            NinoRecycler.DiscardAll(old.AsSpan(keep));
+            NinoRecycler.DiscardAll<T, TFormatter>(old.AsSpan(keep));
             if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
                 Array.Clear(old, 0, old.Length);
             return result;

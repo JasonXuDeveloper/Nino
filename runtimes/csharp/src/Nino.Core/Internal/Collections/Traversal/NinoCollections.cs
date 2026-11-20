@@ -37,7 +37,7 @@ namespace Nino.Core.Internal
         {
             var list = value ??= ListAccess.Create<TList, T>(0);
             if (list.Count > length)
-                NinoRecycler.DiscardAll(ListAccess.AsSpan<T>(list).Slice(length));
+                NinoRecycler.DiscardAll<T, TFormatter>(ListAccess.AsSpan<T>(list).Slice(length));
             int count = NinoElements.Fits(length, Unsafe.SizeOf<T>(), reader.Remaining)
                 ? length
                 : Math.Min(length, Math.Max(NinoElements.Clamped(Unsafe.SizeOf<T>(), reader.Remaining), list.Count));

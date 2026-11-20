@@ -80,15 +80,20 @@ none is free), slots through the slot kernels, strings and pairs holding them th
 others value by value through the one loop of values (`NinoRuns.WriteLoop`: the step, the in-use test, the key and the
 value, each tested against the constants its caller passes, so a run in a row compiles as a span's); a polymorphic
 base's values through its generated `WriteRun`, the compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep
-path are Nino.Core's. A pair (a `KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes
-its items (block, string items, dispatch bit), never a loop of its own. A pair of a polymorphic value composes onto its
-value's `WriteRun`: the run of its values, each key at an offset from its value (`NinoRun.Key`) and written by the loop,
-the one place a key is written apart from its value. The member is not generic, so one serves every collection and every
+path are Nino.Core's. A ring that wraps (a `Queue<T>`'s) is the same write in two segments, one reservation for both
+where the elements have a fixed size; the run itself stays one segment, since every loop over it would read a second
+segment's fields. A pair (a `KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes
+its items (block, string items, dispatch bit), never a loop of its own. What a composite of two items does on a run is
+written once (`NinoPairs`), and a `KeyValuePair`, a value tuple of two and a dictionary's entry forward to it with their
+items' offsets: a run with a string among the items through the string run kernels, and a polymorphic second item
+through its base's `WriteRun`: the run of those items (`NinoRun.Items`, the one way a run of items is made), each first
+item at an offset from its second (`NinoRun.Key`) and written by the loop, the one place an item is written apart from
+the other. The member is not generic, so one serves every collection and every
 key written as its bytes or a string; any other key goes value by value (#355).
 
 A collection's storage element is the element of its run, whatever else it holds. A `HashSet<T>`'s and a
 `Dictionary<TKey, TValue>`'s entries are a run of the entries themselves, the stride the entry's size, each written by a
-storage element formatter (`NinoStorageFormatter`): the entry's wire bytes are one item (a set's value) or two (a
+storage element formatter (`NinoSetEntryFormatter`, `NinoMapEntryFormatter`): the entry's wire bytes are one item (a set's value) or two (a
 dictionary's key and value) at offsets measured on this runtime (CoreCLR moves references first: a
 `Dictionary<string, int>`'s entry has its key at 0, the hash code at 8, the link at 12, the value at 16), and every
 other byte (the hash code, the link, padding) is skipped. The formatter composes its items as a value tuple does, so
@@ -96,16 +101,17 @@ where they are raw or blocks the entry is a block whose map (`NinoBlockMap`) nam
 existing block kernels (`NinoBlockPlan`: AVX-512 groups, 16-byte lanes, 64-byte permutes, the netstandard2.1 build's
 registered kernels) pack a run of entries into the wire's bytes and scatter the data back into new entries, with no code
 of their own for entries; strings among the items are moved by the string run kernels at their offsets in the entry;
-otherwise it is the items' run loop or formatter, through the entry. The piece is written once and generic over the
-element and the fields that reach its items, so a collection's own code is only its top layer: reaching the storage, the
-startup check that measures where the fields are, and what it does after a fill (a table links its entries). The same
-piece is the extension point for storage not yet on it: a `SortedList`'s two arrays, a `Queue`'s ring in two segments,
-the chunks of nodes the gather walks, and later user collections through a storage contract. Reads fill the same runs,
+otherwise it is the items' run loop or formatter, through the entry. The formatter reads the entry's fields as fields,
+never through a struct type parameter that reaches them: in code shared over a class (an entry holding a reference),
+each call of such a struct is an indirect call the JIT does not inline, so one formatter serves entries with and
+without references alike. A collection's own code is only its top layer: reaching the storage, the startup check that
+measures where the fields are, and what it does after a fill (a table links its entries). Reads fill the same runs,
 one loop per element kind: a run of values in a row (an array, the backing array of a list, whose count is set once it
 is filled, a ring from its start, a span) through the copy, slot and block kernels or value by value; and the entries of
 a new `HashSet<T>` or `Dictionary<TKey, TValue>` through one read for both (`NinoEntries`): a block scattered into the
 entries by the block kernels (every byte written, the hash code and link 0), the string run kernels or value by value
-into their places, then linked (below); into a collection that is not new, each entry read apart and added.
+into their places, then linked (below); into a collection that is not new, each entry read apart and added through one
+store for both tables (`NinoTableAdds`), by the gather's read loops.
 
 A collection that is not one contiguous run (a `SortedSet<T>` or `SortedDictionary<TKey, TValue>` tree, a
 `LinkedList<T>` ring, a concurrent dictionary or queue, any other `ICollection<T>` or `IEnumerable<T>`) is gathered: its
@@ -464,8 +470,9 @@ one state:
 
 Elements a collection drops (the tail of a shrinking list or array, the contents of a set, queue, stack or
 dictionary that is cleared and refilled, dictionary entries whose key is gone, the pairs of a priority queue that
-is cleared and refilled) are each recycled once with the element type (`DiscardAll`, `DiscardPairs`,
-`DrainAndDiscard`); for dictionaries and priority queues both halves of each pair are. An instance dropped as a whole takes its elements
+is cleared and refilled) are each recycled once with the element type (`DiscardAll`, `DrainAndDiscard`); an element
+composed of items (a `KeyValuePair`, a value tuple: a dictionary's pairs, a priority queue's element and priority, a
+list's pairs) recycles each item once instead, as its formatter composes it, whatever collection drops it. An instance dropped as a whole takes its elements
 with it: they are not recycled separately. `RecycleOwnershipTests` pins these counts for every formatter family.
 
 `[NinoPooled]` on a sealed, in-place `[NinoType]` class makes the generator add `ReturnToPool()` and two

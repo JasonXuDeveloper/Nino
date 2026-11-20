@@ -461,7 +461,8 @@ namespace Nino.Core.Internal
         {
             try
             {
-                var run = CollectionFields.Values(HashTables.Entries(set), length);
+                var run = CollectionFields.Run(HashTables.Entries(set), length)
+                    .Items(CollectionFields.SetEntry<string>.ValueOffset);
                 int read = utf8
                     ? Read(run, default(NinoUtf8Item), ref data, end, default(InPlace))
                     : Read(run, default(NinoUtf16Item), ref data, end, default(InPlace));
