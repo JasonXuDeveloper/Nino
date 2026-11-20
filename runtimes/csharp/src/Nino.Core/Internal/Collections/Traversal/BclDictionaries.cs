@@ -142,7 +142,7 @@ namespace Nino.Core
         /// <summary>
         /// Its two arrays zipped into its pairs (<see cref="Zip"/>) and written through the gather, the one write of a
         /// run of pairs whatever the keys and values are (#350): pairs whose memory is their wire form zipped straight
-        /// into the writer's buffer by the interleave kernels (the gather's in-place write, here on the caller's writer),
+        /// into the writer's buffer by the interleave kernels (the gather's in-place step, here on the caller's writer),
         /// the others a chunk at a time through the run loops. Out of line with the caller's writer by reference: that is
         /// a reference already (DictionaryLikeFormatter's), and by value its copies in and out cost the caller 5 stack
         /// accesses (asm.py: SortedList&lt;int, int&gt;).
@@ -157,7 +157,16 @@ namespace Nino.Core
                 NinoThrow.ModifiedDuringWrite();
             var zip = new Zip(keys, values, count);
             if (NinoGather.InPlace<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>())
-                NinoGather.WriteInPlace<KeyValuePair<TKey, TValue>, Zip>(ref zip, count, ref writer);
+            {
+                // The gather's in-place write (NinoGather.Write's first step) on the caller's writer: through the
+                // gather's call, the writer's copies in and out made 1,000 SortedList<int, int> pairs 1.1 to 1.15
+                // times as long to write (local quick runs). Not a helper both call: inlined into NinoGather.Write
+                // with its source by reference or by value, the enumerated gathers kept 5 to 8 more stack accesses.
+                ref byte target = ref writer.ReserveCounted(count, Unsafe.SizeOf<KeyValuePair<TKey, TValue>>());
+                if (count != 0)
+                    zip.Fill(System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                        ref Unsafe.As<byte, KeyValuePair<TKey, TValue>>(ref target), count));
+            }
             else
                 writer = NinoGather.Write<KeyValuePair<TKey, TValue>,
                     KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>, Zip>(zip, count, writer);
