@@ -204,11 +204,19 @@ namespace Nino.Core
         /// Whether a dropped <typeparamref name="T"/> may recycle anything (<see cref="NinoRecycler{T}.MayRecycle"/>),
         /// its items included where <typeparamref name="TFormatter"/> composes it of items (a pair, a value tuple,
         /// <see cref="INinoFormatter.RecyclesItems"/>): what a collection asks before it walks the elements it drops.
+        /// A composite object (a <c>Tuple</c>) is asked out of line: the code of a collection of classes is shared, and
+        /// a field of its formatter's would be a lookup there; the question is asked only where the collection drops
+        /// elements.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool MayRecycle<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            NinoRecycler<T>.MayRecycle ||
-            typeof(T).IsValueType && NinoKind<TFormatter>.RecyclesItems && ItemsMayRecycle<T, TFormatter>();
+            NinoRecycler<T>.MayRecycle || (typeof(T).IsValueType
+                ? NinoKind<TFormatter>.RecyclesItems && ItemsMayRecycle<T, TFormatter>()
+                : ObjectItemsMayRecycle<T, TFormatter>());
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool ObjectItemsMayRecycle<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            NinoKind<TFormatter>.RecyclesItems && default(TFormatter).ItemsMayRecycle;
 
         // Out of line: inlined, a composite's items' tests and the walk took the budget of the read around them (asm.py:
         // a List<(int, long)>'s read 1,196 to 1,678 bytes, 4 to 10 stack accesses).
@@ -219,15 +227,72 @@ namespace Nino.Core
         /// <summary>
         /// Recycles a dropped <paramref name="value"/> once: as <typeparamref name="T"/>
         /// (<see cref="NinoRecycler{T}.Recycle"/>), or, for a value composed of items without a handler of its own,
-        /// each item as its own type (a <c>KeyValuePair</c>'s key and value, a value tuple's items).
+        /// each item as its own type (a <c>KeyValuePair</c>'s key and value, a value tuple's items, a <c>Tuple</c>'s
+        /// items: a tuple object no pool takes is left to the collector, its items recycled).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static void Recycle<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
         {
-            if (typeof(T).IsValueType && NinoKind<TFormatter>.RecyclesItems && NinoRecycler<T>.Handler == null)
-                default(TFormatter).RecycleItems(in value);
+            if (NinoKind<TFormatter>.RecyclesItems && NinoRecycler<T>.Handler == null)
+            {
+                if (typeof(T).IsValueType)
+                    default(TFormatter).RecycleItems(in value);
+                else
+                    RecycleObject<T, TFormatter>(value);
+            }
             else
                 NinoRecycler<T>.Recycle(value);
+        }
+
+        // Out of line, as the recycler's own: a composite object (a Tuple) taken back by its pool owns its items there;
+        // otherwise its items are recycled, each once.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void RecycleObject<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
+        {
+            if (value == null)
+                return;
+            if (value is INinoPooled pooled)
+                pooled.ReturnToPool();
+            else
+                default(TFormatter).RecycleItems(in value);
+        }
+
+        /// <summary>
+        /// <see cref="Replace{T}"/> of a value composed of items (a <c>Tuple</c>): the old one recycled as
+        /// <see cref="Recycle{T,TFormatter}"/> recycles it, its items with it.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void Replace<T, TFormatter>(ref T value, T replacement)
+            where T : class
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            var old = value;
+            value = replacement;
+            if (old != null)
+                Replaced<T, TFormatter>(old, replacement);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void Replaced<T, TFormatter>(T old, T replacement)
+            where T : class
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (!ReferenceEquals(old, replacement))
+                Recycle<T, TFormatter>(old);
+        }
+
+        /// <summary><see cref="Discard{T}"/> of a value composed of items (a <c>Tuple</c>), as
+        /// <see cref="Replace{T,TFormatter}"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void Discard<T, TFormatter>(ref T value)
+            where T : class
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            var old = value;
+            if (old == null)
+                return;
+            value = null;
+            Replaced<T, TFormatter>(old, null);
         }
 
         /// <summary>Discards elements a collection drops (the tail it shrinks by): each is recycled once.</summary>

@@ -216,12 +216,15 @@ namespace Nino.CodeGen
             AppendRecycling(sb, s, type);
             if (s.Arity == 2 && !s.Rest)
                 AppendPairRuns(sb, type);
+            else if (s.Arity > 2 && !s.Rest)
+                AppendItemRuns(sb, s, type);
             sb.Append("    }\n");
         }
 
         /// <summary>
-        /// The recycling of a dropped value tuple, composed from its items (<c>NinoRecycler.Recycle</c> of each, a
-        /// nested value tuple composing its own): a collection dropping its tuples recycles every item once.
+        /// The recycling of a dropped tuple, composed from its items (<c>NinoRecycler.Recycle</c> of each, a nested
+        /// value tuple composing its own): a collection dropping its tuples, or a read replacing a <c>Tuple</c>,
+        /// recycles every item once (a <c>Tuple</c> object itself is left to the collector, NinoRecycler.Recycle).
         /// </summary>
         private static void AppendRecycling(StringBuilder sb, Shape s, string type)
         {
@@ -240,6 +243,57 @@ namespace Nino.CodeGen
             sb.Append("        }\n");
         }
 
+        /// <summary>The getter of <c>Offset{i}</c>: where item <paramref name="i"/> lies in the tuple, a JIT-time constant.</summary>
+        private static void AppendOffset(StringBuilder sb, string type, int i)
+        {
+            sb.Append($"        private static int Offset{i}\n");
+            sb.Append("        {\n");
+            sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append("            get\n");
+            sb.Append("            {\n");
+            sb.Append($"                var value = default({type});\n");
+            sb.Append($"                return NinoBlocks.Offset(ref value, ref value.Item{i});\n");
+            sb.Append("            }\n");
+            sb.Append("        }\n");
+            sb.Append("\n");
+        }
+
+        /// <summary>
+        /// What a value tuple of three items or more does on a run (<c>NinoItems</c>): the cursor form of a run whose
+        /// items are each a string or an item the string run kernels move beside one, its items a chain.
+        /// </summary>
+        private static void AppendItemRuns(StringBuilder sb, Shape s, string type)
+        {
+            sb.Append("\n");
+            sb.Append("        // Where each item lies in the tuple: JIT-time constants, also in code shared over a class.\n");
+            foreach (int i in s.Items)
+                AppendOffset(sb, type, i);
+            string chain = "NinoItemsEnd";
+            for (int i = s.Arity; i >= 1; i--)
+                chain = $"NinoItem<{s.Type(i)}, TF{i}, {chain}>";
+            string items = "default";
+            for (int i = s.Arity; i >= 1; i--)
+                items = $"new(Offset{i}, {items})";
+            sb.Append("        // The items as a chain, for the string run kernels.\n");
+            sb.Append($"        private static {chain} Items\n");
+            sb.Append("        {\n");
+            sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append($"            get => {items};\n");
+            sb.Append("        }\n");
+            sb.Append("\n");
+            sb.Append("        // A run of tuples whose every item is a string or moves beside one, a string among them, through the string\n");
+            sb.Append("        // run kernels, one call per run.\n");
+            sb.Append("        bool INinoFormatter.HasCursor =>\n");
+            sb.Append("            " + string.Join(" &&\n            ",
+                s.Items.Select(i => $"NinoItems.Part<{s.Type(i)}, TF{i}>()")) + ";\n");
+            sb.Append("\n");
+            sb.Append("        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>\n");
+            sb.Append("            NinoItems.Write(run, Items, writer);\n");
+            sb.Append("\n");
+            sb.Append("        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>\n");
+            sb.Append("            NinoItems.Read(run, Items, ref data, end);\n");
+        }
+
         /// <summary>
         /// What a value tuple of two does on a run, composed from its items as a <c>KeyValuePair</c> is
         /// (<c>NinoPairs</c>): the cursor form of a run holding strings and the run loop of a polymorphic second item.
@@ -249,18 +303,7 @@ namespace Nino.CodeGen
             sb.Append("\n");
             sb.Append("        // Where each item lies in the tuple: JIT-time constants, also in code shared over a class.\n");
             foreach (int i in new[] { 1, 2 })
-            {
-                sb.Append($"        private static int Offset{i}\n");
-                sb.Append("        {\n");
-                sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-                sb.Append("            get\n");
-                sb.Append("            {\n");
-                sb.Append($"                var value = default({type});\n");
-                sb.Append($"                return NinoBlocks.Offset(ref value, ref value.Item{i});\n");
-                sb.Append("            }\n");
-                sb.Append("        }\n");
-                sb.Append("\n");
-            }
+                AppendOffset(sb, type, i);
 
             const string pairs = "NinoPairs<T1, T2, TF1, TF2>";
             sb.Append("        // A run of tuples with a string among their items through the string run kernels, one call per run; a\n");
@@ -283,6 +326,7 @@ namespace Nino.CodeGen
         private static void AppendTuple(StringBuilder sb, Shape s)
         {
             string type = $"Tuple<{s.Types}>";
+            string formatter = $"TupleFormatter<{s.TypeParameters}>";
             string noReferences = string.Join(" && ",
                 s.Items.Select(i => $"!NinoUnsafe.IsReferenceOrContainsReferences<{s.Type(i)}>()"));
             sb.Append($"    /// <summary><c>Tuple&lt;{s.Types}&gt;</c>: a presence byte, then the items in order (one block where every item\n");
@@ -310,8 +354,12 @@ namespace Nino.CodeGen
             sb.Append("\n");
             sb.Append($"        public void Deserialize(ref Reader reader, ref {type} value)\n");
             sb.Append("        {\n");
-            sb.Append("            if (!reader.TryReadPresent(ref value))\n");
+            sb.Append("            // A tuple dropped (null in the data, or replaced below) recycles its items.\n");
+            sb.Append("            if (!reader.ReadPresent())\n");
+            sb.Append("            {\n");
+            sb.Append($"                NinoRecycler.Discard<{type}, {formatter}>(ref value);\n");
             sb.Append("                return;\n");
+            sb.Append("            }\n");
             sb.Append("\n");
             sb.Append("            // Tuples are immutable: the items are read into locals and the tuple is replaced.\n");
             foreach (int i in s.Items)
@@ -328,8 +376,9 @@ namespace Nino.CodeGen
                 sb.Append($"                default(TF{i}).Deserialize(ref reader, ref item{i});\n");
             sb.Append("            }\n");
             sb.Append("\n");
-            sb.Append($"            NinoRecycler.Replace(ref value, new {type}({string.Join(", ", s.Items.Select(i => $"item{i}"))}));\n");
+            sb.Append($"            NinoRecycler.Replace<{type}, {formatter}>(ref value, new {type}({string.Join(", ", s.Items.Select(i => $"item{i}"))}));\n");
             sb.Append("        }\n");
+            AppendRecycling(sb, s, type);
             sb.Append("    }\n");
         }
     }
