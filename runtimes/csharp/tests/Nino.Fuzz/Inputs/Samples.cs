@@ -37,6 +37,10 @@ namespace Nino.Fuzz
             Names = new() { [1] = "a", [2] = null, [3] = "ÿĀ", [4] = "日本語", [5] = "" },
             SetUtf8 = new() { "é", "😀", "", "ascii", null }, CountsUtf8 = new() { ["ü"] = 1, ["😀😀"] = -2, ["k"] = 3, ["z"] = 4 },
             Pairs = new[] { new KeyValuePair<string, int>("p", 1), new("日", 2), new(null, 3) },
+            Optional = new() { ["a"] = 1, ["b"] = null, ["ü"] = -3, [""] = null },
+            Triples = new() { ("x", 1, "y"), (null, 2, "日本"), ("", -3, null) },
+            Mixed = new[] { ((int?)1, "m", 2L, new DateTimeOffset(2020, 1, 2, 3, 4, 5, TimeSpan.FromHours(2))),
+                (null, null, -1L, default) },
         };
 
         public static RawRoot RawRoot() => new()

@@ -144,6 +144,9 @@ namespace Nino.Fuzz
         // pairs in a row.
         public Dictionary<string, int> Counts; public Dictionary<int, string> Names; [NinoUtf8] public HashSet<string> SetUtf8;
         [NinoUtf8] public Dictionary<string, long> CountsUtf8; public KeyValuePair<string, int>[] Pairs;
+        // A slot's value beside a string, and value tuples of more than two items through the chain of items.
+        public Dictionary<string, int?> Optional; public List<(string, int, string)> Triples;
+        public (int?, string, long, DateTimeOffset)[] Mixed;
     }
 
     [NinoType]
