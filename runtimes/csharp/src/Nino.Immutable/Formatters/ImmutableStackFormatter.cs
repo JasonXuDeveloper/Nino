@@ -22,6 +22,15 @@ namespace Nino.Immutable
                 return;
             }
 
+            writer = Write(value, writer);
+        }
+
+        // Out of line, the writer by value and returned, as Nino.Core's own trees (BclCollections.WriteSorted): inlined,
+        // the walk's setup (its source built and passed by value) took registers and stack from every caller (asm.py,
+        // a top-level ImmutableSortedSet<int> write: 43 stack accesses, 33 out of line, the writer's copy in and out).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer Write(ImmutableStack<T> value, Writer writer)
+        {
             // One walk of the nodes, top to bottom, into the gather's chunks, written in reverse: counting them first
             // walked the linked nodes twice, and the walk, not the copy, is what costs (#305: ImmutableStack<int> of
             // 1,000 written at 0.48x LuminPack's speed on EPYC 7763, 0.81x on Neoverse-N2). The nodes through the mirror
@@ -30,6 +39,8 @@ namespace Nino.Immutable
                 NinoGathered.WriteReversed<T, TFormatter, StackItems<T>>(new(StackNode<T>.Of(value), null), ref writer);
             else
                 NinoGathered.WriteReversed<T, TFormatter, Items>(new Items(value.GetEnumerator()), ref writer);
+
+            return writer;
         }
 
         /// <summary>Its elements top to bottom, through its enumerator (a struct of no interface).</summary>

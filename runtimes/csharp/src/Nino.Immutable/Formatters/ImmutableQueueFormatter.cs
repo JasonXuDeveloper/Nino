@@ -20,6 +20,15 @@ namespace Nino.Immutable
                 return;
             }
 
+            writer = Write(value, writer);
+        }
+
+        // Out of line, the writer by value and returned, as Nino.Core's own trees (BclCollections.WriteSorted): inlined,
+        // the walk's setup (its source built and passed by value) took registers and stack from every caller (asm.py,
+        // a top-level ImmutableSortedSet<int> write: 43 stack accesses, 33 out of line, the writer's copy in and out).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer Write(ImmutableQueue<T> value, Writer writer)
+        {
             // It keeps no count: its nodes walked a chunk at a time (StackNodes: its front stack, then its back one as
             // the queue keeps it reversed), the count patched after the elements (values whose memory is their wire
             // form walked straight into the writer's buffer). Its enumerator calls Pop and Peek per element, neither
@@ -31,6 +40,8 @@ namespace Nino.Immutable
                 NinoGathered.Write<T, TFormatter, StackItems<T>>(nodes, -1, ref writer);
             else
                 NinoGathered.Write<T, TFormatter, Items>(new Items(value.GetEnumerator()), -1, ref writer);
+
+            return writer;
         }
 
         /// <summary>Its elements front to back, through its enumerator (a struct of no interface).</summary>

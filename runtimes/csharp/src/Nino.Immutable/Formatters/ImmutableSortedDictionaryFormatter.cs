@@ -24,6 +24,15 @@ namespace Nino.Immutable
                 return;
             }
 
+            writer = Write(value, writer);
+        }
+
+        // Out of line, the writer by value and returned, as Nino.Core's own trees (BclCollections.WriteSorted): inlined,
+        // the walk's setup (its source built and passed by value) took registers and stack from every caller (asm.py,
+        // a top-level ImmutableSortedSet<int> write: 43 stack accesses, 33 out of line, the writer's copy in and out).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer Write(ImmutableSortedDictionary<TKey, TValue> value, Writer writer)
+        {
             // As ImmutableSortedSet<T>'s: its tree walked in order, a node's key and value made into its pair, each
             // chunk of pairs written by Nino.Core's run loops (pairs of raw items as one block, the string kernels, a
             // polymorphic value's run loop).
@@ -35,9 +44,10 @@ namespace Nino.Immutable
             else
                 NinoGathered.Write<KeyValuePair<TKey, TValue>,
                     KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
-                    NinoGathered.Enumerated<KeyValuePair<TKey, TValue>,
-                        ImmutableSortedDictionary<TKey, TValue>.Enumerator>>(new(value.GetEnumerator()), value.Count,
-                    ref writer);
+                    NinoGathered.Enumerated<KeyValuePair<TKey, TValue>, ImmutableSortedDictionary<TKey, TValue>.Enumerator>>(
+                    new(value.GetEnumerator()), value.Count, ref writer);
+
+            return writer;
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableSortedDictionary<TKey, TValue> value)

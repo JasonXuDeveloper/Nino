@@ -21,6 +21,15 @@ namespace Nino.Immutable
                 return;
             }
 
+            writer = Write(value, writer);
+        }
+
+        // Out of line, the writer by value and returned, as Nino.Core's own trees (BclCollections.WriteSorted): inlined,
+        // the walk's setup (its source built and passed by value) took registers and stack from every caller (asm.py,
+        // a top-level ImmutableSortedSet<int> write: 43 stack accesses, 33 out of line, the writer's copy in and out).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer Write(ImmutableHashSet<T> value, Writer writer)
+        {
             // Its tree walked (HashTrees) in the order its enumerator yields them, a chunk at a time, each chunk written
             // by Nino.Core's run loops (raw elements as one block): the enumerator keeps a pooled stack of nodes and
             // checks it per element. Else that (struct) enumerator: through IEnumerable<T>, each step is two interface
@@ -31,6 +40,8 @@ namespace Nino.Immutable
             else
                 NinoGathered.Write<T, TFormatter, NinoGathered.Enumerated<T, ImmutableHashSet<T>.Enumerator>>(
                     new(value.GetEnumerator()), value.Count, ref writer);
+
+            return writer;
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableHashSet<T> value)
