@@ -257,7 +257,10 @@ says which CPUs and cases moved.
   kind: "memory is the wire form" is `NinoGather.InPlace` (raw without padding, or a block that is its memory), and a
   `KeyValuePair` of raw items is a block, not raw (its formatter is no raw formatter), so the split first gated on
   `Raw` sent `SortedList<int, int>` through the gather's chunk and the comparer's order check: 1,000 pairs read 1.7
-  times as long (local quick runs, 1,928 against 1,152 ns) until it took `InPlace` and no bool or Untrusted check.
+  times as long (local quick runs, 1,928 against 1,152 ns) until it took `InPlace` and no bool or Untrusted check. Its write takes the gather's in-place step on the caller's
+  writer (through `NinoGather.Write`'s call, the writer's copies made 1,000 pairs 1.1 to 1.15 times as long to write),
+  as four lines of its own: that step as a helper inlined into `NinoGather.Write` too kept every enumerated gather's
+  source in memory (asm.py: 57 to 65 stack accesses by value, 60 to 65 by reference).
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks
