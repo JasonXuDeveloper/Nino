@@ -180,7 +180,7 @@ public class SortedListFastPathTests
         Check<int, long>(i => -i * 5, i => (long)i << 40);
         Check<Rank, Rank>(i => (Rank)(i - 20), i => (Rank)i);
         Check<float, double>(i => i == 0 ? float.NaN : i * 0.5f - 3, i => i / 3.0);
-        Check<ulong, ulong>(i => (ulong)i << 60 | (ulong)i, i => ulong.MaxValue - (ulong)i);
+        Check<ulong, ulong>(i => ((ulong)(uint)i << 60) + (uint)i, i => ulong.MaxValue - (ulong)i);
 
         static void Check<TKey, TValue>(Func<int, TKey> key, Func<int, TValue> value)
         {

@@ -88,7 +88,7 @@ namespace Nino.UnitTests
                 dictionary.Add(i, values[i]);
             CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(dictionary));
 
-            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(new HashSet<T>(values, ReferenceEqualityComparer.Instance)));
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(new HashSet<T>(values, ByReference<T>.Instance)));
             CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(new Queue<T>(values)));
             CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(ImmutableArray.Create(values)));
             CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(new LinkedList<T>(values)));
@@ -134,6 +134,16 @@ namespace Nino.UnitTests
             }
 
             return expected.ToArray();
+        }
+
+        /// <summary>Equal only to itself, as values of a type that overrides Equals are not.</summary>
+        private sealed class ByReference<T> : IEqualityComparer<T> where T : class
+        {
+            public static readonly ByReference<T> Instance = new();
+
+            public bool Equals(T x, T y) => ReferenceEquals(x, y);
+
+            public int GetHashCode(T value) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value);
         }
 
         public enum DispatchKey
