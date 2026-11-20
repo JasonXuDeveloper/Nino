@@ -122,14 +122,31 @@ into their places, then linked (below); into a collection that is not new, each 
 store for both tables (`NinoTableAdds`), by the gather's read loops.
 
 A collection that is not one contiguous run (a `SortedSet<T>` or `SortedDictionary<TKey, TValue>` tree, a
-`LinkedList<T>` ring, a concurrent dictionary or queue, any other `ICollection<T>` or `IEnumerable<T>`) is gathered: its
-elements are walked into a chunk of Nino's own per-thread buffer (`NinoGather`, 16 KB a chunk, pinned and 64-byte
-aligned for values without references on .NET 8+, a few kept per element type for nesting, cleared of references when
-given back), and each chunk is written by the same loop per element kind as an array of them. The walk goes through the
-collection's fields where `CollectionViews` checked them (the tree's nodes on a stack of its own, the ring's nodes), else
-through its own struct enumerator; a collection that fits one chunk is copied in by its `CopyTo`. A known count of
-values whose memory is their wire form is walked straight into the writer's buffer. The walk checks the count and the
-collection's version against what it found, so a collection changed during the write throws. Reads fill a chunk through
+`LinkedList<T>` ring, a concurrent dictionary or queue, the immutable lists, sets, dictionaries, queues and stacks of
+`Nino.Immutable`, a grouping, any other `ICollection<T>` or `IEnumerable<T>`) is gathered: its elements are walked into a
+chunk of Nino's own per-thread buffer (`NinoGather`, 16 KB a chunk, pinned and 64-byte aligned for values without
+references on .NET 8+, a few kept per element type for nesting, cleared of references when given back), and each chunk
+is written by the same loop per element kind as an array of them; a collection never needs a buffer of its own size. A
+collection says only how it is walked (an `INinoGatherSource<T>`, a struct, so every call is direct); the walk goes
+through its fields where a startup check proved them, else through its own struct enumerator:
+- every binary tree through one in-order walk (`NinoTreeWalk`): a node class with its two children at byte offsets, its
+  subtrees ending at null or at the tree's empty node, the path kept on a stack from the gather's buffer and resumed
+  chunk after chunk. A `SortedSet<T>`'s red-black tree (also under a `SortedDictionary`), an `ImmutableList<T>`'s and an
+  `ImmutableSortedSet<T>`'s AVL trees take the element at an offset of each node (`NinoTreeItems<T>`); an
+  `ImmutableSortedDictionary` makes each node's key and value its pair; an `ImmutableHashSet<T>` or
+  `ImmutableDictionary`'s tree of hash buckets yields each bucket's first item and then the further items of keys that
+  share its hash, an `ImmutableList`'s tree walked the same way, in the enumerator's order;
+- a `LinkedList<T>`'s ring of nodes, a `ConcurrentDictionary`'s buckets along their chains (`ConcurrentTables.Pairs`, in
+  its enumerator's order), an `ImmutableQueue<T>`'s struct enumerator; an `ImmutableStack<T>`, whose only walk is from
+  its top while it is written bottom to top, is walked once into chunks written from the last (`WriteReversed`);
+- a collection that fits one chunk copied in by its `CopyTo`, else its enumerator a chunk at a time.
+
+Values whose memory is their wire form are walked straight into the writer's buffer, a known count in one reservation,
+an unknown one (a queue, a concurrent dictionary) a step at a time into its free space with the count patched after. The
+walk checks the count and the collection's version against what it found, so a collection changed during the write
+throws. `Nino.Immutable` reaches the gather through `CompilerServices` (`NinoGathered`, `INinoGatherSource<T>`,
+`NinoTreeWalk`, `NinoTreeItems<T>`, hidden from IntelliSense): it says how its trees are walked, Nino.Core how each
+element is written. Reads fill a chunk through
 the read loop and hand it over: a `LinkedList<T>` links each chunk's nodes and sets its fields once at the end, a
 `SortedList<TKey, TValue>` splits each chunk into its two arrays (pairs whose memory is their wire form straight out of
 the data, with no chunk between) and publishes its size once the keys are found in order under its comparer, the one
@@ -139,8 +156,9 @@ are layers over the read, #350), a `PriorityQueue<TElement, TPriority>` (.NET 10
 priority is at least its parent's, for any element and priority (#350); a collection that takes elements one at a time
 (`Add`, `TryAdd`, `Push`, `Enqueue`) gets each chunk's, where the read loop moves several at once (raw values, slots,
 blocks, strings), else one at a time. Until published, a collection holds none of what a rejected read filled. The
-trees (`SortedSet<T>`, `SortedDictionary<TKey, TValue>`) and the concurrent stack, queue and bag, which are built in
-one go, still read the whole count into a rented array first.
+trees (`SortedSet<T>`, `SortedDictionary<TKey, TValue>`, the immutable collections) and the concurrent stack, queue and
+bag, which are built in one go from all their elements, read the whole count (bounded by the bytes left) into an array
+first.
 
 Strings are an element kind of the bottom layer, as raw values are (`NinoStringRuns`, #355): a run of strings in the
 default encoding or UTF-8, or of pairs with a string among their items and a string or a value of a fixed size (raw, or
