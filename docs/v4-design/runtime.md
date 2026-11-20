@@ -83,18 +83,21 @@ base's values through its generated `WriteRun`, the compare chain of its subtype
 path are Nino.Core's. A ring that wraps (a `Queue<T>`'s) is the same write in two segments, one reservation for both
 where the elements have a fixed size; the run itself stays one segment, since every loop over it would read a second
 segment's fields. A pair (a `KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes
-its items (block, string items, dispatch bit), never a loop of its own. What a composite of two items does on a run is
-written once (`NinoPairs`), and a `KeyValuePair`, a value tuple of two and a dictionary's entry forward to it with their
-items' offsets: a run with a string among the items through the string run kernels, and a polymorphic second item
+its items (block, string items, dispatch bit), never a loop of its own. What a composite of any number of items does on
+a run is written once (`NinoItems`), and a `KeyValuePair`, a value tuple of two to seven and a dictionary's entry forward
+to it with their items' offsets: a run with a string among the items through the string run kernels, and a polymorphic second item
 through its base's `WriteRun`: the run of those items (`NinoRun.Items`, the one way a run of items is made), each first
 item at an offset from its second (`NinoRun.Key`) and written by the loop, the one place an item is written apart from
 the other. The member is not generic, so one serves every collection and every
 key written as its bytes or a string; any other key goes value by value (#355). Beside a string, the string run kernels
 move a raw value, a block read as one, or a slot's value (a raw `T?` in its single value's bytes, a presence byte then
-the value: `Dictionary<string, int?>`), each an item of the element (`NinoCursor.Item`). A value tuple of three to seven
-items whose every item is a string or such an item composes the same cursor form from a chain of its items
-(`NinoItems`: each item with its offset, picked by JIT-time constants once per run into one element), so the kernel is
-instantiated over the items alone, never as code shared over a class.
+the value: `Dictionary<string, int?>`), each an item of the element (`NinoCursor.Item`). Each item's run item is
+picked by JIT-time constants once per run and composed into one element (the first item at its offset, then each next
+after it: `NinoItemAt`, `NinoItemChain`), so the kernel is instantiated over the items alone, never as code shared
+over a class. A tuple of three or more walks a chain of its items (`NinoItem`, each node picking its own item: one
+call per node and run where the code is shared over a class item); a pair picks both items in static methods
+(`NinoItems.WritePair`), which shared code inlines whole, where a chain's node would be a call. Recycling a dropped
+composite is each item's `NinoRecycler.Recycle`.
 
 A collection's storage element is the element of its run, whatever else it holds. A `HashSet<T>`'s and a
 `Dictionary<TKey, TValue>`'s entries are a run of the entries themselves, the stride the entry's size, each written by a
@@ -152,7 +155,7 @@ least), then transcodes it into its place (an unchanged one kept, `ReadAt`) or h
 dictionary's adds, every element read into the one entry the store hands on, whose fields stay in its home on the stack;
 a set that guards its own buckets adds each string in a loop of its own). A first pass that measured every length of
 the run before reading any took longer (a chain of dependent loads per string). Their items (`NinoUtf16Item`, `NinoUtf8Item`, `NinoValueItem`, composed by
-`NinoItemPair`) and stores are not generic over a class, so the kernels are never shared code: a collection of strings
+`NinoItems`) and stores are not generic over a class, so the kernels are never shared code: a collection of strings
 is compiled once for every class (`__Canon`), and there a method of a struct type parameter is an indirect call the JIT
 does not inline and a static of a generic class a helper call, where the kernels pay none per string. A pair kernel is
 generic over its items only, so a `Dictionary<string, int>`'s is exact, a `Dictionary<string, string>`'s not generic at
