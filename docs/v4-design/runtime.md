@@ -89,7 +89,12 @@ items' offsets: a run with a string among the items through the string run kerne
 through its base's `WriteRun`: the run of those items (`NinoRun.Items`, the one way a run of items is made), each first
 item at an offset from its second (`NinoRun.Key`) and written by the loop, the one place an item is written apart from
 the other. The member is not generic, so one serves every collection and every
-key written as its bytes or a string; any other key goes value by value (#355).
+key written as its bytes or a string; any other key goes value by value (#355). Beside a string, the string run kernels
+move a raw value, a block read as one, or a slot's value (a raw `T?` in its single value's bytes, a presence byte then
+the value: `Dictionary<string, int?>`), each an item of the element (`NinoCursor.Item`). A value tuple of three to seven
+items whose every item is a string or such an item composes the same cursor form from a chain of its items
+(`NinoItems`: each item with its offset, picked by JIT-time constants once per run into one element), so the kernel is
+instantiated over the items alone, never as code shared over a class.
 
 A collection's storage element is the element of its run, whatever else it holds. A `HashSet<T>`'s and a
 `Dictionary<TKey, TValue>`'s entries are a run of the entries themselves, the stride the entry's size, each written by a
@@ -476,7 +481,10 @@ Elements a collection drops (the tail of a shrinking list or array, the contents
 dictionary that is cleared and refilled, dictionary entries whose key is gone, the pairs of a priority queue that
 is cleared and refilled) are each recycled once with the element type (`DiscardAll`, `DrainAndDiscard`); an element
 composed of items (a `KeyValuePair`, a value tuple: a dictionary's pairs, a priority queue's element and priority, a
-list's pairs) recycles each item once instead, as its formatter composes it, whatever collection drops it. An instance dropped as a whole takes its elements
+list's pairs) recycles each item once instead, as its formatter composes it, whatever collection drops it. A `Tuple`
+object composes its items' recycling too: dropped by a collection, replaced by a read or read as null, its items are
+recycled once, unless a handler is registered for the tuple type (which then owns the tuple and its items) or a pool
+takes it back. An instance dropped as a whole takes its elements
 with it: they are not recycled separately. `RecycleOwnershipTests` pins these counts for every formatter family.
 
 `[NinoPooled]` on a sealed, in-place `[NinoType]` class makes the generator add `ReturnToPool()` and two
