@@ -79,6 +79,8 @@ NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value'
 NinoBlocks.cs                NinoBlocks: the items of composites (ItemSize, WriteItem, ReadItem: raw, or a block through
                              constrained calls), and the offsets NinoBlockMap is built from
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
+NinoElement.cs               NinoElement.Write: one element written as Nino.Core's collections write it (a raw T? as a
+                             slot), for Nino's own packages' walked collections (Nino.Immutable)
 NinoUnsafe.cs                unaligned little-endian memory access, ReadBool, array allocation, type queries; used by
                              Reader, Writer and generated code
 NinoUnsafe.Copy.cs           NinoUnsafe.Copy and its parts: block copies by size (overlapping moves, vector loops, Arm64
