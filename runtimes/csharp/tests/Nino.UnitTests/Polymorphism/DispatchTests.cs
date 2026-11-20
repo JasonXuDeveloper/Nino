@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
@@ -62,9 +64,11 @@ namespace Nino.UnitTests
 
         /// <summary>
         /// Arrays, lists and dictionary values of <typeparamref name="T"/> write each element as it writes alone (the
-        /// element loops go through the generated WriteRun, the dispatch inline).
+        /// element loops go through the generated WriteRun, the dispatch inline), and so does every other collection
+        /// that holds them (#349): a set's entries, a ring, an <c>ImmutableArray</c>, a linked list's nodes, and the
+        /// values of a sorted, a concurrent and a sorted-list dictionary and of an array of pairs after their keys.
         /// </summary>
-        private static void ElementsMatch<T>(params T[] values)
+        private static void ElementsMatch<T>(params T[] values) where T : class
         {
             var elements = new List<byte>();
             var pairs = new List<byte>(BitConverter.GetBytes(values.Length));
@@ -83,6 +87,16 @@ namespace Nino.UnitTests
             for (int i = 0; i < values.Length; i++)
                 dictionary.Add(i, values[i]);
             CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(dictionary));
+
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(new HashSet<T>(values, ReferenceEqualityComparer.Instance)));
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(new Queue<T>(values)));
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(ImmutableArray.Create(values)));
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(new LinkedList<T>(values)));
+            CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(new SortedDictionary<int, T>(dictionary)));
+            CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(new SortedList<int, T>(dictionary)));
+            CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(dictionary.ToArray()));
+            var concurrent = new ConcurrentDictionary<int, T>(dictionary);
+            CollectionAssert.AreEqual(Pairs(concurrent, concurrent.Count), NinoSerializer.Serialize(concurrent));
 
             // Keys the generated run loop takes (HasRunLoop: their memory is their wire form, or strings).
             PairsMatch(values, i => "key" + i);
@@ -108,9 +122,11 @@ namespace Nino.UnitTests
             CollectionAssert.AreEqual(Pairs(dictionary), NinoSerializer.Serialize(dictionary));
         }
 
-        private static byte[] Pairs<TKey, T>(Dictionary<TKey, T> dictionary)
+        private static byte[] Pairs<TKey, T>(Dictionary<TKey, T> dictionary) => Pairs(dictionary, dictionary.Count);
+
+        private static byte[] Pairs<TKey, T>(IEnumerable<KeyValuePair<TKey, T>> dictionary, int count)
         {
-            var expected = new List<byte>(BitConverter.GetBytes(dictionary.Count));
+            var expected = new List<byte>(BitConverter.GetBytes(count));
             foreach (var pair in dictionary)
             {
                 expected.AddRange(NinoSerializer.Serialize(pair.Key));
