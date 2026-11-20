@@ -272,7 +272,7 @@ NinoEntries.cs               the one read of a set's and a dictionary's entries 
                              stores call)
 NinoCursor.cs                which values the string run kernels move (Own: strings by their formatter's type, pairs by
                              INinoFormatter.HasCursor; Pairs: a string with a string or a value read as one) and the
-                             cursor read of one item (ReadAt: a dictionary's merge)
+                             cursor read of one item through the string kernels' items (ReadAt: a dictionary's merge)
 NinoElements.cs              the read policies of array-like formatters (capacity budgets, ReadGrowing, EnsureLength,
                              NewOrSame/Publish; MinWireSize, CopiedWhole, ReadOverwrites from NinoKind), the one-block
                              write and the one-value write and read of a sequence not held in a run
@@ -287,8 +287,9 @@ NinoDictionary.cs            the dictionary's top layer: its entries reached and
 NinoNullables.cs             fixed-stride nullable encoding and the host layout probe
 BclCollections.cs            runtime-owned collections using their checked views, gathered: SortedSet's tree, LinkedList's
                              ring (Ring) and its nodes linked as read (Links)
-BclDictionaries.cs           runtime-owned concurrent and sorted dictionaries, gathered; SortedList read into its two
-                             arrays (Split) and published once in order
+BclDictionaries.cs           runtime-owned concurrent and sorted dictionaries, gathered; SortedList written by one zip
+                             (Zip, the interleave kernels as its layer) and read by one split into its two arrays (Split;
+                             raw pairs straight out of the data, SplitInPlace) and published once in order
 ```
 
 ### Internal/Blocks/

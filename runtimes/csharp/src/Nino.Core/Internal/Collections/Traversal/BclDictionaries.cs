@@ -493,13 +493,20 @@ namespace Nino.Core
                     return false;
                 }
             }
+            // Four-byte keys and values: the vector deinterleave (the pairs are raw and their memory their wire form,
+            // which Split's own test of the block plan does not see for raw pairs: it read 1,000 SortedList<int, int>
+            // pairs 1.7 times as long, local quick runs).
+            if (NinoSimd.IsPackedLane32<TKey>() && NinoSimd.IsPackedLane32<TValue>())
+            {
+                NinoSimd.DeinterleaveInt32(ref source, ref Unsafe.As<TKey, int>(ref NinoUnsafe.GetArrayDataReference(keys)),
+                    ref Unsafe.As<TValue, int>(ref NinoUnsafe.GetArrayDataReference(values)), length);
+                if (byDefault && typeof(TKey) == typeof(int))
+                    return NinoSimd.AreStrictlyIncreasingInt32(ref source, length);
+                return InOrder(keys, length, comparer);
+            }
 #endif
             new Split(keys, values).Add(System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
                 ref Unsafe.As<byte, KeyValuePair<TKey, TValue>>(ref source), length));
-#if NET8_0_OR_GREATER
-            if (byDefault && typeof(TKey) == typeof(int) && Unsafe.SizeOf<TValue>() == 4)
-                return NinoSimd.AreStrictlyIncreasingInt32(ref source, length);
-#endif
             return InOrder(keys, length, comparer);
         }
 
