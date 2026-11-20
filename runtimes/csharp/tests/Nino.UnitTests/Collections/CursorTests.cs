@@ -84,7 +84,7 @@ namespace Nino.UnitTests
             where TKeyFormatter : struct, INinoFormatter<TKey>
             where TValueFormatter : struct, INinoFormatter<TValue>
         {
-            Assert.IsTrue(NinoCursor.Pairs<TKey, TValue, TKeyFormatter, TValueFormatter>());
+            Assert.IsTrue(NinoItems.Pair<TKey, TValue, TKeyFormatter, TValueFormatter>());
             var dictionary = new Dictionary<TKey, TValue>();
             for (int i = 0; i < count + (holes ? 3 : 0); i++)
                 dictionary[key(i)] = value(i);
@@ -148,7 +148,105 @@ namespace Nino.UnitTests
                     i => new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.FromMinutes(i % 600)), count, holes);
                 Pairs<bool, string, UnmanagedFormatter<bool>, StringFormatter>(i => i % 2 == 0, Text, Math.Min(count, 1),
                     false);
+                // Slots' values (a raw T?), present and absent, beside a string either way round.
+                Pairs<string, int?, StringFormatter, UnmanagedNullableFormatter<int>>(i => "n" + i,
+                    i => i % 3 == 0 ? null : i, count, holes);
+                Pairs<string, long?, Utf8StringFormatter, UnmanagedNullableFormatter<long>>(i => "ü" + i,
+                    i => i % 4 == 1 ? null : -i, count, holes);
+                Pairs<int?, string, UnmanagedNullableFormatter<int>, StringFormatter>(i => i, Text, count, holes);
             }
+        }
+
+        /// <summary>
+        /// Value tuples of three items or more whose items are strings, raw values, blocks and slots' values take the
+        /// string run kernels (<see cref="NinoItems"/>) in arrays and lists: the bytes of each item's own write, read
+        /// back new and over existing values, and every cut of the data rejected.
+        /// </summary>
+        [TestMethod]
+        public void LongTuplesTakeTheItemChain()
+        {
+            Assert.IsTrue(NinoKind<ValueTupleFormatter<string, int, string, StringFormatter, UnmanagedFormatter<int>,
+                StringFormatter>>.Cursor);
+            Assert.IsTrue(NinoKind<ValueTupleFormatter<int?, string, DateTimeOffset, long,
+                UnmanagedNullableFormatter<int>, Utf8StringFormatter, DateTimeOffsetFormatter,
+                UnmanagedFormatter<long>>>.Cursor);
+            // An item that is neither a string nor moves beside one: value by value.
+            Assert.IsFalse(NinoKind<ValueTupleFormatter<string, int, int[], StringFormatter, UnmanagedFormatter<int>,
+                UnmanagedArrayFormatter<int>>>.Cursor);
+
+            foreach (int count in new[] { 1, 5, 300 })
+            {
+                var triples = Enumerable.Range(0, count).Select(i => (Text(i), i, Text(i + 3))).ToArray();
+                Tuples<(string, int, string), ValueTupleFormatter<string, int, string, StringFormatter,
+                    UnmanagedFormatter<int>, StringFormatter>>(triples, (ref Writer w, (string, int, string) t) =>
+                {
+                    default(StringFormatter).Serialize(t.Item1, ref w);
+                    default(UnmanagedFormatter<int>).Serialize(t.Item2, ref w);
+                    default(StringFormatter).Serialize(t.Item3, ref w);
+                });
+
+                var mixed = Enumerable.Range(0, count).Select(i => (i % 3 == 0 ? (int?)null : i, Text(i),
+                    new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.FromMinutes(i % 600)), (long)-i)).ToArray();
+                Tuples<(int?, string, DateTimeOffset, long), ValueTupleFormatter<int?, string, DateTimeOffset, long,
+                    UnmanagedNullableFormatter<int>, Utf8StringFormatter, DateTimeOffsetFormatter,
+                    UnmanagedFormatter<long>>>(mixed, (ref Writer w, (int?, string, DateTimeOffset, long) t) =>
+                {
+                    default(UnmanagedNullableFormatter<int>).Serialize(t.Item1, ref w);
+                    default(Utf8StringFormatter).Serialize(t.Item2, ref w);
+                    default(DateTimeOffsetFormatter).Serialize(t.Item3, ref w);
+                    default(UnmanagedFormatter<long>).Serialize(t.Item4, ref w);
+                });
+            }
+        }
+
+        private delegate void ItemsWrite<T>(ref Writer writer, T value);
+
+        private static void Tuples<T, TFormatter>(T[] values, ItemsWrite<T> items)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            var buffer = new NinoArrayBufferWriter();
+            var writer = new Writer(buffer);
+            writer.WriteLength(values.Length);
+            foreach (var value in values)
+                items(ref writer, value);
+            writer.Flush();
+            byte[] expected = buffer.ToArray();
+            byte[] array = Write<T[], ArrayFormatter<T, TFormatter>>(values);
+            CollectionAssert.AreEqual(expected, array, typeof(T).Name);
+            CollectionAssert.AreEqual(expected, Write<List<T>, ListFormatter<List<T>, T, TFormatter>>(values.ToList()));
+            CollectionAssert.AreEqual(values, Read<T[], ArrayFormatter<T, TFormatter>>(array));
+            CollectionAssert.AreEqual(values, Read<List<T>, ListFormatter<List<T>, T, TFormatter>>(array));
+            var existing = (T[])values.Clone();
+            CollectionAssert.AreEqual(values, Read<T[], ArrayFormatter<T, TFormatter>>(array, existing));
+            for (int cut = 0; cut < array.Length; cut += Math.Max(1, array.Length / 61))
+            {
+                var prefix = array.AsSpan(0, cut).ToArray();
+                Assert.ThrowsExactly<NinoDataException>(() => Read<T[], ArrayFormatter<T, TFormatter>>(prefix),
+                    $"{typeof(T).Name}, cut {cut}");
+            }
+        }
+
+        /// <summary>
+        /// A slot's value beside a string (<see cref="NinoSlotItem{T,TFormatter}"/>) rejects a presence byte other than
+        /// 0 or 1 and a present value cut short, as its single read does, in a new dictionary and in a merge.
+        /// </summary>
+        [TestMethod]
+        public void SlotValuesBesideStringsRejectBadPresence()
+        {
+            var pairs = new Dictionary<string, int?> { ["a"] = 1, ["b"] = null, ["c"] = 3 };
+            var bytes = NinoSerializer.Serialize(pairs);
+            CollectionAssert.AreEquivalent(pairs.ToList(),
+                NinoDeserializer.Deserialize<Dictionary<string, int?>>(bytes).ToList());
+            // Count (4), "a" (header and one char: 2 bytes), then the presence byte of 1.
+            const int presence = 6;
+            Assert.AreEqual(1, bytes[presence]);
+            var bad = (byte[])bytes.Clone();
+            bad[presence] = 2;
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<string, int?>>(bad));
+            var existing = new Dictionary<string, int?>(pairs);
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bad, ref existing));
+            Assert.ThrowsExactly<NinoDataException>(() =>
+                NinoDeserializer.Deserialize<Dictionary<string, int?>>(bytes.AsSpan(0, presence + 3).ToArray()));
         }
 
         /// <summary>

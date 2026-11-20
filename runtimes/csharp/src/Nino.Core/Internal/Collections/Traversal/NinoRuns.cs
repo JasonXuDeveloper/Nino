@@ -25,7 +25,7 @@ namespace Nino.Core.Internal
     /// <item>slots: one block, through the slot kernels;</item>
     /// <item>a polymorphic base's values: its generated loop over the run (<see cref="INinoFormatter.WriteRun"/>),
     /// the dispatch inline and the writer in a local; a pair of them, its value formatter's loop over the run of its
-    /// values with their keys (<see cref="NinoPairs{TA,TB,TFormatterA,TFormatterB}.WriteRun"/>);</item>
+    /// values with their keys (<see cref="NinoItems.WriteRun{TA,TB,TFormatterA,TFormatterB}"/>);</item>
     /// <item>strings and pairs holding them: the string run kernels (<see cref="NinoStringRuns"/>), one call not
     /// generic over the element;</item>
     /// <item>others: value by value through the formatter, a constrained call.</item>
@@ -333,14 +333,18 @@ namespace Nino.Core.Internal
         {
             int count = run.Count;
             ref T first = ref Unsafe.As<byte, T>(ref run.First);
-            // Raw elements: one bounds check and one block copy (see Write). Bools one by one (checked,
-            // NinoLayout<T>.CopiesAsIs).
+            // Raw elements: one bounds check and one block copy (see Write). Values Nino checks (bools, Untrusted
+            // mode's fields: NinoLayout<T>.CopiesAsIs false) are checked in the data first, out of line, then copied
+            // the same way: the copy never stores a value the check rejects, so every collection reading raw values
+            // block-checks them (an ArraySegment, a Queue or an ImmutableArray of bools read one by one before).
             var kind = NinoKind.Of<T, TFormatter>();
-            if (kind == NinoElementKind.Raw && NinoLayout<T>.CopiesAsIs)
+            if (kind == NinoElementKind.Raw)
             {
                 ref byte destination = ref Unsafe.As<T, byte>(ref first);
                 ref byte source = ref TakeElements(ref reader, count, Unsafe.SizeOf<T>(), prechecked);
                 uint bytes = (uint)count * (uint)Unsafe.SizeOf<T>();
+                if (!NinoLayout<T>.CopiesAsIs && count != 0)
+                    CheckRaw<T>(ref source, count);
 #if NET8_0_OR_GREATER
                 if (Unsafe.SizeOf<T>() == 1 && NinoUnsafe.IsArm64Short(bytes))
                     NinoUnsafe.CopyArm64ShortMayOverlap(ref destination, ref source, bytes);
@@ -415,6 +419,15 @@ namespace Nino.Core.Internal
             typeof(T).IsValueType
                 ? default(TFormatter).ReadStrings(run, ref data, end)
                 : NinoStringRuns.Read<TFormatter>(run, ref data, end);
+
+        /// <summary>
+        /// Checks <paramref name="count"/> raw values (not 0) in the data at <paramref name="source"/> before they are
+        /// copied (<see cref="NinoChecks.Values{T}"/>: bools, Untrusted mode's fields). Out of line: rare, and the
+        /// checks are large.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CheckRaw<T>(ref byte source, int count) =>
+            NinoChecks.Values<T>(ref source, count, Unsafe.SizeOf<T>());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ref byte TakeElements(ref Reader reader, int count, int stride, bool prechecked) =>

@@ -85,7 +85,7 @@ namespace Nino.Core.Internal
     /// int&gt;</c>'s entry has its key at 0, hash code 8, link 12, value 16), the rest of its stride skipped: composed
     /// as <see cref="KeyValuePairFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/> composes a pair (the same bytes,
     /// block, dispatch bit, and run of a polymorphic value with its key written by that loop,
-    /// <see cref="NinoPairs{TA,TB,TFormatterA,TFormatterB}"/>), for every key and value: a block where both are raw or
+    /// <see cref="NinoItems"/>), for every key and value: a block where both are raw or
     /// blocks, which the block kernels move skipping the hash code and the link; else the two formatters, the entry's
     /// fields read as fields (see <see cref="NinoSetEntryFormatter{T,TFormatter}"/>), also in code shared over a class.
     /// </summary>
@@ -142,7 +142,7 @@ namespace Nino.Core.Internal
             NinoBlocks.ReadItem<TValue, TValueFormatter>(ref value.Value, ref Unsafe.Add(ref source, KeySize));
         }
 
-        bool INinoFormatter.HasRunLoop => NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.RunLoop(
+        bool INinoFormatter.HasRunLoop => NinoItems.RunLoop<TKey, TValue, TKeyFormatter, TValueFormatter>(
             CollectionFields.MapEntry<TKey, TValue>.KeyOffset, CollectionFields.MapEntry<TKey, TValue>.ValueOffset);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -150,13 +150,13 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// <see cref="INinoFormatter.WriteRun"/> of the entries of <paramref name="run"/> (not empty,
-        /// <see cref="NinoPairs{TA,TB,TFormatterA,TFormatterB}.RunLoop"/>): the value's loop over the run of
+        /// <see cref="NinoItems.RunLoop{TA,TB,TFormatterA,TFormatterB}"/>): the value's loop over the run of
         /// the values, each after its key. A static method, which code shared over a class inlines (a dictionary's top
         /// layer calls it), its offsets the entry's fields', constants there too.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteRun(NinoRun run, ref Writer writer) =>
-            NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.WriteRun(run,
+            NinoItems.WriteRun<TKey, TValue, TKeyFormatter, TValueFormatter>(run,
                 CollectionFields.MapEntry<TKey, TValue>.KeyOffset, CollectionFields.MapEntry<TKey, TValue>.ValueOffset,
                 ref writer);
 

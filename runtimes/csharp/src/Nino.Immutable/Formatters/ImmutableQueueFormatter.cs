@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Immutable
 {
@@ -18,18 +19,14 @@ namespace Nino.Immutable
                 return;
             }
 
-            if (ImmutableCollections.Slots<T>.Possible)
-            {
-                ImmutableCollections.WriteEnumerated<T, TFormatter>(value, ref writer);
-                return;
-            }
-
-            // No count: patched after the elements.
+            // No count: patched after the elements, each as a collection of them writes it (NinoElement: a raw T? as a
+            // slot), walked with its own (struct) enumerator: through IEnumerable<T> each step is two interface calls,
+            // and gathered into a rented array first 1,000 ints were written in 1.2 times the time (local quick runs).
             int countPos = writer.ReserveInt32();
             int count = 0;
             foreach (var item in value)
             {
-                default(TFormatter).Serialize(item, ref writer);
+                NinoElement.Write<T, TFormatter>(in item, ref writer);
                 count++;
             }
 

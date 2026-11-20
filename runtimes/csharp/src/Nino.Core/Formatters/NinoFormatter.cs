@@ -102,7 +102,7 @@ namespace Nino.Core
 
         /// <summary>
         /// Writes the values of <paramref name="run"/> (not empty; the count is the caller's) through the string run
-        /// kernels (<see cref="NinoStringRuns.WritePairs{TA,TB,TFormatterA,TFormatterB}"/>): one call per run, so in
+        /// kernels (<see cref="NinoItems"/>): one call per run, so in
         /// code shared over a class only the call is indirect, never a value. The writer by value and returned. Called
         /// only where <see cref="HasCursor"/> is true.
         /// </summary>
@@ -127,7 +127,7 @@ namespace Nino.Core
         /// Whether a dropped value's items are recycled as the items' types (false, the default): a composite of
         /// items (a pair, a value tuple), whose <see cref="INinoFormatter{T}.ItemsMayRecycle"/> and
         /// <see cref="INinoFormatter{T}.RecycleItems"/> <see cref="NinoRecycler"/> calls for the elements a collection
-        /// drops. Nino.Core's alone (<see cref="NinoPairs{TA,TB,TFormatterA,TFormatterB}"/>, the tuples). Called once.
+        /// drops. Nino.Core's alone (<c>KeyValuePair</c>, the tuples). Called once.
         /// </summary>
         internal bool RecyclesItems => false;
     }
@@ -245,6 +245,29 @@ namespace Nino.Core
 
         /// <summary>Rejects a presence byte other than 0 or 1 in <paramref name="count"/> slots (not zero).</summary>
         internal void CheckSlots(ref byte slots, int count) => NinoThrow.MissingCapability(GetType(), nameof(CheckSlots));
+
+        /// <summary>
+        /// Writes <paramref name="value"/> as a single value (<see cref="Serialize"/>'s bytes) at
+        /// <paramref name="destination"/>, which has room for <see cref="SlotStride"/> bytes; returns the bytes written:
+        /// a slot's value as an item of a composite in the string run kernels' cursor form (<c>NinoSlotItem</c>: a
+        /// dictionary's <c>int?</c> values beside its string keys). Called only where <see cref="SlotStride"/> is not -1.
+        /// </summary>
+        internal int WriteAt(ref byte destination, in T value)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(WriteAt));
+            return 0;
+        }
+
+        /// <summary>
+        /// As <see cref="WriteAt"/>, the read (<see cref="Deserialize"/>'s checks): a single value from the
+        /// <paramref name="available"/> bytes at <paramref name="source"/> into <paramref name="value"/>; returns the
+        /// bytes read. Too few bytes and a presence byte other than 0 or 1 are invalid data.
+        /// </summary>
+        internal int ReadAt(ref byte source, int available, ref T value)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(ReadAt));
+            return 0;
+        }
 
         /// <summary>
         /// Whether a dropped value has an item that may be recycled now (<see cref="INinoFormatter.RecyclesItems"/>),

@@ -11,7 +11,7 @@ namespace Nino.UnitTests
 {
     /// <summary>
     /// Composites (a <c>KeyValuePair</c>, a value tuple of two) compose what their items do on a run, one rule for all of
-    /// them (NinoPairs): a run holding strings through the string run kernels, a polymorphic second item through its
+    /// them (NinoItems): a run holding strings through the string run kernels, a polymorphic second item through its
     /// base's run loop, and a dropped composite's items recycled. The bytes are always each item's own write.
     /// </summary>
     [TestClass]

@@ -141,8 +141,12 @@ namespace Nino.Core
 
         public void Deserialize(ref Reader reader, ref Tuple<T1> value)
         {
-            if (!reader.TryReadPresent(ref value))
+            // A tuple dropped (null in the data, or replaced below) recycles its items.
+            if (!reader.ReadPresent())
+            {
+                NinoRecycler.Discard<Tuple<T1>, TupleFormatter<T1, TF1>>(ref value);
                 return;
+            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -156,7 +160,18 @@ namespace Nino.Core
                 default(TF1).Deserialize(ref reader, ref item1);
             }
 
-            NinoRecycler.Replace(ref value, new Tuple<T1>(item1));
+            NinoRecycler.Replace<Tuple<T1>, TupleFormatter<T1, TF1>>(ref value, new Tuple<T1>(item1));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<Tuple<T1>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>();
+
+        void INinoFormatter<Tuple<T1>>.RecycleItems(in Tuple<T1> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
         }
     }
 
@@ -286,19 +301,19 @@ namespace Nino.Core
 
         // A run of tuples with a string among their items through the string run kernels, one call per run; a
         // polymorphic second item's run loop, the first written by it.
-        bool INinoFormatter.HasCursor => NinoPairs<T1, T2, TF1, TF2>.Cursor(Offset1, Offset2);
+        bool INinoFormatter.HasCursor => NinoItems.Cursor<T1, T2, TF1, TF2>(Offset1, Offset2);
 
         Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoPairs<T1, T2, TF1, TF2>.WriteStrings(run, Offset1, Offset2, writer);
+            NinoItems.WritePair<T1, T2, TF1, TF2>(run, Offset1, Offset2, writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
-            NinoPairs<T1, T2, TF1, TF2>.ReadStrings(run, Offset1, Offset2, ref data, end);
+            NinoItems.ReadPair<T1, T2, TF1, TF2>(run, Offset1, Offset2, ref data, end);
 
-        bool INinoFormatter.HasRunLoop => NinoPairs<T1, T2, TF1, TF2>.RunLoop(Offset1, Offset2);
+        bool INinoFormatter.HasRunLoop => NinoItems.RunLoop<T1, T2, TF1, TF2>(Offset1, Offset2);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void INinoFormatter.WriteRun(NinoRun run, ref Writer writer) =>
-            NinoPairs<T1, T2, TF1, TF2>.WriteRun(run, Offset1, Offset2, ref writer);
+            NinoItems.WriteRun<T1, T2, TF1, TF2>(run, Offset1, Offset2, ref writer);
     }
 
     /// <summary><c>Tuple&lt;T1, T2&gt;</c>: a presence byte, then the items in order (one block where every item
@@ -343,8 +358,12 @@ namespace Nino.Core
 
         public void Deserialize(ref Reader reader, ref Tuple<T1, T2> value)
         {
-            if (!reader.TryReadPresent(ref value))
+            // A tuple dropped (null in the data, or replaced below) recycles its items.
+            if (!reader.ReadPresent())
+            {
+                NinoRecycler.Discard<Tuple<T1, T2>, TupleFormatter<T1, T2, TF1, TF2>>(ref value);
                 return;
+            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -361,7 +380,20 @@ namespace Nino.Core
                 default(TF2).Deserialize(ref reader, ref item2);
             }
 
-            NinoRecycler.Replace(ref value, new Tuple<T1, T2>(item1, item2));
+            NinoRecycler.Replace<Tuple<T1, T2>, TupleFormatter<T1, T2, TF1, TF2>>(ref value, new Tuple<T1, T2>(item1, item2));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<Tuple<T1, T2>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>();
+
+        void INinoFormatter<Tuple<T1, T2>>.RecycleItems(in Tuple<T1, T2> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
         }
     }
 
@@ -477,6 +509,57 @@ namespace Nino.Core
             NinoRecycler.Recycle<T2, TF2>(value.Item2);
             NinoRecycler.Recycle<T3, TF3>(value.Item3);
         }
+
+        // Where each item lies in the tuple: JIT-time constants, also in code shared over a class.
+        private static int Offset1
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3>);
+                return NinoBlocks.Offset(ref value, ref value.Item1);
+            }
+        }
+
+        private static int Offset2
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3>);
+                return NinoBlocks.Offset(ref value, ref value.Item2);
+            }
+        }
+
+        private static int Offset3
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3>);
+                return NinoBlocks.Offset(ref value, ref value.Item3);
+            }
+        }
+
+        // The items as a chain, for the string run kernels.
+        private static NinoItem<T1, TF1, NinoItem<T2, TF2, NinoItem<T3, TF3, NinoItemsEnd>>> Items
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => new(Offset1, new(Offset2, new(Offset3, default)));
+        }
+
+        // A run of tuples whose every item is a string or moves beside one, a string among them, through the string
+        // run kernels, one call per run.
+        bool INinoFormatter.HasCursor =>
+            NinoItems.Part<T1, TF1>() &&
+            NinoItems.Part<T2, TF2>() &&
+            NinoItems.Part<T3, TF3>();
+
+        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
+            NinoItems.Write(run, Items, writer);
+
+        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
+            NinoItems.Read(run, Items, ref data, end);
     }
 
     /// <summary><c>Tuple&lt;T1, T2, T3&gt;</c>: a presence byte, then the items in order (one block where every item
@@ -526,8 +609,12 @@ namespace Nino.Core
 
         public void Deserialize(ref Reader reader, ref Tuple<T1, T2, T3> value)
         {
-            if (!reader.TryReadPresent(ref value))
+            // A tuple dropped (null in the data, or replaced below) recycles its items.
+            if (!reader.ReadPresent())
+            {
+                NinoRecycler.Discard<Tuple<T1, T2, T3>, TupleFormatter<T1, T2, T3, TF1, TF2, TF3>>(ref value);
                 return;
+            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -547,7 +634,22 @@ namespace Nino.Core
                 default(TF3).Deserialize(ref reader, ref item3);
             }
 
-            NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3>(item1, item2, item3));
+            NinoRecycler.Replace<Tuple<T1, T2, T3>, TupleFormatter<T1, T2, T3, TF1, TF2, TF3>>(ref value, new Tuple<T1, T2, T3>(item1, item2, item3));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<Tuple<T1, T2, T3>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>();
+
+        void INinoFormatter<Tuple<T1, T2, T3>>.RecycleItems(in Tuple<T1, T2, T3> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
         }
     }
 
@@ -673,6 +775,68 @@ namespace Nino.Core
             NinoRecycler.Recycle<T3, TF3>(value.Item3);
             NinoRecycler.Recycle<T4, TF4>(value.Item4);
         }
+
+        // Where each item lies in the tuple: JIT-time constants, also in code shared over a class.
+        private static int Offset1
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4>);
+                return NinoBlocks.Offset(ref value, ref value.Item1);
+            }
+        }
+
+        private static int Offset2
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4>);
+                return NinoBlocks.Offset(ref value, ref value.Item2);
+            }
+        }
+
+        private static int Offset3
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4>);
+                return NinoBlocks.Offset(ref value, ref value.Item3);
+            }
+        }
+
+        private static int Offset4
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4>);
+                return NinoBlocks.Offset(ref value, ref value.Item4);
+            }
+        }
+
+        // The items as a chain, for the string run kernels.
+        private static NinoItem<T1, TF1, NinoItem<T2, TF2, NinoItem<T3, TF3, NinoItem<T4, TF4, NinoItemsEnd>>>> Items
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => new(Offset1, new(Offset2, new(Offset3, new(Offset4, default))));
+        }
+
+        // A run of tuples whose every item is a string or moves beside one, a string among them, through the string
+        // run kernels, one call per run.
+        bool INinoFormatter.HasCursor =>
+            NinoItems.Part<T1, TF1>() &&
+            NinoItems.Part<T2, TF2>() &&
+            NinoItems.Part<T3, TF3>() &&
+            NinoItems.Part<T4, TF4>();
+
+        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
+            NinoItems.Write(run, Items, writer);
+
+        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
+            NinoItems.Read(run, Items, ref data, end);
     }
 
     /// <summary><c>Tuple&lt;T1, T2, T3, T4&gt;</c>: a presence byte, then the items in order (one block where every item
@@ -727,8 +891,12 @@ namespace Nino.Core
 
         public void Deserialize(ref Reader reader, ref Tuple<T1, T2, T3, T4> value)
         {
-            if (!reader.TryReadPresent(ref value))
+            // A tuple dropped (null in the data, or replaced below) recycles its items.
+            if (!reader.ReadPresent())
+            {
+                NinoRecycler.Discard<Tuple<T1, T2, T3, T4>, TupleFormatter<T1, T2, T3, T4, TF1, TF2, TF3, TF4>>(ref value);
                 return;
+            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -751,7 +919,24 @@ namespace Nino.Core
                 default(TF4).Deserialize(ref reader, ref item4);
             }
 
-            NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4>(item1, item2, item3, item4));
+            NinoRecycler.Replace<Tuple<T1, T2, T3, T4>, TupleFormatter<T1, T2, T3, T4, TF1, TF2, TF3, TF4>>(ref value, new Tuple<T1, T2, T3, T4>(item1, item2, item3, item4));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<Tuple<T1, T2, T3, T4>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>() ||
+            NinoRecycler.MayRecycle<T4, TF4>();
+
+        void INinoFormatter<Tuple<T1, T2, T3, T4>>.RecycleItems(in Tuple<T1, T2, T3, T4> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
+            NinoRecycler.Recycle<T4, TF4>(value.Item4);
         }
     }
 
@@ -887,6 +1072,79 @@ namespace Nino.Core
             NinoRecycler.Recycle<T4, TF4>(value.Item4);
             NinoRecycler.Recycle<T5, TF5>(value.Item5);
         }
+
+        // Where each item lies in the tuple: JIT-time constants, also in code shared over a class.
+        private static int Offset1
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5>);
+                return NinoBlocks.Offset(ref value, ref value.Item1);
+            }
+        }
+
+        private static int Offset2
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5>);
+                return NinoBlocks.Offset(ref value, ref value.Item2);
+            }
+        }
+
+        private static int Offset3
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5>);
+                return NinoBlocks.Offset(ref value, ref value.Item3);
+            }
+        }
+
+        private static int Offset4
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5>);
+                return NinoBlocks.Offset(ref value, ref value.Item4);
+            }
+        }
+
+        private static int Offset5
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5>);
+                return NinoBlocks.Offset(ref value, ref value.Item5);
+            }
+        }
+
+        // The items as a chain, for the string run kernels.
+        private static NinoItem<T1, TF1, NinoItem<T2, TF2, NinoItem<T3, TF3, NinoItem<T4, TF4, NinoItem<T5, TF5, NinoItemsEnd>>>>> Items
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => new(Offset1, new(Offset2, new(Offset3, new(Offset4, new(Offset5, default)))));
+        }
+
+        // A run of tuples whose every item is a string or moves beside one, a string among them, through the string
+        // run kernels, one call per run.
+        bool INinoFormatter.HasCursor =>
+            NinoItems.Part<T1, TF1>() &&
+            NinoItems.Part<T2, TF2>() &&
+            NinoItems.Part<T3, TF3>() &&
+            NinoItems.Part<T4, TF4>() &&
+            NinoItems.Part<T5, TF5>();
+
+        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
+            NinoItems.Write(run, Items, writer);
+
+        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
+            NinoItems.Read(run, Items, ref data, end);
     }
 
     /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5&gt;</c>: a presence byte, then the items in order (one block where every item
@@ -946,8 +1204,12 @@ namespace Nino.Core
 
         public void Deserialize(ref Reader reader, ref Tuple<T1, T2, T3, T4, T5> value)
         {
-            if (!reader.TryReadPresent(ref value))
+            // A tuple dropped (null in the data, or replaced below) recycles its items.
+            if (!reader.ReadPresent())
+            {
+                NinoRecycler.Discard<Tuple<T1, T2, T3, T4, T5>, TupleFormatter<T1, T2, T3, T4, T5, TF1, TF2, TF3, TF4, TF5>>(ref value);
                 return;
+            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -973,7 +1235,26 @@ namespace Nino.Core
                 default(TF5).Deserialize(ref reader, ref item5);
             }
 
-            NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4, T5>(item1, item2, item3, item4, item5));
+            NinoRecycler.Replace<Tuple<T1, T2, T3, T4, T5>, TupleFormatter<T1, T2, T3, T4, T5, TF1, TF2, TF3, TF4, TF5>>(ref value, new Tuple<T1, T2, T3, T4, T5>(item1, item2, item3, item4, item5));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<Tuple<T1, T2, T3, T4, T5>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>() ||
+            NinoRecycler.MayRecycle<T4, TF4>() ||
+            NinoRecycler.MayRecycle<T5, TF5>();
+
+        void INinoFormatter<Tuple<T1, T2, T3, T4, T5>>.RecycleItems(in Tuple<T1, T2, T3, T4, T5> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
+            NinoRecycler.Recycle<T4, TF4>(value.Item4);
+            NinoRecycler.Recycle<T5, TF5>(value.Item5);
         }
     }
 
@@ -1119,6 +1400,90 @@ namespace Nino.Core
             NinoRecycler.Recycle<T5, TF5>(value.Item5);
             NinoRecycler.Recycle<T6, TF6>(value.Item6);
         }
+
+        // Where each item lies in the tuple: JIT-time constants, also in code shared over a class.
+        private static int Offset1
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6>);
+                return NinoBlocks.Offset(ref value, ref value.Item1);
+            }
+        }
+
+        private static int Offset2
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6>);
+                return NinoBlocks.Offset(ref value, ref value.Item2);
+            }
+        }
+
+        private static int Offset3
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6>);
+                return NinoBlocks.Offset(ref value, ref value.Item3);
+            }
+        }
+
+        private static int Offset4
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6>);
+                return NinoBlocks.Offset(ref value, ref value.Item4);
+            }
+        }
+
+        private static int Offset5
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6>);
+                return NinoBlocks.Offset(ref value, ref value.Item5);
+            }
+        }
+
+        private static int Offset6
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6>);
+                return NinoBlocks.Offset(ref value, ref value.Item6);
+            }
+        }
+
+        // The items as a chain, for the string run kernels.
+        private static NinoItem<T1, TF1, NinoItem<T2, TF2, NinoItem<T3, TF3, NinoItem<T4, TF4, NinoItem<T5, TF5, NinoItem<T6, TF6, NinoItemsEnd>>>>>> Items
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => new(Offset1, new(Offset2, new(Offset3, new(Offset4, new(Offset5, new(Offset6, default))))));
+        }
+
+        // A run of tuples whose every item is a string or moves beside one, a string among them, through the string
+        // run kernels, one call per run.
+        bool INinoFormatter.HasCursor =>
+            NinoItems.Part<T1, TF1>() &&
+            NinoItems.Part<T2, TF2>() &&
+            NinoItems.Part<T3, TF3>() &&
+            NinoItems.Part<T4, TF4>() &&
+            NinoItems.Part<T5, TF5>() &&
+            NinoItems.Part<T6, TF6>();
+
+        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
+            NinoItems.Write(run, Items, writer);
+
+        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
+            NinoItems.Read(run, Items, ref data, end);
     }
 
     /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5, T6&gt;</c>: a presence byte, then the items in order (one block where every item
@@ -1183,8 +1548,12 @@ namespace Nino.Core
 
         public void Deserialize(ref Reader reader, ref Tuple<T1, T2, T3, T4, T5, T6> value)
         {
-            if (!reader.TryReadPresent(ref value))
+            // A tuple dropped (null in the data, or replaced below) recycles its items.
+            if (!reader.ReadPresent())
+            {
+                NinoRecycler.Discard<Tuple<T1, T2, T3, T4, T5, T6>, TupleFormatter<T1, T2, T3, T4, T5, T6, TF1, TF2, TF3, TF4, TF5, TF6>>(ref value);
                 return;
+            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -1213,7 +1582,28 @@ namespace Nino.Core
                 default(TF6).Deserialize(ref reader, ref item6);
             }
 
-            NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4, T5, T6>(item1, item2, item3, item4, item5, item6));
+            NinoRecycler.Replace<Tuple<T1, T2, T3, T4, T5, T6>, TupleFormatter<T1, T2, T3, T4, T5, T6, TF1, TF2, TF3, TF4, TF5, TF6>>(ref value, new Tuple<T1, T2, T3, T4, T5, T6>(item1, item2, item3, item4, item5, item6));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<Tuple<T1, T2, T3, T4, T5, T6>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>() ||
+            NinoRecycler.MayRecycle<T4, TF4>() ||
+            NinoRecycler.MayRecycle<T5, TF5>() ||
+            NinoRecycler.MayRecycle<T6, TF6>();
+
+        void INinoFormatter<Tuple<T1, T2, T3, T4, T5, T6>>.RecycleItems(in Tuple<T1, T2, T3, T4, T5, T6> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
+            NinoRecycler.Recycle<T4, TF4>(value.Item4);
+            NinoRecycler.Recycle<T5, TF5>(value.Item5);
+            NinoRecycler.Recycle<T6, TF6>(value.Item6);
         }
     }
 
@@ -1369,6 +1759,101 @@ namespace Nino.Core
             NinoRecycler.Recycle<T6, TF6>(value.Item6);
             NinoRecycler.Recycle<T7, TF7>(value.Item7);
         }
+
+        // Where each item lies in the tuple: JIT-time constants, also in code shared over a class.
+        private static int Offset1
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6, T7>);
+                return NinoBlocks.Offset(ref value, ref value.Item1);
+            }
+        }
+
+        private static int Offset2
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6, T7>);
+                return NinoBlocks.Offset(ref value, ref value.Item2);
+            }
+        }
+
+        private static int Offset3
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6, T7>);
+                return NinoBlocks.Offset(ref value, ref value.Item3);
+            }
+        }
+
+        private static int Offset4
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6, T7>);
+                return NinoBlocks.Offset(ref value, ref value.Item4);
+            }
+        }
+
+        private static int Offset5
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6, T7>);
+                return NinoBlocks.Offset(ref value, ref value.Item5);
+            }
+        }
+
+        private static int Offset6
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6, T7>);
+                return NinoBlocks.Offset(ref value, ref value.Item6);
+            }
+        }
+
+        private static int Offset7
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var value = default(ValueTuple<T1, T2, T3, T4, T5, T6, T7>);
+                return NinoBlocks.Offset(ref value, ref value.Item7);
+            }
+        }
+
+        // The items as a chain, for the string run kernels.
+        private static NinoItem<T1, TF1, NinoItem<T2, TF2, NinoItem<T3, TF3, NinoItem<T4, TF4, NinoItem<T5, TF5, NinoItem<T6, TF6, NinoItem<T7, TF7, NinoItemsEnd>>>>>>> Items
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => new(Offset1, new(Offset2, new(Offset3, new(Offset4, new(Offset5, new(Offset6, new(Offset7, default)))))));
+        }
+
+        // A run of tuples whose every item is a string or moves beside one, a string among them, through the string
+        // run kernels, one call per run.
+        bool INinoFormatter.HasCursor =>
+            NinoItems.Part<T1, TF1>() &&
+            NinoItems.Part<T2, TF2>() &&
+            NinoItems.Part<T3, TF3>() &&
+            NinoItems.Part<T4, TF4>() &&
+            NinoItems.Part<T5, TF5>() &&
+            NinoItems.Part<T6, TF6>() &&
+            NinoItems.Part<T7, TF7>();
+
+        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
+            NinoItems.Write(run, Items, writer);
+
+        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
+            NinoItems.Read(run, Items, ref data, end);
     }
 
     /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5, T6, T7&gt;</c>: a presence byte, then the items in order (one block where every item
@@ -1438,8 +1923,12 @@ namespace Nino.Core
 
         public void Deserialize(ref Reader reader, ref Tuple<T1, T2, T3, T4, T5, T6, T7> value)
         {
-            if (!reader.TryReadPresent(ref value))
+            // A tuple dropped (null in the data, or replaced below) recycles its items.
+            if (!reader.ReadPresent())
+            {
+                NinoRecycler.Discard<Tuple<T1, T2, T3, T4, T5, T6, T7>, TupleFormatter<T1, T2, T3, T4, T5, T6, T7, TF1, TF2, TF3, TF4, TF5, TF6, TF7>>(ref value);
                 return;
+            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -1471,7 +1960,30 @@ namespace Nino.Core
                 default(TF7).Deserialize(ref reader, ref item7);
             }
 
-            NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4, T5, T6, T7>(item1, item2, item3, item4, item5, item6, item7));
+            NinoRecycler.Replace<Tuple<T1, T2, T3, T4, T5, T6, T7>, TupleFormatter<T1, T2, T3, T4, T5, T6, T7, TF1, TF2, TF3, TF4, TF5, TF6, TF7>>(ref value, new Tuple<T1, T2, T3, T4, T5, T6, T7>(item1, item2, item3, item4, item5, item6, item7));
+        }
+
+        // A dropped tuple recycles its items, each as its own type.
+        bool INinoFormatter.RecyclesItems => true;
+
+        bool INinoFormatter<Tuple<T1, T2, T3, T4, T5, T6, T7>>.ItemsMayRecycle =>
+            NinoRecycler.MayRecycle<T1, TF1>() ||
+            NinoRecycler.MayRecycle<T2, TF2>() ||
+            NinoRecycler.MayRecycle<T3, TF3>() ||
+            NinoRecycler.MayRecycle<T4, TF4>() ||
+            NinoRecycler.MayRecycle<T5, TF5>() ||
+            NinoRecycler.MayRecycle<T6, TF6>() ||
+            NinoRecycler.MayRecycle<T7, TF7>();
+
+        void INinoFormatter<Tuple<T1, T2, T3, T4, T5, T6, T7>>.RecycleItems(in Tuple<T1, T2, T3, T4, T5, T6, T7> value)
+        {
+            NinoRecycler.Recycle<T1, TF1>(value.Item1);
+            NinoRecycler.Recycle<T2, TF2>(value.Item2);
+            NinoRecycler.Recycle<T3, TF3>(value.Item3);
+            NinoRecycler.Recycle<T4, TF4>(value.Item4);
+            NinoRecycler.Recycle<T5, TF5>(value.Item5);
+            NinoRecycler.Recycle<T6, TF6>(value.Item6);
+            NinoRecycler.Recycle<T7, TF7>(value.Item7);
         }
     }
 

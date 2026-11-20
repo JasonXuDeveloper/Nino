@@ -48,7 +48,7 @@ namespace Nino.Core.Internal
 
     /// <summary>A string in the default encoding (<see cref="StringFormatter"/>, <see cref="NinoStrings"/>). No
     /// field: a run of strings alone keeps no offset in a register (a pair places its items,
-    /// <see cref="NinoItemPair{TA,TB}"/>).</summary>
+    /// <see cref="NinoItemChain{THead,TItem}"/>).</summary>
     internal readonly struct NinoUtf16Item : INinoRunItem
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -129,47 +129,26 @@ namespace Nino.Core.Internal
     }
 
     /// <summary>
-    /// Two items of one element, <typeparamref name="TA"/> then <typeparamref name="TB"/> (a pair's key and value, a
-    /// dictionary's entry), each at its own offset in the element: the element composed from its items, never a loop
-    /// of its own.
+    /// A slot's value as an item (<see cref="NinoCursor.Item{T,TFormatter}"/>: a raw <c>T?</c>,
+    /// <see cref="UnmanagedNullableFormatter{T}"/>), in a single value's bytes: a presence byte, then the value when
+    /// present (<see cref="INinoFormatter{T}.WriteAt"/>, <see cref="INinoFormatter{T}.ReadAt"/>). At most its slot's
+    /// bytes. A value without references, so a loop over it is not shared code.
     /// </summary>
-    internal readonly struct NinoItemPair<TA, TB> : INinoRunItem
-        where TA : struct, INinoRunItem
-        where TB : struct, INinoRunItem
+    internal readonly struct NinoSlotItem<T, TFormatter> : INinoRunItem where TFormatter : struct, INinoFormatter<T>
     {
-        // nint: added to a reference as they are (Mono widens an int offset added to a reference as unsigned).
-        private readonly nint _a, _b;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ref T At(ref byte element) => ref Unsafe.As<byte, T>(ref element);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public NinoItemPair(int a, int b)
-        {
-            _a = a;
-            _b = b;
-        }
+        public int MaxSize(ref byte element) => NinoKind.Stride<T, TFormatter>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(ref byte element)
-        {
-            int first = default(TA).MaxSize(ref Unsafe.AddByteOffset(ref element, _a));
-            int second = default(TB).MaxSize(ref Unsafe.AddByteOffset(ref element, _b));
-            return (uint)first + (ulong)(uint)second > int.MaxValue ? -1 : first + second;
-        }
+        public int WriteAt(ref byte destination, ref byte element) =>
+            default(TFormatter).WriteAt(ref destination, in At(ref element));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int WriteAt(ref byte destination, ref byte element)
-        {
-            int size = default(TA).WriteAt(ref destination, ref Unsafe.AddByteOffset(ref element, _a));
-            return size + default(TB).WriteAt(ref Unsafe.Add(ref destination, (nint)(uint)size),
-                ref Unsafe.AddByteOffset(ref element, _b));
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int ReadAt(ref byte source, int available, ref byte element, bool fresh)
-        {
-            int size = default(TA).ReadAt(ref source, available, ref Unsafe.AddByteOffset(ref element, _a), fresh);
-            return size + default(TB).ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size,
-                ref Unsafe.AddByteOffset(ref element, _b), fresh);
-        }
+        public int ReadAt(ref byte source, int available, ref byte element, bool fresh) =>
+            default(TFormatter).ReadAt(ref source, available, ref At(ref element));
     }
 
     /// <summary>
@@ -217,71 +196,6 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Read<TFormatter>(scoped NinoRun run, ref byte data, int end) =>
             typeof(TFormatter) == typeof(Utf8StringFormatter) ? ReadUtf8(run, ref data, end) : ReadUtf16(run, ref data, end);
-
-        /// <summary>
-        /// Writes <paramref name="run"/>'s pairs (not empty; the count is the caller's) whose items are
-        /// <typeparamref name="TA"/> at <paramref name="a"/> bytes from each element and <typeparamref name="TB"/> at
-        /// <paramref name="b"/> (<see cref="NinoCursor.Pairs{TA,TB,TFormatterA,TFormatterB}"/>: one a string, the other
-        /// a string or a value of a fixed size). The items are picked here by JIT-time constants: the loop called is
-        /// one instantiation over the items, never over the pair's types.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Writer WritePairs<TA, TB, TFormatterA, TFormatterB>(scoped NinoRun run, int a, int b,
-            Writer writer)
-            where TFormatterA : struct, INinoFormatter<TA>
-            where TFormatterB : struct, INinoFormatter<TB>
-        {
-            if (typeof(TFormatterA) == typeof(StringFormatter))
-                return WriteWith<NinoUtf16Item, TB, TFormatterB>(run, a, b, writer);
-            if (typeof(TFormatterA) == typeof(Utf8StringFormatter))
-                return WriteWith<NinoUtf8Item, TB, TFormatterB>(run, a, b, writer);
-            return WriteWith<NinoValueItem<TA, TFormatterA>, TB, TFormatterB>(run, a, b, writer);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Writer WriteWith<TItemA, TB, TFormatterB>(scoped NinoRun run, int a, int b, Writer writer)
-            where TItemA : struct, INinoRunItem
-            where TFormatterB : struct, INinoFormatter<TB>
-        {
-            if (typeof(TFormatterB) == typeof(StringFormatter))
-                return Write(run, new NinoItemPair<TItemA, NinoUtf16Item>(a, b), writer);
-            if (typeof(TFormatterB) == typeof(Utf8StringFormatter))
-                return Write(run, new NinoItemPair<TItemA, NinoUtf8Item>(a, b), writer);
-            return Write(run, new NinoItemPair<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), writer);
-        }
-
-        /// <summary>
-        /// As <see cref="WritePairs{TA,TB,TFormatterA,TFormatterB}"/>, the read: <paramref name="run"/>'s
-        /// pairs from the data at <paramref name="data"/> (<paramref name="end"/> bytes), each handed to
-        /// <paramref name="store"/>; returns the bytes read.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int ReadPairs<TA, TB, TFormatterA, TFormatterB, TStore>(scoped NinoRun run, int a, int b,
-            ref byte data, int end, TStore store)
-            where TFormatterA : struct, INinoFormatter<TA>
-            where TFormatterB : struct, INinoFormatter<TB>
-            where TStore : struct, INinoRunStore
-        {
-            if (typeof(TFormatterA) == typeof(StringFormatter))
-                return ReadWith<NinoUtf16Item, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
-            if (typeof(TFormatterA) == typeof(Utf8StringFormatter))
-                return ReadWith<NinoUtf8Item, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
-            return ReadWith<NinoValueItem<TA, TFormatterA>, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int ReadWith<TItemA, TB, TFormatterB, TStore>(scoped NinoRun run, int a, int b, ref byte data,
-            int end, TStore store)
-            where TItemA : struct, INinoRunItem
-            where TFormatterB : struct, INinoFormatter<TB>
-            where TStore : struct, INinoRunStore
-        {
-            if (typeof(TFormatterB) == typeof(StringFormatter))
-                return Read(run, new NinoItemPair<TItemA, NinoUtf16Item>(a, b), ref data, end, store);
-            if (typeof(TFormatterB) == typeof(Utf8StringFormatter))
-                return Read(run, new NinoItemPair<TItemA, NinoUtf8Item>(a, b), ref data, end, store);
-            return Read(run, new NinoItemPair<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), ref data, end, store);
-        }
 
         /// <summary>
         /// The write: <paramref name="run"/>'s elements in use (not none), each <paramref name="item"/>, written into

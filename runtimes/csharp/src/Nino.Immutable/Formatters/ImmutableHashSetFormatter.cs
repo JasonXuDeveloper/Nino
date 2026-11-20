@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Immutable
 {
@@ -30,12 +31,6 @@ namespace Nino.Immutable
                 return;
             }
 
-            if (count != 0 && ImmutableCollections.Slots<T>.Possible)
-            {
-                ImmutableCollections.WriteEnumerated<T, TFormatter>(value, ref writer);
-                return;
-            }
-
             // Element by element with its own (struct) enumerator: through IEnumerable<T>, each step is an
             // interface call.
             writer = WriteItems(value, count, writer);
@@ -50,7 +45,7 @@ namespace Nino.Immutable
         {
             writer.WriteLength(count);
             foreach (var item in value)
-                default(TFormatter).Serialize(item, ref writer);
+                NinoElement.Write<T, TFormatter>(in item, ref writer);
             return writer;
         }
 

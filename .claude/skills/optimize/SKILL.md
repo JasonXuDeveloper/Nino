@@ -125,7 +125,7 @@ says which CPUs and cases moved.
   `NinoMapEntryFormatter`, `Internal/Collections/Storage/NinoStorageElement.cs`), the struct of a collection's storage whose wire bytes are one
   or two items at offsets measured on this runtime, the rest of its stride (hash code, link) skipped, composed as
   tuples are (block map of the items at their offsets, cursor form, run loop, dispatch bit; the cursor form, run loop
-  and recycling of every composite of two items once, `NinoPairs`, from the items' offsets), so the block kernels pack
+  of every composite once, `NinoItems`, from the items' offsets; recycling per item, `NinoRecycler`), so the block kernels pack
   and scatter a run of entries with no code of their own; `KeyValuePairFormatter` composes a pair's items the same
   way; only a collection's thin top layer (reach the storage, measure its fields at startup, add, merge, link:
   `HashSetFormatter`, `NinoDictionary`, `SetTable`/`MapTable` under the one read `NinoEntries`) knows the collection.
@@ -160,7 +160,7 @@ says which CPUs and cases moved.
   generic over the table is an indirect call per entry in code shared over a class, and the set's measured 1.1 times
   as long through one). The dictionary's
   out-of-line write computes the key and value offsets from `MapEntry` and calls the by-value loops
-  (`NinoRuns.WriteEach`, `NinoStringRuns.WritePairs`, writer by value and returned): the shared `NinoRuns.WriteEntries`
+  (`NinoRuns.WriteEach`, `NinoItems.WritePair`, writer by value and returned): the shared `NinoRuns.WriteEntries`
   inlined its loop on that method's writer parameter, which then lived in memory (`Dictionary<string, int>` WriteEntries
   36 to 54 stack accesses; by value 36 to 30). Compute an in-use test from the entry's own fields' distances
   (`CollectionFields.InUse`), never from a static of a generic class: one not initialized when Tier1 compiles the caller
@@ -172,7 +172,7 @@ says which CPUs and cases moved.
   the no-references guard; the `Dictionary<int, Base>` read shim grew 92 to 167 bytes (a reader copied into the
   out-of-line `NinoEntries.ReadEach`, plus the method's generic lookup) with one copy of the reader instead of two.
   The entries' write (`NinoDictionary.WriteEntries`: the run, then the loop) is out of line with the writer by value,
-  one call per dictionary: inlined, its tests (`NinoPairs.RunLoop`, the cursor pair test, the run) spent the budget of a
+  one call per dictionary: inlined, its tests (`NinoItems.RunLoop`, the cursor pair test, the run) spent the budget of a
   generated body holding two dictionaries, which then called it with the writer by ref and compiled both loops of the
   other (asm.py: a `Lookup`'s top-level write 107 to 189 stack accesses, 149 out of line, in 27 % less code). Entries
   without references (raw or block items) stay inline; with them smaller, a `Lookup`'s whole top-level write is
@@ -181,7 +181,36 @@ says which CPUs and cases moved.
   `NinoRecycler.MayRecycle<T, TFormatter>` / `Recycle` / `DiscardAll<T, TFormatter>`, and a composite's items through
   its formatter's internal `RecyclesItems` / `ItemsMayRecycle` / `RecycleItems` (pairs, value tuples, entries), never a
   per-collection pair walk (`DiscardPairs` went). Keep the walk over dropped elements and a composite's may-recycle test
-  out of line (`NoInlining`): inlined, `List<(int, long)>` deserialize grew 1,196 to 1,678 bytes. Add no generic member to `INinoFormatter<T>`: Unity
+  out of line (`NoInlining`): inlined, `List<(int, long)>` deserialize grew 1,196 to 1,678 bytes. A composite object
+  (a `Tuple`) recycles its items through the same members (`NinoRecycler.Recycle`, `Replace` and `Discard` of `<T,
+  TFormatter>`: its items where no handler takes the tuple and no pool takes it back), but a collection asks it only as
+  itself (`NinoRecycler<T>.MayRecycle`, true for a non-sealed class once a pool exists): asking its items too, even out
+  of line, compiled a call into the read of every list of classes (asm.py: 30 `ListFormatter<__Canon, ...>.Deserialize`
+  and generated bodies, storage-typed), whose code is shared. Compose every composite's cursor form in `NinoItems`
+  (a pair, a value tuple of two to seven, a dictionary's entry): its element is the first item at its offset
+  (`NinoItemAt`) then each next (`NinoItemChain`), so the string kernel is instantiated over the items alone, never over
+  the composite. A tuple of three or more walks a chain of its items (`NinoItem<T, TFormatter, TNext>` ...
+  `NinoItemsEnd`) through a generic interface method (`INinoItemsNext.Write<THead>`, a constrained call on the exact
+  chain), one lookup per node and run, none per element; write each node's pick of its run item out in the node's own
+  method, never in a static helper generic over the item: in a node over a class item that call takes a lookup and is
+  never inlined (asm.py, `List<(string, int, string)>` storage-typed: the first node 225 to 371 bytes, a second call per
+  node and run), and keep the node's methods generic over one type parameter (a store as a second one cost an
+  instantiating stub per node over a class item). A pair keeps a static pick of both items (`NinoItems.WritePair`,
+  `ReadPair`), the one pair-specific piece: code shared over a class item (a `KeyValuePair<string, int>`'s, a
+  `Dictionary<string, string>`'s) inlines it whole down to the kernel call, where entering the chain would add a call
+  per node and run; with it every pair's listing is the one `NinoStringRuns.WritePairs` compiled (asm.py, TC=0, every
+  `Dictionary<string, *>`, `KeyValuePair` array and list, `List<(int, string)>` and polymorphic pair: the same bytes, the
+  element's two offsets as before, 16 bytes). Beside a string, a slot's value (a raw `T?`) is an item in its single value's
+  bytes (`NinoSlotItem` over two internal non-generic members of `INinoFormatter<T>`, `WriteAt`/`ReadAt`, implemented by
+  `UnmanagedNullableFormatter`): `NinoCursor.Item` is the one predicate of what may sit beside a string. A raw run Nino
+  checks (bools, Untrusted mode) is checked in the data out of line and then copied as one block in `NinoRuns.Read`
+  (`CheckRaw`), never sent to the per-value loop: nothing the check rejects is stored, so a rejected read leaves an
+  existing array as it was. A package outside Nino.Core that walks a collection (Nino.Immutable's `ImmutableQueue`,
+  the `ImmutableHashSet` fallback) writes each element through `NinoElement.Write` (CompilerServices: a raw `T?` as a
+  slot, the kind a JIT-time constant), never by a guess of its own at which elements are slots, and keeps its loop over
+  the collection's struct enumerator: through `IEnumerable<T>` (Nino.Core's enumerable write, the gather) each step is
+  two interface calls, and 1,000 ints of an `ImmutableQueue` were written in 1.6 times the time, walked into a rented
+  array first still 1.2 times (local quick runs, storage-typed). Add no generic member to `INinoFormatter<T>`: Unity
   2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`). The
   view is one cursor, `NinoRun` (#355 PR 3: the first value, count, stride, the in-use test of free entries, whose rule
   each runtime proves at startup), and the loops are `NinoRuns`, a kernel per kind and one loop of values per direction:
@@ -199,7 +228,7 @@ says which CPUs and cases moved.
   run under `NinoKind<TFormatter>.Strings` (`NinoRuns.WriteStrings`/`ReadStrings`, `HashSetFormatter`,
   `NinoDictionary`, `KeyValuePairFormatter`'s `WriteStrings`/`ReadStrings`). Their items (`INinoRunItem`:
   `NinoUtf16Item`, `NinoUtf8Item`, `NinoValueItem`; `MaxSize`, `WriteAt`, `Measure`, `ReadAt` returning byte counts)
-  are not generic over a class and a pair is composed from two (`NinoItemPair`, generic over its items only), so the
+  are not generic over a class and a composite's element is composed from them (`NinoItemAt`, `NinoItemChain`, generic over its items only), so the
   kernels are never shared code. Keep their state in registers, five values at most across the string kernels' and
   the stores' calls (x64's callee-saved registers): the write takes only the free space (a reference and the bytes
   left), checks each element's longest form against it and returns where it stopped, its driver growing the buffer
@@ -212,7 +241,7 @@ says which CPUs and cases moved.
   string>` 1.15, `HashSet<string>` 1.1; inlining the UTF-8 measure's one-byte counts alone only brought
   `Utf8MixedStrings` from 1.14 times the base's time to on par); a first pass that summed the run's longest forms to
   reserve them once (1,000 strings written 1.3 to 1.4 times as long, local quick runs); an offset in each string item (a register more in a run of strings alone:
-  `string[]` written 1.2 times as long; a pair places its items, `NinoItemPair`'s offsets); the measure loop inside
+  `string[]` written 1.2 times as long; a composite places its items, `NinoItemAt`'s and `NinoItemChain`'s offsets); the measure loop inside
   the read's method and a store whose fields or add were in the loop (its position, count and element on the stack:
   `HashSet<string>` read 1.3 to 1.5 times as long). A store that hands each element on (`INinoRunStore.OneSlot`: a
   dictionary's adds into one entry) has its `Stored` out of line, called on its home on the stack, and its

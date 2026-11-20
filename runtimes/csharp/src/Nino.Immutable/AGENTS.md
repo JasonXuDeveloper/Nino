@@ -27,7 +27,9 @@ Properties.cs                [module: SkipLocalsInit]
 ## Rules for these files
 
 - Read paths reach Nino.Core only through its public and `CompilerServices` API (`NinoEffectiveSettings` for the
-  frozen settings); `ObjectTypes.cs` is the one file compiled in.
+  frozen settings); `ObjectTypes.cs` is the one file compiled in. A collection walked element by element writes each
+  through `NinoElement.Write` (a raw `T?` as a slot, as Nino.Core's collections write it), never by a guess of its own
+  at the element kind, over its struct enumerator (`optimize`).
 - The mirror classes must match the fields of every System.Collections.Immutable version users may have (1.5 to
   10.0 share them); `Usable` falls back to the builders when the layout check fails, and `runtimes/csharp/tests/Nino.RuntimeTests`
   has a `FastPaths` row for `HashTrees.Usable` and `SortedTrees.Usable`, so a runtime that falls back fails there.

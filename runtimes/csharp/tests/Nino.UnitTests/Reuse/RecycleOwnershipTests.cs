@@ -441,4 +441,28 @@ public class RecycleOwnershipTests
         Read(ref target, null);
         AssertRecycled(As(old));
     }
+
+    [TestMethod]
+    public void TupleWithoutAHandlerRecyclesItsItems()
+    {
+        // No handler for Tuple<RcItem, long>: the tuple object is left to the collector, its items recycled.
+        var first = new RcItem();
+        var target = Tuple.Create(first, 1L);
+        Read(ref target, Tuple.Create(new RcItem(), 2L));
+        AssertRecycled(As(first));
+
+        var second = target.Item1;
+        Read(ref target, null);
+        Assert.IsNull(target);
+        AssertRecycled(As(second));
+    }
+
+    [TestMethod]
+    public void LongValueTuplesRecycleTheirItems()
+    {
+        var items = new[] { new RcItem(), new RcItem() };
+        var list = new List<(int, string, RcItem)> { (1, "a", items[0]), (2, "b", items[1]) };
+        Read(ref list, new List<(int, string, RcItem)>());
+        AssertRecycled(As(items[0]), As(items[1]));
+    }
 }
