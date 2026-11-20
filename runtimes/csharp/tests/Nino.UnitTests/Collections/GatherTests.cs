@@ -109,6 +109,13 @@ namespace Nino.UnitTests
             bool hashedAlike = typeof(T).IsValueType || typeof(T) == typeof(string);
             Same(NinoSerializer.Serialize(items), ImmutableList.CreateRange(items), name);
             Same(NinoSerializer.Serialize(items), ImmutableQueue.CreateRange(items), name);
+            // Grown at its back: its back stack not reversed yet (its enumerator), then reversed by that enumerator
+            // and kept (its nodes), then dequeued past its front.
+            var grown = items.Aggregate(ImmutableQueue<T>.Empty, (queue, item) => queue.Enqueue(item));
+            Same(NinoSerializer.Serialize(items), grown, name + " grown", reads: false);
+            Same(NinoSerializer.Serialize(items), grown, name + " grown, reversed", reads: false);
+            if (items.Length > 1)
+                Same(NinoSerializer.Serialize(items.Skip(1).ToArray()), grown.Dequeue(), name + " dequeued", reads: false);
             var stack = ImmutableStack.CreateRange(items);
             Same(NinoSerializer.Serialize(stack.Reverse().ToArray()), stack, name);
             var hashed = ImmutableHashSet.CreateRange(items.Where(item => item != null));

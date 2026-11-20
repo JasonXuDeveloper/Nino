@@ -1,7 +1,7 @@
+using System;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System;
 using Nino.Core;
 using Nino.Core.CompilerServices;
 
@@ -24,8 +24,12 @@ namespace Nino.Immutable
 
             // One walk of the nodes, top to bottom, into the gather's chunks, written in reverse: counting them first
             // walked the linked nodes twice, and the walk, not the copy, is what costs (#305: ImmutableStack<int> of
-            // 1,000 written at 0.48x LuminPack's speed on EPYC 7763, 0.81x on Neoverse-N2).
-            NinoGathered.WriteReversed<T, TFormatter, Items>(new Items(value.GetEnumerator()), ref writer);
+            // 1,000 written at 0.48x LuminPack's speed on EPYC 7763, 0.81x on Neoverse-N2). The nodes through the mirror
+            // (StackNodes), where its enumerator calls Pop and Peek per element; that enumerator where it does not match.
+            if (StackNodes.Usable)
+                NinoGathered.WriteReversed<T, TFormatter, StackItems<T>>(new(StackNode<T>.Of(value), null), ref writer);
+            else
+                NinoGathered.WriteReversed<T, TFormatter, Items>(new Items(value.GetEnumerator()), ref writer);
         }
 
         /// <summary>Its elements top to bottom, through its enumerator (a struct of no interface).</summary>
@@ -37,10 +41,13 @@ namespace Nino.Immutable
 
             public int Fill(Span<T> chunk)
             {
+                // The enumerator in a local for the loop, written back once (NinoGathered.Enumerated).
                 ref T at = ref MemoryMarshal.GetReference(chunk);
+                var items = _items;
                 int filled = 0;
-                while (filled < chunk.Length && _items.MoveNext())
-                    Unsafe.Add(ref at, filled++) = _items.Current;
+                while (filled < chunk.Length && items.MoveNext())
+                    Unsafe.Add(ref at, filled++) = items.Current;
+                _items = items;
                 return filled;
             }
 

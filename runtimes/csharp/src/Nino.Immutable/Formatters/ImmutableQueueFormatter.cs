@@ -1,8 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System;
 using Nino.Core;
 using Nino.Core.CompilerServices;
 
@@ -20,11 +20,17 @@ namespace Nino.Immutable
                 return;
             }
 
-            // It keeps no count: walked with its own (struct) enumerator a chunk at a time, the count patched after the
-            // elements (values whose memory is their wire form walked straight into the writer's buffer). Through
-            // IEnumerable<T> each step was two interface calls (1,000 ints written in 1.6 times the time), and walked
-            // into a rented array first, 1.2 times (local quick runs).
-            NinoGathered.Write<T, TFormatter, Items>(new Items(value.GetEnumerator()), -1, ref writer);
+            // It keeps no count: its nodes walked a chunk at a time (StackNodes: its front stack, then its back one as
+            // the queue keeps it reversed), the count patched after the elements (values whose memory is their wire
+            // form walked straight into the writer's buffer). Its enumerator calls Pop and Peek per element, neither
+            // inlined (1,000 ints written in 1.55 times the time); it stays for a back not reversed yet, which it
+            // reverses and the queue keeps, and where the mirror does not match. Through IEnumerable<T> each step was
+            // two interface calls (1.6 times the time), and walked into a rented array first, 1.2 times (local quick
+            // runs).
+            if (StackNode<T>.TryItems(value, out var nodes))
+                NinoGathered.Write<T, TFormatter, StackItems<T>>(nodes, -1, ref writer);
+            else
+                NinoGathered.Write<T, TFormatter, Items>(new Items(value.GetEnumerator()), -1, ref writer);
         }
 
         /// <summary>Its elements front to back, through its enumerator (a struct of no interface).</summary>
@@ -36,10 +42,13 @@ namespace Nino.Immutable
 
             public int Fill(Span<T> chunk)
             {
+                // The enumerator in a local for the loop, written back once (NinoGathered.Enumerated).
                 ref T at = ref MemoryMarshal.GetReference(chunk);
+                var items = _items;
                 int filled = 0;
-                while (filled < chunk.Length && _items.MoveNext())
-                    Unsafe.Add(ref at, filled++) = _items.Current;
+                while (filled < chunk.Length && items.MoveNext())
+                    Unsafe.Add(ref at, filled++) = items.Current;
+                _items = items;
                 return filled;
             }
 
