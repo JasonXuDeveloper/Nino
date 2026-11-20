@@ -86,14 +86,35 @@ namespace Nino.Core.Internal
                 return writer;
             }
 
+            int patch = -1;
+            if (count >= 0)
+                writer.WriteLength(count);
+            else
+                patch = writer.ReserveInt32();
+            int total = WriteItems<T, TFormatter, TSource>(ref source, count, ref writer);
+            if (patch >= 0)
+                writer.PatchInt32(patch, total);
+            return writer;
+        }
+
+        /// <summary>
+        /// Writes the elements of <paramref name="source"/>, without their count: <paramref name="count"/> of them, or,
+        /// for -1, as many as it gives (at most <see cref="int.MaxValue"/>); returns how many. Values whose memory is
+        /// their wire form are walked straight into the writer's free space a step at a time, the free space grown
+        /// only when it holds fewer than <see cref="InPlaceFewest"/> of them (a small collection never grows the
+        /// buffer for a whole chunk); the others into a chunk, each written by the run loops. Inlined into the
+        /// gather's out-of-line writes, where the writer is a local.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static int WriteItems<T, TFormatter, TSource>(ref TSource source, int count, ref Writer writer)
+            where TFormatter : struct, INinoFormatter<T>
+            where TSource : struct, INinoGatherSource<T>
+        {
+            long limit = count >= 0 ? count : int.MaxValue;
+            long total = 0;
             if (InPlace<T, TFormatter>())
             {
-                // A count not known ahead (a queue, a concurrent dictionary): walked into the writer's free space a
-                // chunk at a time all the same, the count patched after them; the free space grown only when it holds
-                // fewer than InPlaceFewest of them, so a small collection never grows the buffer for a whole chunk.
                 int size = Unsafe.SizeOf<T>();
-                int counted = writer.ReserveInt32();
-                long written = 0;
                 while (true)
                 {
                     ref byte free = ref writer.FreeSpace(out int available);
@@ -105,50 +126,41 @@ namespace Nino.Core.Internal
                     }
 
                     int filled = source.Fill(MemoryMarshal.CreateSpan(ref Unsafe.As<byte, T>(ref free), room));
-                    writer.Commit(filled * size);
-                    written += filled;
-                    if (written > int.MaxValue)
+                    total += filled;
+                    if (total > limit)
                         NinoThrow.ModifiedDuringWrite();
+                    writer.Commit(filled * size);
                     if (filled < room)
                         break;
                 }
-
-                source.Finish();
-                writer.PatchInt32(counted, (int)written);
-                return writer;
             }
-
-            int patch = -1;
-            if (count >= 0)
-                writer.WriteLength(count);
             else
-                patch = writer.ReserveInt32();
-            var chunk = NinoGather<T>.Take();
-            var span = chunk.Span;
-            long total = 0;
-            int used = 0;
-            while (true)
             {
-                int filled = source.Fill(span);
-                if (filled == 0)
-                    break;
-                total += filled;
-                if (filled > used)
-                    used = filled;
-                if (count >= 0 ? total > count : total > int.MaxValue)
-                    NinoThrow.ModifiedDuringWrite();
-                NinoRuns.Write<T, TFormatter>((ReadOnlySpan<T>)span.Slice(0, filled), ref writer);
-                if (filled < span.Length)
-                    break;
+                var chunk = NinoGather<T>.Take();
+                var span = chunk.Span;
+                int used = 0;
+                while (true)
+                {
+                    int filled = source.Fill(span);
+                    if (filled == 0)
+                        break;
+                    total += filled;
+                    if (filled > used)
+                        used = filled;
+                    if (total > limit)
+                        NinoThrow.ModifiedDuringWrite();
+                    NinoRuns.Write<T, TFormatter>((ReadOnlySpan<T>)span.Slice(0, filled), ref writer);
+                    if (filled < span.Length)
+                        break;
+                }
+
+                NinoGather<T>.Return(chunk, used);
             }
 
-            NinoGather<T>.Return(chunk, used);
             source.Finish();
             if (count >= 0 && total != count)
                 NinoThrow.ModifiedDuringWrite();
-            if (patch >= 0)
-                writer.PatchInt32(patch, (int)total);
-            return writer;
+            return (int)total;
         }
 
         /// <summary>

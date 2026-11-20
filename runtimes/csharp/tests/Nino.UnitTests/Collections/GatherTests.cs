@@ -147,6 +147,40 @@ namespace Nino.UnitTests
             Same(NinoSerializer.Serialize(strings.ToArray()), strings, "string keys", reads: false);
         }
 
+        /// <summary>A grouping that only enumerates: its count patched after its elements, which follow its key.</summary>
+        private sealed class Enumerated<TKey, T> : IGrouping<TKey, T>
+        {
+            private readonly T[] _items;
+
+            public Enumerated(TKey key, T[] items)
+            {
+                Key = key;
+                _items = items;
+            }
+
+            public TKey Key { get; }
+            public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)_items).GetEnumerator();
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        }
+
+        [TestMethod]
+        public void GroupingsGatherTheirElementsAfterTheirKey()
+        {
+            foreach (int count in Counts<string>())
+            {
+                var items = Enumerable.Range(0, count).Select(i => i % 7 == 0 ? null : "g" + i).ToArray();
+                var listed = items.GroupBy(_ => 5).SingleOrDefault() ?? new Enumerated<int, string>(5, items);
+                byte[] expected = NinoSerializer.Serialize(listed);
+                CollectionAssert.AreEqual(expected,
+                    NinoSerializer.Serialize<IGrouping<int, string>>(new Enumerated<int, string>(5, items)), $"x{count}");
+                var ints = Enumerable.Range(0, count).ToArray();
+                CollectionAssert.AreEqual(
+                    NinoSerializer.Serialize<IGrouping<int, int>>(new Enumerated<int, int>(5, ints)),
+                    NinoSerializer.Serialize(ints.GroupBy(_ => 5).SingleOrDefault() ?? new Enumerated<int, int>(5, ints)),
+                    $"ints x{count}");
+            }
+        }
+
         private static void Pairs<T>(Func<int, T> make)
         {
             foreach (int count in Counts<KeyValuePair<int, T>>())

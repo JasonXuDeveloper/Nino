@@ -169,19 +169,6 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// The elements of <paramref name="source"/> in a rented array (give it back with <see cref="ReturnRented{T}"/>),
-        /// in the order <see cref="ICollection{T}.CopyTo"/> puts them.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T[] RentCopied<T>(ICollection<T> source, out int count)
-        {
-            count = source.Count;
-            var array = ArrayPool<T>.Shared.Rent(count);
-            source.CopyTo(array, 0);
-            return array;
-        }
-
-        /// <summary>
         /// Reads <paramref name="length"/> elements as an array is read, into a rented array (give it back with
         /// <see cref="ReturnRented{T}"/>). Out of line, as it was with the catch it had (a method with a catch is
         /// never inlined; one with a finally may be, which made every caller larger).
