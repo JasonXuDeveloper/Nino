@@ -289,7 +289,8 @@ BclCollections.cs            runtime-owned collections using their checked views
                              ring (Ring) and its nodes linked as read (Links)
 BclDictionaries.cs           runtime-owned concurrent and sorted dictionaries, gathered; SortedList written by one zip
                              (Zip, the interleave kernels as its layer) and read by one split into its two arrays (Split;
-                             raw pairs straight out of the data, SplitInPlace) and published once in order
+                             pairs whose memory is their wire form straight out of the data, SplitInPlace) and
+                             published once in order
 ```
 
 ### Internal/Blocks/

@@ -123,8 +123,11 @@ through its own struct enumerator; a collection that fits one chunk is copied in
 values whose memory is their wire form is walked straight into the writer's buffer. The walk checks the count and the
 collection's version against what it found, so a collection changed during the write throws. Reads fill a chunk through
 the read loop and hand it over: a `LinkedList<T>` links each chunk's nodes and sets its fields once at the end, a
-`SortedList<TKey, TValue>` splits each chunk into its two arrays and publishes its size once the keys are found in order
-under its comparer, a `PriorityQueue<TElement, TPriority>` (.NET 10) reads into its heap and publishes it once every
+`SortedList<TKey, TValue>` splits each chunk into its two arrays (pairs whose memory is their wire form straight out of
+the data, with no chunk between) and publishes its size once the keys are found in order under its comparer, the one
+read for every pair (its write is the gather's zip, the interleave kernels taking pairs whose memory is their wire form
+straight into the writer's buffer; the Arm64 fused split and order check of integer pairs and the `int` order check
+are layers over the read, #350), a `PriorityQueue<TElement, TPriority>` (.NET 10) reads into its heap and publishes it once every
 priority is at least its parent's, for any element and priority (#350); a collection that takes elements one at a time
 (`Add`, `TryAdd`, `Push`, `Enqueue`) gets each chunk's, where the read loop moves several at once (raw values, slots,
 blocks, strings), else one at a time. Until published, a collection holds none of what a rejected read filled. The
@@ -152,7 +155,8 @@ all; a dictionary's adds go through a store generic over the side that is not a 
 takes them (arrays, lists, gathered chunks, sets with free entries skipped, dictionaries, `KeyValuePair` runs through
 their formatter's `WriteStrings`/`ReadStrings`, the pairs of a sorted or concurrent dictionary), with the per-pair
 checks of the per-value loops: a null or repeated key, hash flooding through `HashTables`. A dictionary read again
-merges in its own layer, each key read before its value's place is known (`NinoCursor.ReadAt`).
+merges in its own layer, each key read before its value's place is known (`NinoCursor.ReadAt`, which reads it through
+the same items: one cursor read per item, #347).
 
 A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members
 too (generated formatters of fixed-size and block structs, of class bodies and of polymorphic bases, the tuple and
