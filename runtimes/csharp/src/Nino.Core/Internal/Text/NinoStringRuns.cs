@@ -129,6 +129,29 @@ namespace Nino.Core.Internal
     }
 
     /// <summary>
+    /// A slot's value as an item (<see cref="NinoCursor.Item{T,TFormatter}"/>: a raw <c>T?</c>,
+    /// <see cref="UnmanagedNullableFormatter{T}"/>), in a single value's bytes: a presence byte, then the value when
+    /// present (<see cref="INinoFormatter{T}.WriteAt"/>, <see cref="INinoFormatter{T}.ReadAt"/>). At most its slot's
+    /// bytes. A value without references, so a loop over it is not shared code.
+    /// </summary>
+    internal readonly struct NinoSlotItem<T, TFormatter> : INinoRunItem where TFormatter : struct, INinoFormatter<T>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ref T At(ref byte element) => ref Unsafe.As<byte, T>(ref element);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int MaxSize(ref byte element) => NinoKind.Stride<T, TFormatter>();
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte element) =>
+            default(TFormatter).WriteAt(ref destination, in At(ref element));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte element, bool fresh) =>
+            default(TFormatter).ReadAt(ref source, available, ref At(ref element));
+    }
+
+    /// <summary>
     /// Two items of one element, <typeparamref name="TA"/> then <typeparamref name="TB"/> (a pair's key and value, a
     /// dictionary's entry), each at its own offset in the element: the element composed from its items, never a loop
     /// of its own.
@@ -222,7 +245,7 @@ namespace Nino.Core.Internal
         /// Writes <paramref name="run"/>'s pairs (not empty; the count is the caller's) whose items are
         /// <typeparamref name="TA"/> at <paramref name="a"/> bytes from each element and <typeparamref name="TB"/> at
         /// <paramref name="b"/> (<see cref="NinoCursor.Pairs{TA,TB,TFormatterA,TFormatterB}"/>: one a string, the other
-        /// a string or a value of a fixed size). The items are picked here by JIT-time constants: the loop called is
+        /// a string, a value of a fixed size or a slot's value). The items are picked here by JIT-time constants: the loop called is
         /// one instantiation over the items, never over the pair's types.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -235,6 +258,8 @@ namespace Nino.Core.Internal
                 return WriteWith<NinoUtf16Item, TB, TFormatterB>(run, a, b, writer);
             if (typeof(TFormatterA) == typeof(Utf8StringFormatter))
                 return WriteWith<NinoUtf8Item, TB, TFormatterB>(run, a, b, writer);
+            if (NinoKind.Of<TA, TFormatterA>() == NinoElementKind.Slot)
+                return WriteWith<NinoSlotItem<TA, TFormatterA>, TB, TFormatterB>(run, a, b, writer);
             return WriteWith<NinoValueItem<TA, TFormatterA>, TB, TFormatterB>(run, a, b, writer);
         }
 
@@ -247,6 +272,8 @@ namespace Nino.Core.Internal
                 return Write(run, new NinoItemPair<TItemA, NinoUtf16Item>(a, b), writer);
             if (typeof(TFormatterB) == typeof(Utf8StringFormatter))
                 return Write(run, new NinoItemPair<TItemA, NinoUtf8Item>(a, b), writer);
+            if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Slot)
+                return Write(run, new NinoItemPair<TItemA, NinoSlotItem<TB, TFormatterB>>(a, b), writer);
             return Write(run, new NinoItemPair<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), writer);
         }
 
@@ -266,6 +293,8 @@ namespace Nino.Core.Internal
                 return ReadWith<NinoUtf16Item, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
             if (typeof(TFormatterA) == typeof(Utf8StringFormatter))
                 return ReadWith<NinoUtf8Item, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
+            if (NinoKind.Of<TA, TFormatterA>() == NinoElementKind.Slot)
+                return ReadWith<NinoSlotItem<TA, TFormatterA>, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
             return ReadWith<NinoValueItem<TA, TFormatterA>, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
         }
 
@@ -280,6 +309,8 @@ namespace Nino.Core.Internal
                 return Read(run, new NinoItemPair<TItemA, NinoUtf16Item>(a, b), ref data, end, store);
             if (typeof(TFormatterB) == typeof(Utf8StringFormatter))
                 return Read(run, new NinoItemPair<TItemA, NinoUtf8Item>(a, b), ref data, end, store);
+            if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Slot)
+                return Read(run, new NinoItemPair<TItemA, NinoSlotItem<TB, TFormatterB>>(a, b), ref data, end, store);
             return Read(run, new NinoItemPair<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), ref data, end, store);
         }
 

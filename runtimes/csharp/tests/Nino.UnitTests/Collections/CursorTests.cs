@@ -148,7 +148,36 @@ namespace Nino.UnitTests
                     i => new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.FromMinutes(i % 600)), count, holes);
                 Pairs<bool, string, UnmanagedFormatter<bool>, StringFormatter>(i => i % 2 == 0, Text, Math.Min(count, 1),
                     false);
+                // Slots' values (a raw T?), present and absent, beside a string either way round.
+                Pairs<string, int?, StringFormatter, UnmanagedNullableFormatter<int>>(i => "n" + i,
+                    i => i % 3 == 0 ? null : i, count, holes);
+                Pairs<string, long?, Utf8StringFormatter, UnmanagedNullableFormatter<long>>(i => "ü" + i,
+                    i => i % 4 == 1 ? null : -i, count, holes);
+                Pairs<int?, string, UnmanagedNullableFormatter<int>, StringFormatter>(i => i, Text, count, holes);
             }
+        }
+
+        /// <summary>
+        /// A slot's value beside a string (<see cref="NinoSlotItem{T,TFormatter}"/>) rejects a presence byte other than
+        /// 0 or 1 and a present value cut short, as its single read does, in a new dictionary and in a merge.
+        /// </summary>
+        [TestMethod]
+        public void SlotValuesBesideStringsRejectBadPresence()
+        {
+            var pairs = new Dictionary<string, int?> { ["a"] = 1, ["b"] = null, ["c"] = 3 };
+            var bytes = NinoSerializer.Serialize(pairs);
+            CollectionAssert.AreEquivalent(pairs.ToList(),
+                NinoDeserializer.Deserialize<Dictionary<string, int?>>(bytes).ToList());
+            // Count (4), "a" (header and one char: 2 bytes), then the presence byte of 1.
+            const int presence = 6;
+            Assert.AreEqual(1, bytes[presence]);
+            var bad = (byte[])bytes.Clone();
+            bad[presence] = 2;
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Dictionary<string, int?>>(bad));
+            var existing = new Dictionary<string, int?>(pairs);
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bad, ref existing));
+            Assert.ThrowsExactly<NinoDataException>(() =>
+                NinoDeserializer.Deserialize<Dictionary<string, int?>>(bytes.AsSpan(0, presence + 3).ToArray()));
         }
 
         /// <summary>

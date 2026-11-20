@@ -247,6 +247,29 @@ namespace Nino.Core
         internal void CheckSlots(ref byte slots, int count) => NinoThrow.MissingCapability(GetType(), nameof(CheckSlots));
 
         /// <summary>
+        /// Writes <paramref name="value"/> as a single value (<see cref="Serialize"/>'s bytes) at
+        /// <paramref name="destination"/>, which has room for <see cref="SlotStride"/> bytes; returns the bytes written:
+        /// a slot's value as an item of a composite in the string run kernels' cursor form (<c>NinoSlotItem</c>: a
+        /// dictionary's <c>int?</c> values beside its string keys). Called only where <see cref="SlotStride"/> is not -1.
+        /// </summary>
+        internal int WriteAt(ref byte destination, in T value)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(WriteAt));
+            return 0;
+        }
+
+        /// <summary>
+        /// As <see cref="WriteAt"/>, the read (<see cref="Deserialize"/>'s checks): a single value from the
+        /// <paramref name="available"/> bytes at <paramref name="source"/> into <paramref name="value"/>; returns the
+        /// bytes read. Too few bytes and a presence byte other than 0 or 1 are invalid data.
+        /// </summary>
+        internal int ReadAt(ref byte source, int available, ref T value)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(ReadAt));
+            return 0;
+        }
+
+        /// <summary>
         /// Whether a dropped value has an item that may be recycled now (<see cref="INinoFormatter.RecyclesItems"/>),
         /// asked as <see cref="NinoRecycler{T}.MayRecycle"/> is, each time a collection drops elements. Called only
         /// where <see cref="INinoFormatter.RecyclesItems"/> is true.

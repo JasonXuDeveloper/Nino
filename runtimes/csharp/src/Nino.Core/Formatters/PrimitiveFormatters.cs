@@ -258,6 +258,39 @@ namespace Nino.Core
 
         void INinoFormatter<T?>.CheckSlots(ref byte slots, int count) =>
             NinoChecks.Flags(ref slots, count, NinoNullables<T>.Stride);
+
+        // The single value's bytes (Writer.WriteNullableRaw, Reader.ReadNullableRaw) at a reference: the cursor form
+        // of an item of a composite (NinoSlotItem).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int INinoFormatter<T?>.WriteAt(ref byte destination, in T? value)
+        {
+            if (!value.HasValue)
+            {
+                destination = NinoWire.Null;
+                return 1;
+            }
+
+            destination = NinoWire.NotNull;
+            NinoLayout<T>.Write(ref Unsafe.Add(ref destination, 1), value.GetValueOrDefault());
+            return 1 + NinoLayout<T>.Size;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int INinoFormatter<T?>.ReadAt(ref byte source, int available, ref T? value)
+        {
+            int size = NinoLayout<T>.Size;
+            if ((uint)size < (uint)available && source == NinoWire.NotNull)
+            {
+                value = NinoLayout<T>.Read(ref Unsafe.Add(ref source, 1));
+                return 1 + size;
+            }
+
+            // Only null is left: no byte, a value without its bytes and a byte other than 0 or 1 throw.
+            if (available <= 0 || source != NinoWire.Null)
+                NinoThrow.NotNull(available <= 0 ? -1 : source);
+            NinoRecycler.DiscardNullable(ref value);
+            return 1;
+        }
     }
 
     /// <summary>
