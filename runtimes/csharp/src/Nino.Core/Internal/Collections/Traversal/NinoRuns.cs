@@ -25,7 +25,7 @@ namespace Nino.Core.Internal
     /// <item>slots: one block, through the slot kernels;</item>
     /// <item>a polymorphic base's values: its generated loop over the run (<see cref="INinoFormatter.WriteRun"/>),
     /// the dispatch inline and the writer in a local; a pair of them, its value formatter's loop over the run of its
-    /// values with their keys (<see cref="NinoPairs{TA,TB,TFormatterA,TFormatterB}.WriteRun"/>);</item>
+    /// values with their keys (<see cref="NinoItems.WriteRun{TA,TB,TFormatterA,TFormatterB}"/>);</item>
     /// <item>strings and pairs holding them: the string run kernels (<see cref="NinoStringRuns"/>), one call not
     /// generic over the element;</item>
     /// <item>others: value by value through the formatter, a constrained call.</item>

@@ -83,29 +83,33 @@ namespace Nino.Core
             value = new KeyValuePair<TKey, TValue>(key, item);
         }
 
-        // What the pair does on a run, composed from its items (NinoPairs), each at its offset in the pair where this
+        // What the pair does on a run, composed from its items (NinoItems), each at its offset in the pair where this
         // runtime's pair is known (CollectionFields.PairLayout): a run with a string among the items through the string
         // run kernels (a list's, an array's, a sorted or concurrent dictionary's gathered), one call per run; a
         // polymorphic value's run loop, the keys written by it; a dropped pair's items recycled.
-        bool INinoFormatter.HasCursor => NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.Cursor(KeyAt, ValueAt);
+        bool INinoFormatter.HasCursor => NinoItems.Cursor<TKey, TValue, TKeyFormatter, TValueFormatter>(KeyAt, ValueAt);
 
         Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.WriteStrings(run, KeyAt, ValueAt, writer);
+            NinoItems.WritePair<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyAt, ValueAt, writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
-            NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.ReadStrings(run, KeyAt, ValueAt, ref data, end);
+            NinoItems.ReadPair<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyAt, ValueAt, ref data, end);
 
-        bool INinoFormatter.HasRunLoop => NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.RunLoop(KeyAt, ValueAt);
+        bool INinoFormatter.HasRunLoop => NinoItems.RunLoop<TKey, TValue, TKeyFormatter, TValueFormatter>(KeyAt, ValueAt);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter.WriteRun(NinoRun run, ref Writer writer) => NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.WriteRun(run, KeyAt, ValueAt, ref writer);
+        void INinoFormatter.WriteRun(NinoRun run, ref Writer writer) => NinoItems.WriteRun<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyAt, ValueAt, ref writer);
 
         bool INinoFormatter.RecyclesItems => true;
 
-        bool INinoFormatter<KeyValuePair<TKey, TValue>>.ItemsMayRecycle => NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.MayRecycle;
+        bool INinoFormatter<KeyValuePair<TKey, TValue>>.ItemsMayRecycle => 
+            NinoRecycler.MayRecycle<TKey, TKeyFormatter>() || NinoRecycler.MayRecycle<TValue, TValueFormatter>();
 
-        void INinoFormatter<KeyValuePair<TKey, TValue>>.RecycleItems(in KeyValuePair<TKey, TValue> value) =>
-            NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.Recycle(value.Key, value.Value);
+        void INinoFormatter<KeyValuePair<TKey, TValue>>.RecycleItems(in KeyValuePair<TKey, TValue> value)
+        {
+            NinoRecycler.Recycle<TKey, TKeyFormatter>(value.Key);
+            NinoRecycler.Recycle<TValue, TValueFormatter>(value.Value);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(KeyValuePair<TKey, TValue> value, ref Writer writer)

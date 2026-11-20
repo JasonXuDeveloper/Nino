@@ -67,21 +67,5 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Item<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             NinoRuns.ScattersItems<T, TFormatter>() || NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot;
-
-        /// <summary>
-        /// Whether pairs of the items are moved by the string run kernels
-        /// (<see cref="NinoStringRuns.WritePairs{TA,TB,TFormatterA,TFormatterB}"/>): one item a string, the other a
-        /// string or an <see cref="Item{T,TFormatter}"/> (pairs of raw values and blocks are blocks). A JIT-time
-        /// constant, where the pair's own formatter's <see cref="INinoFormatter.HasCursor"/> is read through a field.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool Pairs<TA, TB, TFormatterA, TFormatterB>()
-            where TFormatterA : struct, INinoFormatter<TA>
-            where TFormatterB : struct, INinoFormatter<TB> =>
-            // Each item asked once on the path a constant takes: every inlinee counts against the budget of the
-            // generated body a dictionary's write is inlined into.
-            NinoKind<TFormatterA>.Strings
-                ? NinoKind<TFormatterB>.Strings || Item<TB, TFormatterB>()
-                : NinoKind<TFormatterB>.Strings && Item<TA, TFormatterA>();
     }
 }

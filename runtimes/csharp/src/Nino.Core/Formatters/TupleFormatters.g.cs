@@ -301,19 +301,19 @@ namespace Nino.Core
 
         // A run of tuples with a string among their items through the string run kernels, one call per run; a
         // polymorphic second item's run loop, the first written by it.
-        bool INinoFormatter.HasCursor => NinoPairs<T1, T2, TF1, TF2>.Cursor(Offset1, Offset2);
+        bool INinoFormatter.HasCursor => NinoItems.Cursor<T1, T2, TF1, TF2>(Offset1, Offset2);
 
         Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoPairs<T1, T2, TF1, TF2>.WriteStrings(run, Offset1, Offset2, writer);
+            NinoItems.WritePair<T1, T2, TF1, TF2>(run, Offset1, Offset2, writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
-            NinoPairs<T1, T2, TF1, TF2>.ReadStrings(run, Offset1, Offset2, ref data, end);
+            NinoItems.ReadPair<T1, T2, TF1, TF2>(run, Offset1, Offset2, ref data, end);
 
-        bool INinoFormatter.HasRunLoop => NinoPairs<T1, T2, TF1, TF2>.RunLoop(Offset1, Offset2);
+        bool INinoFormatter.HasRunLoop => NinoItems.RunLoop<T1, T2, TF1, TF2>(Offset1, Offset2);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void INinoFormatter.WriteRun(NinoRun run, ref Writer writer) =>
-            NinoPairs<T1, T2, TF1, TF2>.WriteRun(run, Offset1, Offset2, ref writer);
+            NinoItems.WriteRun<T1, T2, TF1, TF2>(run, Offset1, Offset2, ref writer);
     }
 
     /// <summary><c>Tuple&lt;T1, T2&gt;</c>: a presence byte, then the items in order (one block where every item

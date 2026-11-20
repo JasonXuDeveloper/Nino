@@ -102,7 +102,7 @@ namespace Nino.Core
 
         /// <summary>
         /// Writes the values of <paramref name="run"/> (not empty; the count is the caller's) through the string run
-        /// kernels (<see cref="NinoStringRuns.WritePairs{TA,TB,TFormatterA,TFormatterB}"/>): one call per run, so in
+        /// kernels (<see cref="NinoItems"/>): one call per run, so in
         /// code shared over a class only the call is indirect, never a value. The writer by value and returned. Called
         /// only where <see cref="HasCursor"/> is true.
         /// </summary>
@@ -127,7 +127,7 @@ namespace Nino.Core
         /// Whether a dropped value's items are recycled as the items' types (false, the default): a composite of
         /// items (a pair, a value tuple), whose <see cref="INinoFormatter{T}.ItemsMayRecycle"/> and
         /// <see cref="INinoFormatter{T}.RecycleItems"/> <see cref="NinoRecycler"/> calls for the elements a collection
-        /// drops. Nino.Core's alone (<see cref="NinoPairs{TA,TB,TFormatterA,TFormatterB}"/>, the tuples). Called once.
+        /// drops. Nino.Core's alone (<c>KeyValuePair</c>, the tuples). Called once.
         /// </summary>
         internal bool RecyclesItems => false;
     }

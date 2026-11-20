@@ -407,7 +407,7 @@ namespace Nino.UnitTests
             // dictionary's entries (the key and value at their offsets in the entry).
             Assert.IsTrue(NinoCursor.Own<KeyValuePair<string, string>,
                 KeyValuePairFormatter<string, string, StringFormatter, StringFormatter>>());
-            Assert.IsTrue(NinoCursor.Pairs<string, string, StringFormatter, StringFormatter>());
+            Assert.IsTrue(NinoItems.Pair<string, string, StringFormatter, StringFormatter>());
             var texts = Enumerable.Range(0, 40).Select(i => new KeyValuePair<string, string>("k" + i, "v" + i)).ToArray();
             CollectionAssert.AreEqual(NinoSerializer.Serialize(texts.ToDictionary(p => p.Key, p => p.Value)),
                 NinoSerializer.Serialize(texts));

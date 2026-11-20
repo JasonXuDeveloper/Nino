@@ -84,7 +84,7 @@ namespace Nino.UnitTests
             where TKeyFormatter : struct, INinoFormatter<TKey>
             where TValueFormatter : struct, INinoFormatter<TValue>
         {
-            Assert.IsTrue(NinoCursor.Pairs<TKey, TValue, TKeyFormatter, TValueFormatter>());
+            Assert.IsTrue(NinoItems.Pair<TKey, TValue, TKeyFormatter, TValueFormatter>());
             var dictionary = new Dictionary<TKey, TValue>();
             for (int i = 0; i < count + (holes ? 3 : 0); i++)
                 dictionary[key(i)] = value(i);

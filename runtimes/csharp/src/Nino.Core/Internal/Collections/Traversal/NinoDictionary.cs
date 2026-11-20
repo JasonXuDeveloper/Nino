@@ -66,7 +66,7 @@ namespace Nino.Core
         /// <summary>
         /// Writes the count and the pairs of a run of entries holding references: the loop chosen here from what the
         /// key and value formatters say, and the offsets of the key and value read from the entry itself; pairs holding
-        /// strings through the string run kernels (<see cref="NinoStringRuns.WritePairs{TA,TB,TFormatterA,
+        /// strings through the string run kernels (<see cref="NinoItems.WritePair{TA,TB,TFormatterA,
         /// TFormatterB}"/>), one call not generic over the pair, where through an element formatter each pair was
         /// indirect calls in code shared over a class. The entry
         /// formatter answers the same from them, but in code shared over a class each of its answers is a lookup and
@@ -86,7 +86,7 @@ namespace Nino.Core
             if (!CollectionFields.Run(value, count, out var run))
                 return WriteEnumerated(value, count, writer);
 
-            if (NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.RunLoop(KeyOffset, ValueOffset))
+            if (NinoItems.RunLoop<TKey, TValue, TKeyFormatter, TValueFormatter>(KeyOffset, ValueOffset))
             {
                 // The value's run loop, through a copy of the writer (HashSetFormatter).
                 writer.WriteLength(count);
@@ -101,7 +101,7 @@ namespace Nino.Core
                 return NinoRuns.WriteEach<CollectionFields.MapEntry<TKey, TValue>, NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run,
                     count, writer);
             writer.WriteLength(count);
-            return NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.WriteStrings(run, KeyOffset, ValueOffset,
+            return NinoItems.WritePair<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyOffset, ValueOffset,
                 writer);
         }
 
@@ -158,14 +158,14 @@ namespace Nino.Core
         private static readonly bool HeavyKeys = NinoElements.Heavy(Unsafe.SizeOf<TKey>(), MinPairSize);
 
         /// <summary>
-        /// Whether a dropped pair has a key or a value to recycle (<see cref="NinoPairs{TA,TB,TFormatterA,
-        /// TFormatterB}.MayRecycle"/>, the items asked directly: in code shared over a class, the pair's formatter
+        /// Whether a dropped pair has a key or a value to recycle (<see cref="NinoRecycler.MayRecycle{T,TFormatter}"/>
+        /// of each, the items asked directly: in code shared over a class, the pair's formatter
         /// would be asked through lookups and an indirect call).
         /// </summary>
         private static bool PairsMayRecycle
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => NinoPairs<TKey, TValue, TKeyFormatter, TValueFormatter>.MayRecycle;
+            get => NinoRecycler.MayRecycle<TKey, TKeyFormatter>() || NinoRecycler.MayRecycle<TValue, TValueFormatter>();
         }
 
         /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/>
@@ -446,7 +446,7 @@ namespace Nino.Core
         /// Reads <paramref name="length"/> pairs holding strings (not 0, <see cref="CursorPairs"/>) into
         /// <paramref name="dictionary"/>, new or emptied, from the data at <paramref name="data"/>
         /// (<paramref name="end"/> bytes), the steps of <see cref="NinoEntries{TEntry,TFormatter,TTable}"/> through the
-        /// string run kernels (<see cref="NinoStringRuns.ReadPairs{TA,TB,TFormatterA,TFormatterB,TStore}"/>): into its
+        /// string run kernels (<see cref="NinoItems.ReadPair{TA,TB,TFormatterA,TFormatterB,TStore}"/>): into its
         /// entries and linked where it takes them (from <see cref="HashTables.FillFrom"/> on), else each read into one
         /// entry and added by a store generic over the side that is not a string (<see
         /// cref="NinoStringRuns.KeyAdds{TValue}"/>), so that no call per pair is indirect. Returns the bytes read.
@@ -464,14 +464,14 @@ namespace Nino.Core
             bool walk = HashTables.Plan<TKey, TValue>.Walks;
             // Told by the formatters' types: typeof(TKey) of a class is no constant in code shared over it.
             if (NinoKind<TKeyFormatter>.Strings && NinoKind<TValueFormatter>.Strings)
-                return NinoStringRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter, NinoStringRuns.PairAdds>(
+                return NinoItems.ReadPair<TKey, TValue, TKeyFormatter, TValueFormatter, NinoStringRuns.PairAdds>(
                     run, KeyOffset, ValueOffset, ref data, end,
                     new NinoStringRuns.PairAdds(Unsafe.As<Dictionary<string, string>>(dictionary), insert, walk));
             if (NinoKind<TKeyFormatter>.Strings)
-                return NinoStringRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter,
+                return NinoItems.ReadPair<TKey, TValue, TKeyFormatter, TValueFormatter,
                     NinoStringRuns.KeyAdds<TValue>>(run, KeyOffset, ValueOffset, ref data, end,
                     new NinoStringRuns.KeyAdds<TValue>(Unsafe.As<Dictionary<string, TValue>>(dictionary), insert, walk));
-            return NinoStringRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter,
+            return NinoItems.ReadPair<TKey, TValue, TKeyFormatter, TValueFormatter,
                 NinoStringRuns.ValueAdds<TKey>>(run, KeyOffset, ValueOffset, ref data, end,
                 new NinoStringRuns.ValueAdds<TKey>(Unsafe.As<Dictionary<TKey, string>>(dictionary), insert, walk));
         }
@@ -483,7 +483,7 @@ namespace Nino.Core
         {
             try
             {
-                int read = NinoStringRuns.ReadPairs<TKey, TValue, TKeyFormatter, TValueFormatter,
+                int read = NinoItems.ReadPair<TKey, TValue, TKeyFormatter, TValueFormatter,
                     NinoStringRuns.InPlace>(CollectionFields.Run(HashTables.Entries(dictionary), length), KeyOffset,
                     ValueOffset, ref data, end, default);
                 HashTables.Link(dictionary, length);
@@ -509,13 +509,13 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Whether the pairs are moved by the string run kernels (<see cref="NinoCursor.Pairs{TA,TB,TFormatterA,
+        /// Whether the pairs are moved by the string run kernels (<see cref="NinoItems.Pair{TA,TB,TFormatterA,
         /// TFormatterB}"/>): strings in either encoding with strings, raw values or blocks. A JIT-time constant.
         /// </summary>
         private static bool CursorPairs
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => NinoCursor.Pairs<TKey, TValue, TKeyFormatter, TValueFormatter>();
+            get => NinoItems.Pair<TKey, TValue, TKeyFormatter, TValueFormatter>();
         }
 
         /// <summary>
