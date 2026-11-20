@@ -88,6 +88,13 @@ reads](#scalar-block-reads), [Block writes](#block-writes).
   from 8 bytes past a line: 430 ns, aligned 222, Memmove 160; 64-byte: 377 and 190): a probe kernel with fixed
   alignments does not predict the case, whose list and buffer land where the process puts them. MemoryPack's copy
   there is bimodal by alignment (117 or 250 ns in the probe, 112 in the case).
+- Judge a group-write case that is bimodal across processes by the source array's alignment before suspecting the
+  code: `WriteGroups` aligns the destination and loads the source wherever the array lies, so a 1,000-entry
+  `HashSet<NinoNullable<int>>` or `Dictionary<int, int>` (16-byte entries, 8-byte blocks) took 85-93 ns with the
+  entries' data on a 64-byte boundary and 106-121 ns elsewhere, the same in base and head (the 1.2 times of #426 and
+  #429; local, Emerald Rapids, pinned arrays bucketed by `address % 64`). Aligning the source first where it can be
+  (address a multiple of 16) took those to 69-77 ns and `(byte, int)[]` 106-125 to 83-86, but `(int, long)[]`
+  (12-byte blocks) 74-100 to 136-146: which side to align depends on block against value size, open in #430.
 - Before probing kernels for a gap on one CPU, research that microarchitecture (Intel's optimization manual,
   uops.info, Agner Fog, Travis Downs, Chips and Cheese) and read the code both sides run, IL and asm, instruction by
   instruction: a probe then confirms a cost model instead of searching (the owner: "you keep guessing"). The Ice Lake
