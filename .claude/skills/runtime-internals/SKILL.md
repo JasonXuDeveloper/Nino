@@ -85,7 +85,8 @@ What works everywhere so far:
   the immutable trees) is a node class with its children at offsets measured from a mirror instance
   (`NinoTreeWalk.OffsetOf`), ending at null or at the tree's empty node; a collection adds only what a node's element is
   (`INinoTreeNodes<T>`; a hash bucket of several keys ends the fill after its node, and the collection walks its further
-  items before the next fill).
+  items before the next fill; why it is recursive and takes its stack only when a fill stops, with the numbers:
+  `optimize`).
   A tree whose subtrees end at an empty node is walked with that node as the end, so a null child there is a tree
   changed during the write, never a crash.
 - **Hash tables filled this way still count collisions** (`audit-security`: `HashTables`, `ConcurrentTables`).

@@ -205,14 +205,34 @@ says which CPUs and cases moved.
   `UnmanagedNullableFormatter`): `NinoCursor.Item` is the one predicate of what may sit beside a string. A raw run Nino
   checks (bools, Untrusted mode) is checked in the data out of line and then copied as one block in `NinoRuns.Read`
   (`CheckRaw`), never sent to the per-value loop: nothing the check rejects is stored, so a rejected read leaves an
-  existing array as it was. A package outside Nino.Core that walks a collection (Nino.Immutable's `ImmutableQueue`,
-  the `ImmutableHashSet` fallback) writes each element through `NinoElement.Write` (CompilerServices: a raw `T?` as a
-  slot, the kind a JIT-time constant), never by a guess of its own at which elements are slots, and keeps its loop over
-  the collection's struct enumerator: through `IEnumerable<T>` (Nino.Core's enumerable write, the gather) each step is
-  two interface calls, and 1,000 ints of an `ImmutableQueue` were written in 1.6 times the time, walked into a rented
-  array first still 1.2 times (local quick runs, storage-typed). Add no generic member to `INinoFormatter<T>`: Unity
-  2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`). The
-  view is one cursor, `NinoRun` (#355 PR 3: the first value, count, stride, the in-use test of free entries, whose rule
+  existing array as it was. Write every collection that is not one run through the gather seam, never element by
+  element (#355, `CompilerServices`, hidden): a package outside Nino.Core (Nino.Immutable) says only how its
+  collection is walked, an `INinoGatherSource<T>` struct handed to `NinoGathered.Write` (or `WriteReversed` for a
+  stack walked from its top), and Nino.Core's run loops write each chunk (raw values as one block or straight into the
+  writer's buffer, slots, strings, a polymorphic base's run loop); `NinoElement.Write`, the per-element write it
+  replaced, went. Walk through the collection's fields where a startup check proves them, else its struct enumerator,
+  never `IEnumerable<T>` (two interface calls per element: 1,000 ints of an `ImmutableQueue` written in 1.6 times the
+  time, walked into a rented array first 1.2). Walk a tree recursively through `NinoTreeWalk`, the path saved on a
+  stack of nodes only when a fill stops inside the tree and that stack taken then: an iterative walk that pushed every
+  node into an object array (a write barrier per push) and wrote its state back per node, two nested walks per element
+  for the hash trees, wrote 1,000 ints of an `ImmutableHashSet` in 1.8 times feat/storage-layer's time (its recursive
+  copy into a rented array), `ImmutableSortedSet` and `ImmutableSortedDictionary` 1.6, `ImmutableDictionary` 1.5,
+  `SortedSet` 1.2; recursive, against the same base: `SortedSet` 0.52, `SortedDictionary` 0.57,
+  `ImmutableSortedDictionary` 0.75, `ImmutableSortedSet` 0.82, `ImmutableDictionary` 0.84, `ImmutableHashSet` 0.92
+  (local quick runs, three per side in both orders, Xeon 2.10 GHz). What a node holds is the collection's
+  `INinoTreeNodes<T>` struct (an element at an offset, a key and value made a pair, a hash bucket's first item that
+  ends the fill when the bucket holds more). Keep a struct enumerator in a local for a fill's loop, written back once:
+  a field of the source reached through it is read and written in memory each step (`ImmutableStack` 0.75 of the base
+  with the local). Walk linked nodes through a checked mirror where the enumerator's steps are calls
+  (`ImmutableQueue`'s and `ImmutableStack`'s enumerators call `Pop` and `Peek` per element, another assembly's, not
+  inlined: the queue 1.55 times the base's time through them, 0.81 through `StackNodes`, the stack 0.72). Keep each
+  collection's write one out-of-line call with the writer by value, the walk's source built inside it with any
+  enumerator fallback: built inline and passed by value, the source and the fallback's setup took every caller's
+  registers (asm.py, a top-level `ImmutableSortedSet<int>` write 14 to 43 stack accesses, 33 out of line;
+  `ImmutableHashSet<int>` 33 to 47, back under asm.py's threshold). Add no generic member to `INinoFormatter<T>`:
+  Unity 2022.3's IL2CPP fails to build a player with a generic default member (#405's
+  `WritePairs<TKey, TKeyFormatter>`). The view is one cursor, `NinoRun` (#355 PR 3: the first value, count, stride,
+  the in-use test of free entries, whose rule
   each runtime proves at startup), and the loops are `NinoRuns`, a kernel per kind and one loop of values per direction:
   every contiguous collection builds a run and calls them, never a loop of its own. Reads take the same view (#355
   step 4): `NinoRuns.Read` fills a run of values in a row (arrays, a list's backing array before its count is
