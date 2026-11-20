@@ -5,7 +5,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
@@ -165,7 +164,7 @@ namespace Nino.Immutable
         public static Pairs PairsOf(ImmutableSortedDictionary<TKey, TValue> dictionary) =>
             new(new NinoTreeWalk(ViewOf(dictionary)._root, End, LeftAt, RightAt));
 
-        /// <summary>A node's key and value, which it keeps as two fields, made into its pair.</summary>
+        /// <summary>The pairs of its nodes, in order.</summary>
         internal struct Pairs : INinoGatherSource<KeyValuePair<TKey, TValue>>
         {
             private NinoTreeWalk _nodes;
@@ -174,23 +173,23 @@ namespace Nino.Immutable
 
             public int Fill(Span<KeyValuePair<TKey, TValue>> chunk)
             {
-                // The walk in a local for the loop, written back once.
-                var nodes = _nodes;
-                ref var at = ref MemoryMarshal.GetReference(chunk);
-                int filled = 0;
-                for (; filled < chunk.Length; filled++)
-                {
-                    var node = Unsafe.As<Node>(nodes.Next());
-                    if (node == null)
-                        break;
-                    Unsafe.Add(ref at, filled) = new KeyValuePair<TKey, TValue>(node._key, node._value);
-                }
-
-                _nodes = nodes;
-                return filled;
+                var pairs = new NodePairs();
+                return _nodes.Fill(chunk, ref pairs);
             }
 
             public void Finish() => _nodes.Finish();
+        }
+
+        /// <summary>A node's key and value, which it keeps as two fields, made into its pair.</summary>
+        private struct NodePairs : INinoTreeNodes<KeyValuePair<TKey, TValue>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool Take(object node, ref KeyValuePair<TKey, TValue> item)
+            {
+                var pair = Unsafe.As<Node>(node);
+                item = new KeyValuePair<TKey, TValue>(pair._key, pair._value);
+                return true;
+            }
         }
 
         private static Node Make(ref KeyValuePair<TKey, TValue> pairs, int low, int high, Node empty, IntPtr type)

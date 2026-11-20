@@ -74,15 +74,19 @@ namespace Nino.Core.CompilerServices
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public int Fill(Span<T> chunk)
             {
-                // By reference: the chunk's length is not known to the JIT to bound what the enumerator gives.
+                // By reference: the chunk's length is not known to the JIT to bound what the enumerator gives. The
+                // enumerator in a local for the loop, written back once: a field of the source, reached through it,
+                // is read and written in memory each step.
                 ref T at = ref MemoryMarshal.GetReference(chunk);
+                var items = _items;
                 int filled = 0;
-                while (filled < chunk.Length && _items.MoveNext())
+                while (filled < chunk.Length && items.MoveNext())
                 {
-                    Unsafe.Add(ref at, filled) = _items.Current;
+                    Unsafe.Add(ref at, filled) = items.Current;
                     filled++;
                 }
 
+                _items = items;
                 return filled;
             }
 
@@ -98,17 +102,40 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
+    /// For Nino's own collections and packages (Nino.Immutable): what a tree walked by <see cref="NinoTreeWalk"/> holds
+    /// in a node. Implemented by a struct, so the call is direct.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoTreeNodes<T>
+    {
+        /// <summary>
+        /// Writes the element of <paramref name="node"/> to <paramref name="item"/>; false ends the fill after it, for a
+        /// node that holds further elements (a hash bucket of keys that share a hash), which the caller adds before
+        /// the next fill.
+        /// </summary>
+        bool Take(object node, ref T item);
+    }
+
+    /// <summary>
     /// For Nino's own collections and packages (Nino.Immutable): a binary tree walked in order (a <c>SortedSet</c>'s
-    /// red-black tree, the immutable collections' AVL trees), a node at a time, resumed chunk after chunk of a gather
+    /// red-black tree, the immutable collections' AVL trees) into a chunk of a gather at a time
     /// (<see cref="NinoGathered"/>): the one walk of every tree, where each collection says only where a node's
-    /// children are and what its element is. The nodes are any class with their two children at byte offsets
-    /// (<see cref="OffsetOf"/>); a subtree ends at null or at the tree's own empty node. The path to the next node is
-    /// kept on a stack (a chunk of the gather's buffer of objects, far deeper than a balanced tree of any count): a
-    /// deeper path, or a null child where subtrees end at an empty node, is a tree changed during the walk.
+    /// children are (byte offsets, <see cref="OffsetOf"/>) and what its element is (<see cref="INinoTreeNodes{T}"/>);
+    /// a subtree ends at null or at the tree's own empty node. Recursive, so the path to a node lives in the frames:
+    /// only when a chunk is full is it saved, on a stack of nodes (a chunk of the gather's buffer of objects), and
+    /// resumed from there. A path deeper than any balanced tree, or a null child where subtrees end at an empty node,
+    /// is a tree changed during the walk.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public struct NinoTreeWalk
     {
+        /// <summary>
+        /// Deeper than any balanced tree of up to <see cref="int.MaxValue"/> nodes (a red-black tree's height is at
+        /// most 62, an AVL tree's 45), and far less than a stack of nodes holds.
+        /// </summary>
+        private const int MaxDepth = 128;
+
+        // The subtree walked next, then the nodes on the stack under _depth, each with its right subtree.
         private object _node;
         private int _depth, _deepest;
         private readonly object _end;
@@ -133,48 +160,39 @@ namespace Nino.Core.CompilerServices
         /// <summary>The byte offset of <paramref name="field"/>, a field of <paramref name="node"/>.</summary>
         public static int OffsetOf<TField>(object node, ref TField field) => ObjectFields.OffsetOf(node, ref field);
 
-        /// <summary>The next node in order, or null after the last.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public object Next()
-        {
-            object node = _node;
-            int depth = _depth;
-            object top = Step(ref node, ref depth, _stack, _end, _left, _right);
-            if (depth >= _deepest)
-                _deepest = depth + 1;
-            _node = node;
-            _depth = depth;
-            return top;
-        }
-
         /// <summary>
-        /// Fills <paramref name="chunk"/> with the elements of the next nodes, each the <typeparamref name="T"/> at the
-        /// offset <paramref name="item"/> (<see cref="NinoTreeItems{T}"/>): <see cref="Next"/>'s walk with its state in
-        /// locals for the loop.
+        /// Fills <paramref name="chunk"/> with the elements of the next nodes in order (<paramref name="nodes"/>' take of
+        /// each); returns how many: fewer than it holds only after the last node, or where a node ended the fill.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal int Fill<T>(Span<T> chunk, int item)
+        public int Fill<T, TNodes>(Span<T> chunk, ref TNodes nodes) where TNodes : struct, INinoTreeNodes<T>
         {
-            // The walk's state in locals for the loop, written back once.
-            object node = _node, end = _end;
-            int depth = _depth, deepest = _deepest, left = _left, right = _right;
-            object[] stack = _stack;
+            var path = new Path(_end, _stack, _left, _right, chunk.Length);
             ref T at = ref MemoryMarshal.GetReference(chunk);
-            int filled = 0;
-            for (; filled < chunk.Length; filled++)
+            object next = _node;
+            int depth = _depth;
+            while (true)
             {
-                object top = Step(ref node, ref depth, stack, end, left, right);
-                if (depth >= deepest)
-                    deepest = depth + 1;
-                if (top == null)
+                if (next != path.End && !Walk(next, depth, ref at, ref path, ref nodes))
+                {
+                    next = path.Next;
+                    depth = path.Top;
                     break;
-                Unsafe.Add(ref at, filled) = ObjectFields.At<T>(top, item);
+                }
+
+                next = path.End;
+                if (depth == 0 || path.Filled == path.Length)
+                    break;
+                object top = _stack[--depth];
+                next = ObjectFields.At<object>(top, _right);
+                if (!nodes.Take(top, ref Unsafe.Add(ref at, path.Filled++)))
+                    break;
             }
 
-            _node = node;
+            _node = next;
             _depth = depth;
-            _deepest = deepest;
-            return filled;
+            if (depth > _deepest)
+                _deepest = depth;
+            return path.Filled;
         }
 
         /// <summary>
@@ -190,29 +208,65 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <summary>
-        /// Descends from <paramref name="node"/> along left children, pushing each, then pops the next node in order
-        /// and goes on from its right child; null when the stack is empty (the depth then counts nothing popped).
+        /// Walks the subtree under <paramref name="node"/> (not the end) in order into the chunk: true when it is done,
+        /// false when the chunk filled or a node ended the fill first, the rest saved (<see cref="Path.Next"/>, then
+        /// this frame's node and its ancestors' on the stack from <paramref name="depth"/> down).
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static object Step(ref object node, ref int depth, object[] stack, object end, int left, int right)
+        private static bool Walk<T, TNodes>(object node, int depth, ref T at, ref Path path, ref TNodes nodes)
+            where TNodes : struct, INinoTreeNodes<T>
         {
-            ref object slot = ref NinoUnsafe.GetArrayDataReference(stack);
-            for (object at = node; at != end; at = ObjectFields.At<object>(at, left))
+            do
             {
-                if (at == null || (uint)depth >= (uint)stack.Length)
+                if (node == null || (uint)depth >= MaxDepth)
                     NinoThrow.ModifiedDuringWrite();
-                Unsafe.Add(ref slot, depth++) = at;
-            }
+                object left = ObjectFields.At<object>(node, path.Left);
+                if (left != path.End && !Walk(left, depth + 1, ref at, ref path, ref nodes))
+                {
+                    path.Stack[depth] = node;
+                    return false;
+                }
 
-            if (depth == 0)
+                if (path.Filled == path.Length)
+                {
+                    path.Stack[depth] = node;
+                    path.Top = depth + 1;
+                    path.Next = path.End;
+                    return false;
+                }
+
+                object right = ObjectFields.At<object>(node, path.Right);
+                if (!nodes.Take(node, ref Unsafe.Add(ref at, path.Filled++)))
+                {
+                    path.Top = depth;
+                    path.Next = right;
+                    return false;
+                }
+
+                node = right;
+            } while (node != path.End);
+
+            return true;
+        }
+
+        /// <summary>A fill's shape, and where it stopped.</summary>
+        private struct Path
+        {
+            public readonly object End;
+            public readonly object[] Stack;
+            public readonly int Left, Right, Length;
+            public int Filled, Top;
+            public object Next;
+
+            public Path(object end, object[] stack, int left, int right, int length)
             {
-                node = end;
-                return null;
+                End = end;
+                Stack = stack;
+                Left = left;
+                Right = right;
+                Length = length;
+                Filled = Top = 0;
+                Next = null;
             }
-
-            object top = Unsafe.Add(ref slot, --depth);
-            node = ObjectFields.At<object>(top, right);
-            return top;
         }
     }
 
@@ -238,10 +292,27 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <inheritdoc/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Fill(Span<T> chunk) => _nodes.Fill(chunk, _item);
+        public int Fill(Span<T> chunk)
+        {
+            var items = new At(_item);
+            return _nodes.Fill(chunk, ref items);
+        }
 
         /// <inheritdoc/>
         public void Finish() => _nodes.Finish();
+
+        private readonly struct At : INinoTreeNodes<T>
+        {
+            private readonly int _offset;
+
+            public At(int offset) => _offset = offset;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool Take(object node, ref T item)
+            {
+                item = ObjectFields.At<T>(node, _offset);
+                return true;
+            }
+        }
     }
 }

@@ -1,10 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System;
 using Nino.Core;
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
@@ -237,7 +236,7 @@ namespace Nino.Immutable
         internal struct Items : INinoGatherSource<TItem>
         {
             private NinoTreeWalk _buckets;
-            private NinoTreeWalk _more;
+            private NinoTreeItems<TItem> _more;
             private bool _inBucket;
 
             public Items(NinoTreeWalk buckets)
@@ -249,40 +248,27 @@ namespace Nino.Immutable
 
             public int Fill(Span<TItem> chunk)
             {
-                // The walk of the buckets in a local for the loop, written back once.
-                var buckets = _buckets;
-                ref TItem at = ref MemoryMarshal.GetReference(chunk);
                 int filled = 0;
-                while (filled < chunk.Length)
+                while (true)
                 {
                     if (_inBucket)
                     {
                         // A bucket's further items: keys whose hashes are equal, rare.
-                        var further = Unsafe.As<ListNode<TItem>>(_more.Next());
-                        if (further != null)
-                        {
-                            Unsafe.Add(ref at, filled++) = further._key;
-                            continue;
-                        }
-
+                        filled += _more.Fill(chunk.Slice(filled));
+                        if (filled == chunk.Length)
+                            return filled;
                         _more.Finish();
                         _inBucket = false;
                     }
 
-                    var bucket = Unsafe.As<Node>(buckets.Next());
-                    if (bucket == null)
-                        break;
-                    Unsafe.Add(ref at, filled++) = bucket._value._firstValue;
-                    if (bucket._value._additionalElements != NoMore)
-                    {
-                        _more = new NinoTreeWalk(bucket._value._additionalElements, NoMore, ListNode<TItem>.LeftAt,
-                            ListNode<TItem>.RightAt);
-                        _inBucket = true;
-                    }
+                    var buckets = new Buckets();
+                    filled += _buckets.Fill(chunk.Slice(filled), ref buckets);
+                    if (buckets.Held == null)
+                        return filled;
+                    _more = ListNode<TItem>.Items(Unsafe.As<ListNode<TItem>>(buckets.Held._value._additionalElements),
+                        NoMore);
+                    _inBucket = true;
                 }
-
-                _buckets = buckets;
-                return filled;
             }
 
             public void Finish()
@@ -290,6 +276,23 @@ namespace Nino.Immutable
                 if (_inBucket)
                     _more.Finish();
                 _buckets.Finish();
+            }
+        }
+
+        /// <summary>A bucket's first item; one with further items ends the fill, which then walks them.</summary>
+        private struct Buckets : INinoTreeNodes<TItem>
+        {
+            public Node Held;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool Take(object node, ref TItem item)
+            {
+                var bucket = Unsafe.As<Node>(node);
+                item = bucket._value._firstValue;
+                if (bucket._value._additionalElements == NoMore)
+                    return true;
+                Held = bucket;
+                return false;
             }
         }
 

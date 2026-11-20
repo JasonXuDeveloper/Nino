@@ -83,7 +83,9 @@ NinoGathered.cs              the gather's seam for Nino's own packages (Nino.Imm
                              collection that is not one run is walked, a chunk at a time), NinoGathered (Write,
                              WriteReversed for a stack walked from its top, Enumerated over a struct enumerator),
                              NinoTreeWalk (the one in-order walk of every binary tree: children at byte offsets, ending at
-                             null or the tree's empty node) and NinoTreeItems<T> (a tree's elements at an offset of each node)
+                             null or the tree's empty node, recursive, its path saved only when a chunk is full),
+                             INinoTreeNodes<T> (what a node holds) and NinoTreeItems<T> (a tree's elements at an offset of
+                             each node)
 NinoUnsafe.cs                unaligned little-endian memory access, ReadBool, array allocation, type queries; used by
                              Reader, Writer and generated code
 NinoUnsafe.Copy.cs           NinoUnsafe.Copy and its parts: block copies by size (overlapping moves, vector loops, Arm64
