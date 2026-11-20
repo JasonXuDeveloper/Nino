@@ -46,7 +46,7 @@ namespace Nino.Core
 #endif
             return NinoGather.Write<(TElement, TPriority),
                 ValueTupleFormatter<TElement, TPriority, TElementFormatter, TPriorityFormatter>,
-                NinoGather.Enumerated<(TElement, TPriority),
+                NinoGathered.Enumerated<(TElement, TPriority),
                     PriorityQueue<TElement, TPriority>.UnorderedItemsCollection.Enumerator>>(
                 new(value.UnorderedItems.GetEnumerator()), value.Count, writer);
         }

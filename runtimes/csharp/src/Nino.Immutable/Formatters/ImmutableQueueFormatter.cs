@@ -1,7 +1,8 @@
-using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System;
 using Nino.Core;
 using Nino.Core.CompilerServices;
 
@@ -19,18 +20,32 @@ namespace Nino.Immutable
                 return;
             }
 
-            // No count: patched after the elements, each as a collection of them writes it (NinoElement: a raw T? as a
-            // slot), walked with its own (struct) enumerator: through IEnumerable<T> each step is two interface calls,
-            // and gathered into a rented array first 1,000 ints were written in 1.2 times the time (local quick runs).
-            int countPos = writer.ReserveInt32();
-            int count = 0;
-            foreach (var item in value)
+            // It keeps no count: walked with its own (struct) enumerator a chunk at a time, the count patched after the
+            // elements (values whose memory is their wire form walked straight into the writer's buffer). Through
+            // IEnumerable<T> each step was two interface calls (1,000 ints written in 1.6 times the time), and walked
+            // into a rented array first, 1.2 times (local quick runs).
+            NinoGathered.Write<T, TFormatter, Items>(new Items(value.GetEnumerator()), -1, ref writer);
+        }
+
+        /// <summary>Its elements front to back, through its enumerator (a struct of no interface).</summary>
+        private struct Items : INinoGatherSource<T>
+        {
+            private ImmutableQueue<T>.Enumerator _items;
+
+            public Items(ImmutableQueue<T>.Enumerator items) => _items = items;
+
+            public int Fill(Span<T> chunk)
             {
-                NinoElement.Write<T, TFormatter>(in item, ref writer);
-                count++;
+                ref T at = ref MemoryMarshal.GetReference(chunk);
+                int filled = 0;
+                while (filled < chunk.Length && _items.MoveNext())
+                    Unsafe.Add(ref at, filled++) = _items.Current;
+                return filled;
             }
 
-            writer.PatchInt32(countPos, count);
+            public void Finish()
+            {
+            }
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableQueue<T> value)

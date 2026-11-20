@@ -1,7 +1,6 @@
-using System.Buffers;
 using System.Collections.Immutable;
-using System.Runtime.InteropServices;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Immutable
 {
@@ -17,11 +16,13 @@ namespace Nino.Immutable
                 return;
             }
 
-            // Copied out by the tree's own recursive walk, then written as a T[] (raw elements as one block): its
-            // enumerator rents a stack and walks it node by node.
-            var array = ArrayPool<T>.Shared.Rent(value.Count);
-            value.CopyTo(array);
-            ImmutableCollections.WriteRented<T, TFormatter>(array, value.Count, ref writer);
+            // Its tree walked in order a chunk at a time (SortedTrees), each chunk written by Nino.Core's run loops (raw
+            // elements as one block): its enumerator rents a stack and checks it per element. Else that enumerator.
+            if (SortedTrees.Usable)
+                NinoGathered.Write<T, TFormatter, NinoTreeItems<T>>(ListTree<T>.Items(value), value.Count, ref writer);
+            else
+                NinoGathered.Write<T, TFormatter, NinoGathered.Enumerated<T, ImmutableList<T>.Enumerator>>(
+                    new(value.GetEnumerator()), value.Count, ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableList<T> value)

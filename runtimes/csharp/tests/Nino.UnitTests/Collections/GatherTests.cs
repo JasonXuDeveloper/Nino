@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -83,6 +84,8 @@ namespace Nino.UnitTests
                     Same(NinoSerializer.Serialize(set.ToArray()), set, name);
                 }
 
+                Immutables(items, sorted, name);
+
 #if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
                 var queue = new PriorityQueue<T, int>(items.Select((item, i) => (item, i % 17)));
                 Same(NinoSerializer.Serialize(queue.UnorderedItems.ToArray()), queue, name);
@@ -93,6 +96,55 @@ namespace Nino.UnitTests
                 }
 #endif
             }
+        }
+
+        /// <summary>
+        /// The immutable collections of <paramref name="items"/> walk their trees and nodes through the gather
+        /// (<see cref="Nino.Core.CompilerServices.NinoTreeWalk"/>): each writes what an array of its elements in its
+        /// enumerator's order writes (a stack's reversed, bottom to top).
+        /// </summary>
+        private static void Immutables<T>(T[] items, bool sorted, string name)
+        {
+            // A set of objects hashed by reference reads back in another order.
+            bool hashedAlike = typeof(T).IsValueType || typeof(T) == typeof(string);
+            Same(NinoSerializer.Serialize(items), ImmutableList.CreateRange(items), name);
+            Same(NinoSerializer.Serialize(items), ImmutableQueue.CreateRange(items), name);
+            var stack = ImmutableStack.CreateRange(items);
+            Same(NinoSerializer.Serialize(stack.Reverse().ToArray()), stack, name);
+            var hashed = ImmutableHashSet.CreateRange(items.Where(item => item != null));
+            Same(NinoSerializer.Serialize(hashed.ToArray()), hashed, name, reads: hashedAlike);
+            var keyed = ImmutableDictionary.CreateRange(items.Where(item => item != null).Distinct()
+                .Select((item, i) => new KeyValuePair<T, int>(item, i)));
+            Same(NinoSerializer.Serialize(keyed.ToArray()), keyed, name, reads: hashedAlike);
+            var byIndex = ImmutableDictionary.CreateRange(items.Select((item, i) => new KeyValuePair<int, T>(i * 3, item)));
+            Same(NinoSerializer.Serialize(byIndex.ToArray()), byIndex, name);
+            if (!sorted)
+                return;
+            var ordered = ImmutableSortedSet.CreateRange(items);
+            Same(NinoSerializer.Serialize(ordered.ToArray()), ordered, name);
+            var sortedPairs = ImmutableSortedDictionary.CreateRange(items.Distinct().Where(item => item != null)
+                .Select((item, i) => new KeyValuePair<T, string>(item, "v" + i)));
+            Same(NinoSerializer.Serialize(sortedPairs.ToArray()), sortedPairs, name);
+        }
+
+        [TestMethod]
+        public void ImmutableHashBucketsOfEqualHashesAreWalkedInTheirOrder()
+        {
+            // A long's hash is its halves XORed: every i | (i << 32) hashes to 0, one bucket of them all.
+            foreach (int count in new[] { 3, 40, 2 * NinoGather<long>.Length + 3 })
+            {
+                var colliding = Enumerable.Range(0, count).Select(i => (long)i | ((long)i << 32)).Concat(Enumerable.Range(1, 50).Select(i => (long)i * 7919));
+                var set = ImmutableHashSet.CreateRange(colliding);
+                var dictionary = ImmutableDictionary.CreateRange(set.Select(item => new KeyValuePair<long, string>(item, "v" + item)));
+                // Not read back for the bytes: a bucket keeps its items in the order they were added, which a read
+                // through the builder does not repeat.
+                Same(NinoSerializer.Serialize(set.ToArray()), set, $"{count} colliding", reads: false);
+                Same(NinoSerializer.Serialize(dictionary.ToArray()), dictionary, $"{count} colliding", reads: false);
+            }
+
+            var strings = new ConcurrentDictionary<string, DispatchRoot>(Enumerable.Range(0, 3000)
+                .Select(i => new KeyValuePair<string, DispatchRoot>("k" + i, Root(i))));
+            Same(NinoSerializer.Serialize(strings.ToArray()), strings, "string keys", reads: false);
         }
 
         private static void Pairs<T>(Func<int, T> make)

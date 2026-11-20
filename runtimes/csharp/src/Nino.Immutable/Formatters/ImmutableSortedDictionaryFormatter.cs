@@ -1,10 +1,9 @@
-using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+using System;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Immutable
 {
@@ -25,31 +24,20 @@ namespace Nino.Immutable
                 return;
             }
 
-            // As ImmutableSortedSet<T>'s.
-            int count = value.Count;
-            ImmutableCollections.WriteRented<KeyValuePair<TKey, TValue>,
-                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(Copy(value, count), count, ref writer);
-        }
-
-        // Out of line, as ImmutableSortedSet<T>'s.
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static KeyValuePair<TKey, TValue>[] Copy(ImmutableSortedDictionary<TKey, TValue> value, int count)
-        {
-            var pairs = ArrayPool<KeyValuePair<TKey, TValue>>.Shared.Rent(count);
+            // As ImmutableSortedSet<T>'s: its tree walked in order, a node's key and value made into its pair, each
+            // chunk of pairs written by Nino.Core's run loops (pairs of raw items as one block, the string kernels, a
+            // polymorphic value's run loop).
             if (SortedTrees.Usable)
-            {
-                SortedDictionaryTree<TKey, TValue>.CopyTo(value, pairs);
-                return pairs;
-            }
-
-            ref var slot = ref MemoryMarshal.GetReference(pairs.AsSpan());
-            foreach (var pair in value)
-            {
-                slot = pair;
-                slot = ref Unsafe.Add(ref slot, 1);
-            }
-
-            return pairs;
+                NinoGathered.Write<KeyValuePair<TKey, TValue>,
+                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                    SortedDictionaryTree<TKey, TValue>.Pairs>(SortedDictionaryTree<TKey, TValue>.PairsOf(value),
+                    value.Count, ref writer);
+            else
+                NinoGathered.Write<KeyValuePair<TKey, TValue>,
+                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                    NinoGathered.Enumerated<KeyValuePair<TKey, TValue>,
+                        ImmutableSortedDictionary<TKey, TValue>.Enumerator>>(new(value.GetEnumerator()), value.Count,
+                    ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableSortedDictionary<TKey, TValue> value)

@@ -98,7 +98,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteEnumerated<T, TFormatter>(IEnumerable<T> values, int count, Writer writer)
             where TFormatter : struct, INinoFormatter<T> =>
-            NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, IEnumerator<T>>>(new(values.GetEnumerator()),
+            NinoGather.Write<T, TFormatter, NinoGathered.Enumerated<T, IEnumerator<T>>>(new(values.GetEnumerator()),
                 count, writer);
 
         /// <summary>

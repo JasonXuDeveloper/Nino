@@ -1,9 +1,8 @@
-using System;
-using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+using System;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Immutable
 {
@@ -22,31 +21,13 @@ namespace Nino.Immutable
                 return;
             }
 
-            // Copied out of its tree in order (SortedTrees), else with its enumerator, then written as an array.
-            int count = value.Count;
-            ImmutableCollections.WriteRented<T, TFormatter>(Copy(value, count), count, ref writer);
-        }
-
-        // Out of line: renting inlines a large path into the caller.
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static T[] Copy(ImmutableSortedSet<T> value, int count)
-        {
-            var array = ArrayPool<T>.Shared.Rent(count);
+            // Its tree walked in order a chunk at a time (SortedTrees), as ImmutableList<T>'s, else its enumerator.
             if (SortedTrees.Usable)
-            {
-                SortedSetTree<T>.CopyTo(value, array);
-                return array;
-            }
-
-            // By reference: the set enumerates exactly Count elements, which the JIT cannot tell.
-            ref T slot = ref MemoryMarshal.GetReference(array.AsSpan());
-            foreach (var item in value)
-            {
-                slot = item;
-                slot = ref Unsafe.Add(ref slot, 1);
-            }
-
-            return array;
+                NinoGathered.Write<T, TFormatter, NinoTreeItems<T>>(SortedSetTree<T>.Items(value), value.Count,
+                    ref writer);
+            else
+                NinoGathered.Write<T, TFormatter, NinoGathered.Enumerated<T, ImmutableSortedSet<T>.Enumerator>>(
+                    new(value.GetEnumerator()), value.Count, ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableSortedSet<T> value)

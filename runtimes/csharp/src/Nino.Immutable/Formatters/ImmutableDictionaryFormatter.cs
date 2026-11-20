@@ -1,8 +1,8 @@
-using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Immutable
 {
@@ -23,30 +23,19 @@ namespace Nino.Immutable
                 return;
             }
 
-            // As ImmutableHashSet<T>'s: copied out of its tree, else key by key with its own enumerator.
-            int count = value.Count;
-            if (count != 0 && HashTrees.Usable && DictionaryTree<TKey, TValue>.Copy(value, count) is { } pairs)
-            {
-                ImmutableCollections.WriteRented<KeyValuePair<TKey, TValue>,
-                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(pairs, count, ref writer);
-                return;
-            }
-
-            writer = WritePairs(value, count, writer);
-        }
-
-        // Out of line with the count, the writer by value, as ImmutableHashSet<T>'s.
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WritePairs(ImmutableDictionary<TKey, TValue> value, int count, Writer writer)
-        {
-            writer.WriteLength(count);
-            foreach (var pair in value)
-            {
-                default(TKeyFormatter).Serialize(pair.Key, ref writer);
-                default(TValueFormatter).Serialize(pair.Value, ref writer);
-            }
-
-            return writer;
+            // As ImmutableHashSet<T>'s, its pairs the elements: each chunk of pairs written by Nino.Core's run loops
+            // (pairs of raw items as one block, the string kernels, a polymorphic value's run loop), where key by key
+            // each was its formatter's Serialize.
+            if (HashTrees.Usable)
+                NinoGathered.Write<KeyValuePair<TKey, TValue>,
+                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                    HashTree<KeyValuePair<TKey, TValue>>.Items>(DictionaryTree<TKey, TValue>.PairsOf(value),
+                    value.Count, ref writer);
+            else
+                NinoGathered.Write<KeyValuePair<TKey, TValue>,
+                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                    NinoGathered.Enumerated<KeyValuePair<TKey, TValue>, ImmutableDictionary<TKey, TValue>.Enumerator>>(
+                    new(value.GetEnumerator()), value.Count, ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableDictionary<TKey, TValue> value)
@@ -61,7 +50,7 @@ namespace Nino.Immutable
 
             value = Build(pairs);
         }
-        // As ImmutableHashSet<T>'s, out of line like WritePairs.
+        // As ImmutableHashSet<T>'s, out of line.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ImmutableDictionary<TKey, TValue> Build(KeyValuePair<TKey, TValue>[] pairs)
         {

@@ -49,9 +49,9 @@ namespace Nino.Core
         {
             object root = SortedSetTrees.RootOf(sorted);
             return root != null
-                ? NinoGather.Write<T, TFormatter, SortedSetNodes<T>.Walk>(SortedSetNodes<T>.Items(root), sorted.Count,
+                ? NinoGather.Write<T, TFormatter, NinoTreeItems<T>>(SortedSetNodes<T>.Items(root), sorted.Count,
                     writer)
-                : NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, SortedSet<T>.Enumerator>>(
+                : NinoGather.Write<T, TFormatter, NinoGathered.Enumerated<T, SortedSet<T>.Enumerator>>(
                     new(sorted.GetEnumerator()), sorted.Count, writer);
         }
 
@@ -61,7 +61,7 @@ namespace Nino.Core
         private static Writer WriteLinked(LinkedList<T> linked, Writer writer) =>
             CollectionViews.LinkedList
                 ? NinoGather.Write<T, TFormatter, Ring>(new Ring(linked), linked.Count, writer)
-                : NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, LinkedList<T>.Enumerator>>(
+                : NinoGather.Write<T, TFormatter, NinoGathered.Enumerated<T, LinkedList<T>.Enumerator>>(
                     new(linked.GetEnumerator()), linked.Count, writer);
 
         /// <summary>
@@ -188,7 +188,7 @@ namespace Nino.Core
                 return filled;
             }
 
-            public void End()
+            public void Finish()
             {
                 if (_node != _head || CollectionFields.Version(_list) != _version)
                     NinoThrow.ModifiedDuringWrite();

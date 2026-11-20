@@ -7,25 +7,6 @@ using Nino.Core.CompilerServices;
 namespace Nino.Core.Internal
 {
     /// <summary>
-    /// A collection that is not one contiguous run (a tree, a linked list, an enumerator), walked into a chunk at a
-    /// time (<see cref="NinoGather.Write{T,TFormatter,TSource}"/>). A struct, so the calls are direct.
-    /// </summary>
-    internal interface INinoGatherSource<T>
-    {
-        /// <summary>
-        /// Copies the next elements into <paramref name="chunk"/>, as many as it holds, fewer only at the end; returns
-        /// how many.
-        /// </summary>
-        int Fill(Span<T> chunk);
-
-        /// <summary>
-        /// After the last element the writer takes: throws <see cref="NinoThrow.ModifiedDuringWrite"/> where the
-        /// collection holds more than it said or changed during the walk, and gives back what the walk took.
-        /// </summary>
-        void End();
-    }
-
-    /// <summary>
     /// A collection that takes the elements read for it a chunk at a time (<see cref="NinoGather.Read{T,TFormatter,TTarget}"/>):
     /// added, linked, or copied into its storage. A struct, so the calls are direct.
     /// </summary>
@@ -51,6 +32,12 @@ namespace Nino.Core.Internal
         /// tuned yet (#355: set by an A/B on x64 and Arm64 when the storage layer lands).
         /// </summary>
         public const int ChunkBytes = 16 * 1024;
+
+        /// <summary>
+        /// The fewest values a step of an in-place write of an unknown count fills straight into the writer's free
+        /// space before that is grown for a whole chunk: below it, a step's setup costs more than its copy saves.
+        /// </summary>
+        private const int InPlaceFewest = 16;
 
         /// <summary>
         /// Whether a known count of <typeparamref name="T"/> is gathered straight into the writer's buffer: values
@@ -95,7 +82,39 @@ namespace Nino.Core.Internal
                 ref byte at = ref writer.ReserveCounted(count, Unsafe.SizeOf<T>());
                 if (count != 0 && source.Fill(MemoryMarshal.CreateSpan(ref Unsafe.As<byte, T>(ref at), count)) != count)
                     NinoThrow.ModifiedDuringWrite();
-                source.End();
+                source.Finish();
+                return writer;
+            }
+
+            if (InPlace<T, TFormatter>())
+            {
+                // A count not known ahead (a queue, a concurrent dictionary): walked into the writer's free space a
+                // chunk at a time all the same, the count patched after them; the free space grown only when it holds
+                // fewer than InPlaceFewest of them, so a small collection never grows the buffer for a whole chunk.
+                int size = Unsafe.SizeOf<T>();
+                int counted = writer.ReserveInt32();
+                long written = 0;
+                while (true)
+                {
+                    ref byte free = ref writer.FreeSpace(out int available);
+                    int room = Math.Min(available / size, NinoGather<T>.Length);
+                    if (room < InPlaceFewest)
+                    {
+                        room = NinoGather<T>.Length;
+                        free = ref writer.Ensure(room * size);
+                    }
+
+                    int filled = source.Fill(MemoryMarshal.CreateSpan(ref Unsafe.As<byte, T>(ref free), room));
+                    writer.Commit(filled * size);
+                    written += filled;
+                    if (written > int.MaxValue)
+                        NinoThrow.ModifiedDuringWrite();
+                    if (filled < room)
+                        break;
+                }
+
+                source.Finish();
+                writer.PatchInt32(counted, (int)written);
                 return writer;
             }
 
@@ -124,11 +143,65 @@ namespace Nino.Core.Internal
             }
 
             NinoGather<T>.Return(chunk, used);
-            source.End();
+            source.Finish();
             if (count >= 0 && total != count)
                 NinoThrow.ModifiedDuringWrite();
             if (patch >= 0)
                 writer.PatchInt32(patch, (int)total);
+            return writer;
+        }
+
+        /// <summary>
+        /// Writes the count and the elements of <paramref name="source"/> in the reverse of the order it gives them
+        /// (a stack walked from its top, written bottom to top): walked into chunks first, as many as it holds (the
+        /// first in a local, any more in an array of them), then each chunk from the last reversed in place and
+        /// written by the run loops. A walk per chunk from the far end would walk the collection once per chunk, and
+        /// a count taken first walks its nodes twice, which is what costs (#305). Out of line with the writer by
+        /// value, as <see cref="Write{T,TFormatter,TSource}"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static Writer WriteReversed<T, TFormatter, TSource>(TSource source, Writer writer)
+            where TFormatter : struct, INinoFormatter<T>
+            where TSource : struct, INinoGatherSource<T>
+        {
+            var first = NinoGather<T>.Take();
+            int last = source.Fill(first.Span);
+            NinoGather<T>.Chunk[] full = null;
+            int fullCount = 0;
+            var chunk = first;
+            while (last == NinoGather<T>.Length)
+            {
+                // Every chunk but the last is full: kept in order, the last one taken next.
+                if (full == null || fullCount == full.Length)
+                    Array.Resize(ref full, full == null ? 4 : full.Length * 2);
+                full[fullCount++] = chunk;
+                if ((long)(fullCount + 1) * NinoGather<T>.Length > int.MaxValue)
+                    NinoThrow.ModifiedDuringWrite();
+                chunk = NinoGather<T>.Take();
+                last = source.Fill(chunk.Span);
+            }
+
+            source.Finish();
+            var tail = chunk.Span.Slice(0, last);
+            tail.Reverse();
+            if (fullCount == 0)
+                NinoCollections.WriteSpan<T, TFormatter>(tail, ref writer);
+            else
+            {
+                writer.WriteLength(fullCount * NinoGather<T>.Length + last);
+                NinoRuns.Write<T, TFormatter>((ReadOnlySpan<T>)tail, ref writer);
+                for (int i = fullCount - 1; i >= 0; i--)
+                {
+                    var span = full[i].Span;
+                    span.Reverse();
+                    NinoRuns.Write<T, TFormatter>((ReadOnlySpan<T>)span, ref writer);
+                }
+
+                for (int i = 0; i < fullCount; i++)
+                    NinoGather<T>.Return(full[i], NinoGather<T>.Length);
+            }
+
+            NinoGather<T>.Return(chunk, last);
             return writer;
         }
 
@@ -215,37 +288,6 @@ namespace Nino.Core.Internal
             }
 
             return reader;
-        }
-
-        /// <summary>The elements of an enumerator, its own struct one where the collection has one (direct calls).</summary>
-        internal struct Enumerated<T, TEnumerator> : INinoGatherSource<T> where TEnumerator : IEnumerator<T>
-        {
-            private TEnumerator _items;
-
-            public Enumerated(TEnumerator items) => _items = items;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public int Fill(Span<T> chunk)
-            {
-                // By reference: the chunk's length is not known to the JIT to bound what the enumerator gives.
-                ref T at = ref MemoryMarshal.GetReference(chunk);
-                int filled = 0;
-                while (filled < chunk.Length && _items.MoveNext())
-                {
-                    Unsafe.Add(ref at, filled) = _items.Current;
-                    filled++;
-                }
-
-                return filled;
-            }
-
-            public void End()
-            {
-                bool more = _items.MoveNext();
-                _items.Dispose();
-                if (more)
-                    NinoThrow.ModifiedDuringWrite();
-            }
         }
 
         /// <summary>A collection that takes each element through <typeparamref name="TAdder"/>'s <c>Add</c>.</summary>

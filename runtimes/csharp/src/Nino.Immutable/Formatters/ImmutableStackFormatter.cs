@@ -1,9 +1,9 @@
-using System;
-using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Immutable
 {
@@ -22,30 +22,31 @@ namespace Nino.Immutable
                 return;
             }
 
-            // One walk of the nodes, top to bottom, into a rented array that grows as it fills, then reversed in place:
-            // counting them first walked the linked nodes twice, and the walk, not the copy, is what costs (#305:
-            // ImmutableStack<int> of 1,000 written at 0.48x LuminPack's speed on EPYC 7763, 0.81x on Neoverse-N2).
-            var array = ArrayPool<T>.Shared.Rent(16);
-            int count = 0;
-            foreach (var item in value)
-            {
-                if (count == array.Length)
-                    array = Grow(array);
-                array[count++] = item;
-            }
-
-            array.AsSpan(0, count).Reverse();
-            ImmutableCollections.WriteRented<T, TFormatter>(array, count, ref writer);
+            // One walk of the nodes, top to bottom, into the gather's chunks, written in reverse: counting them first
+            // walked the linked nodes twice, and the walk, not the copy, is what costs (#305: ImmutableStack<int> of
+            // 1,000 written at 0.48x LuminPack's speed on EPYC 7763, 0.81x on Neoverse-N2).
+            NinoGathered.WriteReversed<T, TFormatter, Items>(new Items(value.GetEnumerator()), ref writer);
         }
 
-        /// <summary>A rented array twice the size of <paramref name="full"/>, holding its elements; returns it.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static T[] Grow(T[] full)
+        /// <summary>Its elements top to bottom, through its enumerator (a struct of no interface).</summary>
+        private struct Items : INinoGatherSource<T>
         {
-            var larger = ArrayPool<T>.Shared.Rent(full.Length * 2);
-            full.AsSpan().CopyTo(larger);
-            ImmutableCollections.Return(full);
-            return larger;
+            private ImmutableStack<T>.Enumerator _items;
+
+            public Items(ImmutableStack<T>.Enumerator items) => _items = items;
+
+            public int Fill(Span<T> chunk)
+            {
+                ref T at = ref MemoryMarshal.GetReference(chunk);
+                int filled = 0;
+                while (filled < chunk.Length && _items.MoveNext())
+                    Unsafe.Add(ref at, filled++) = _items.Current;
+                return filled;
+            }
+
+            public void Finish()
+            {
+            }
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableStack<T> value)
