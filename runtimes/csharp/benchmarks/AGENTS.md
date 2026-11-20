@@ -52,6 +52,11 @@ Nino.Benchmark.Schema/       the models (Fixtures/, Workloads/*Models.cs) built 
                              (Unity's API: the stand-ins add System.Text.Json's attributes and Random's NextInt64 /
                              NextSingle there): what nino-gen and Unity read for the other platforms' benchmarks;
                              ci.yml checks its types against Nino.Benchmark's
+SeamProto/                   PROTOTYPE (#355, the generator seam): two shapes of [NinoType] (Shapes.cs), the hooks the
+                             generator would emit for them by hand (FlatHooks.cs: the flat kernels' item chains), their
+                             check against the generated body (SeamCheck.cs, also linked into Nino.UnitTests'
+                             SeamProtoTests) and a focused timer (Program.cs: `verify`, `bench [count]`; NINO_SEAM=0 is
+                             the generated body)
 bench-cases.json             the case manifest BenchGen writes: every case, its libraries per build, the libraries
                              that break on it (Broken) and the quick subset (ci.yml's labeled pull-request run);
                              report.yml attaches it to a release, the reports draw broken cases as error

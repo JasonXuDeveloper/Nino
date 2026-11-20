@@ -101,6 +101,29 @@ namespace Nino.Core
         internal bool HasCursor => false;
 
         /// <summary>
+        /// PROTOTYPE (#355, the generator seam): whether a run of the formatter's values (a class whose generated body
+        /// is flat: raw blocks, bools and strings) is moved by the string run kernels through a chain of items at
+        /// runtime offsets (<see cref="NinoFlatRuns"/>): <see cref="WriteFlat"/> and <see cref="ReadFlat"/>. Read once.
+        /// </summary>
+        internal bool HasFlat => false;
+
+        /// <summary>PROTOTYPE: writes the values of <paramref name="run"/> (not empty) through the flat kernels.</summary>
+        internal Writer WriteFlat(scoped NinoRun run, Writer writer)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(WriteFlat));
+            return writer;
+        }
+
+        /// <summary>PROTOTYPE: reads the values of <paramref name="run"/> (not empty) in place through the flat
+        /// kernels.</summary>
+        internal Reader ReadFlat(scoped NinoRun run, Reader reader)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(ReadFlat));
+            return reader;
+        }
+
+
+        /// <summary>
         /// Writes the values of <paramref name="run"/> (not empty; the count is the caller's) through the string run
         /// kernels (<see cref="NinoItems"/>): one call per run, so in
         /// code shared over a class only the call is indirect, never a value. The writer by value and returned. Called

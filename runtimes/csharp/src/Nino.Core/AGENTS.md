@@ -402,6 +402,11 @@ NinoStringRuns.cs            the string run kernels (#355): a run of strings, or
                              (NinoUtf16Item, NinoUtf8Item, NinoValueItem, NinoSlotItem: a raw T?'s single value;
                              a composite's element is NinoItems'), stores (InPlace, a set's and a dictionary's adds)
                              and a set's read (ReadSet, with an add loop of its own where the set guards its buckets)
+NinoFlatRuns.cs              PROTOTYPE (#355, the generator seam): runs of classes whose generated body is flat moved by
+                             the string run kernels through a chain of items at runtime offsets (NinoBlockItem,
+                             NinoBoolItem, NinoStringItem, NinoFlatChain behind NinoSealedItem / NinoTypedItem, the
+                             object's header and its construction), an element they do not take left to the generated
+                             body (INinoFormatter.HasFlat, WriteFlat, ReadFlat)
 NinoStrings.Latin1.cs        Latin-1 chars narrowed, widened, appended and compared (the scalar and word paths; the
                              vector kernels are NinoSimd.Text)
 ```

@@ -32,6 +32,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Nino.UnitTests"/>
         <InternalsVisibleTo Include="Nino.AotTests"/>
+        <InternalsVisibleTo Include="Nino.SeamProto"/>
         <InternalsVisibleTo Include="Nino.UnityTypes"/>
     </ItemGroup>
 

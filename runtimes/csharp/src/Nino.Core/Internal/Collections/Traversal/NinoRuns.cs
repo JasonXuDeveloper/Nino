@@ -156,6 +156,17 @@ namespace Nino.Core.Internal
             // formatter on every target; a pair of them, its value's loop (KeyValuePairFormatter). The intrinsic
             // itself, not NinoUnsafe's: one inlinee more in this method, inlined into every collection's write, left
             // the writer of block arrays' top-level writes in memory (asm.py: ByteIntPairs32 10 to 38 stack accesses).
+            // PROTOTYPE (#355): a class whose generated body is flat, through the flat kernels (ahead of a
+            // polymorphic base's own loop: its subtypes leave the run element by element).
+            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat)
+            {
+                if (counted)
+                    writer.WriteLength(length);
+                if (!row || count != 0)
+                    writer = WriteFlat<T, TFormatter>(run, writer);
+                return;
+            }
+
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoKind<TFormatter>.Runs)
             {
                 if (counted)
@@ -378,6 +389,13 @@ namespace Nino.Core.Internal
             // Strings and pairs holding them: the string run kernels, with the data and the bytes left, not the reader,
             // which stays in the caller's registers. Raw values and blocks that reach here are read one by one with
             // their checks, as before.
+            // PROTOTYPE (#355): a class whose generated body is flat, through the flat kernels.
+            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat)
+            {
+                reader = ReadFlat<T, TFormatter>(run, reader);
+                return;
+            }
+
             if (NinoCursor.Own<T, TFormatter>())
             {
                 ReadStrings<T, TFormatter>(run, ref reader);
@@ -401,6 +419,18 @@ namespace Nino.Core.Internal
             typeof(T).IsValueType
                 ? default(TFormatter).WriteStrings(run, writer)
                 : NinoStringRuns.Write<TFormatter>(run, writer);
+
+        /// <summary>PROTOTYPE (#355): the flat kernels' write of a run of a class, out of line.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteFlat<T, TFormatter>(scoped NinoRun run, Writer writer)
+            where TFormatter : struct, INinoFormatter<T> =>
+            default(TFormatter).WriteFlat(run, writer);
+
+        /// <summary>PROTOTYPE (#355): the flat kernels' read of a run of a class, out of line.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadFlat<T, TFormatter>(scoped NinoRun run, Reader reader)
+            where TFormatter : struct, INinoFormatter<T> =>
+            default(TFormatter).ReadFlat(run, reader);
 
         /// <summary>
         /// As <see cref="WriteStrings{T,TFormatter}"/>, the read in place. The data and the bytes left go to the call,

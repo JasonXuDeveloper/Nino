@@ -229,7 +229,7 @@ namespace Nino.Core.Internal
         /// them once took longer (1,000 strings written 1.3 to 1.4 times as long, local quick runs).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static ulong WriteFitting<TItem>(scoped NinoRun run, TItem item, int next, ref byte destination,
+        internal static ulong WriteFitting<TItem>(scoped NinoRun run, TItem item, int next, ref byte destination,
             int available)
             where TItem : struct, INinoRunItem =>
             // Twice from one body: runs without free entries (arrays, lists, most sets and dictionaries) with the

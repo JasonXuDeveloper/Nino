@@ -99,6 +99,10 @@
 
     <ItemGroup>
         <!-- The code generator's templates, to check that their checked-in output is current. -->
+        <!-- PROTOTYPE (#355): the generator seam's hand-written hooks and their check (SeamProtoTests). -->
+        <Compile Include="..\..\benchmarks\SeamProto\Shapes.cs" Link="SeamProto\Shapes.cs"/>
+        <Compile Include="..\..\benchmarks\SeamProto\FlatHooks.cs" Link="SeamProto\FlatHooks.cs"/>
+        <Compile Include="..\..\benchmarks\SeamProto\SeamCheck.cs" Link="SeamProto\SeamCheck.cs"/>
         <Compile Include="..\..\tools\CodeGen\TupleFormattersTemplate.cs" Link="CodeGen\TupleFormattersTemplate.cs"/>
         <Compile Include="..\..\tools\CodeGen\MultiDimFormattersTemplate.cs" Link="CodeGen\MultiDimFormattersTemplate.cs"/>
         <!-- The layout baseline's format and rules, which the analyzer, the code fixes and nino-gen compile in: tested

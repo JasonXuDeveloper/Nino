@@ -50,7 +50,7 @@ internal static class FormatterEmitter
         if (m.RawBody)
             iface += $", {CoreCompilerServices}INinoRawBodyFormatter<{t}>";
 
-        w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.FormatterConstraints}");
+        w.Open($"internal partial struct {self} : {iface}{m.FormatterConstraints}");
         if (m.Kind == FormatterKind.Union)
         {
             EmitTypeId(w, m);
