@@ -323,6 +323,32 @@ jobs:
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
+      # EXPERIMENT (not for main): the IL2CPP C++ of NinoUnsafe's 32-bit gate and the generated read bodies, to see
+      # which tests IL2CPP folds (#435).
+      - name: Collect the IL2CPP output
+        if: always() && env.BENCHMARK == 'true'
+        continue-on-error: true
+        run: |
+          dir=$(sudo find runtimes/csharp/src/Nino.Unity -type d -name il2cppOutput -print 2>/dev/null | head -1 || true)
+          [[ -n $dir ]] || dir=$(sudo find / -xdev -type d -name il2cppOutput -print 2>/dev/null | head -1 || true)
+          echo "dir=$dir"
+          mkdir -p il2cpp
+          if [[ -n $dir ]]; then
+            sudo grep -rl -e 'WideAccess' -e 'NinoUnsafe_Read_' -e '__ReadBodyFresh' -e 'NinoLanes' "$dir" | head -80 > il2cpp/files.txt || true
+            cat il2cpp/files.txt
+            sudo tar czf il2cpp/il2cpp-cpp.tgz -T il2cpp/files.txt; sudo chmod a+r il2cpp/il2cpp-cpp.tgz
+          fi
+          ls -la il2cpp
+
+      - name: Upload the IL2CPP output
+        if: always() && env.BENCHMARK == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: il2cpp-cpp-${{ matrix.unity }}
+          path: il2cpp
+          retention-days: 5
+
       # After the tests, as actions/cache's own post step saved it: only when they passed.
       - name: Save the Unity Library
         if: success() && inputs.tag == '' && steps.library-cache.outputs.cache-hit != 'true'
