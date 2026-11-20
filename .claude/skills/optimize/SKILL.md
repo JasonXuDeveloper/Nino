@@ -249,7 +249,18 @@ says which CPUs and cases moved.
   it) spent `Events`' budget. Tried and dropped: a call to the full `NinoRuns.Read` from a set's fill (shared code
   read `NinoKind<Entries>.Cursor` as a lookup: `NinoEntries<MapEntry<int, __Canon>>` 450 to 922 bytes; it calls
   `ReadLoop`), `NinoCollections.WriteSpan` as `NinoRuns.Write(values, length)` (classes' array writes inlined every
-  path, `List<ICommand>` 343 to 1,289 bytes; it keeps its block test and length).
+  path, `List<ICommand>` 343 to 1,289 bytes; it keeps its block test and length). A collection's own fast paths are
+  layers inside its one read and one write, never entry points beside them (#350: `SortedList`'s int-only read, its
+  `TypeCode` split and its hand zip became `BclDictionaries.SplitInPlace` and `Zip` under the gather); keep that one
+  read out of line with the reader by value once it holds every path (inlined into a top-level `SortedList<int, int>`
+  read it doubled it, 598 to 1,166 bytes and 17 to 34 stack accesses), and gate a layer on what the kernel needs, never on one
+  kind: "memory is the wire form" is `NinoGather.InPlace` (raw without padding, or a block that is its memory), and a
+  `KeyValuePair` of raw items is a block, not raw (its formatter is no raw formatter), so the split first gated on
+  `Raw` sent `SortedList<int, int>` through the gather's chunk and the comparer's order check: 1,000 pairs read 1.7
+  times as long (local quick runs, 1,928 against 1,152 ns) until it took `InPlace` and no bool or Untrusted check. Its write takes the gather's in-place step on the caller's
+  writer (through `NinoGather.Write`'s call, the writer's copies made 1,000 pairs 1.1 to 1.15 times as long to write),
+  as four lines of its own: that step as a helper inlined into `NinoGather.Write` too kept every enumerated gather's
+  source in memory (asm.py: 57 to 65 stack accesses by value, 60 to 65 by reference).
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks
@@ -317,6 +328,14 @@ a file and a line above. Go, Rust and TypeScript techniques go to `optimize-runt
 
 
 - x64: `--asm` of `runtimes/csharp/benchmarks/asm/asm.py`, once per ISA (`DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`).
+- Arm64 listings of any case on an x64 machine: `Nino.Benchmark.dll` run directly with `DOTNET_STARTUP_HOOKS` set to
+  `asm/jitwarm`'s build, `NINO_JIT_FILTER` to the case, `DOTNET_AltJit='*'`, `DOTNET_AltJitName` the name
+  `asm/cross-jit.sh` prints and `DOTNET_JitDisasm` the methods, stdout to a file, then `members/split-asm.py`; count
+  `[fp, ...]`/`[sp, ...]` accesses other than the prolog's `stp`/`ldp`. The .NET 11 cross JIT heads its listings
+  "arm64" in lowercase: split-asm.py matched "ARM64" and wrote every listing to the x64 file until #347's check fixed
+  it. Arm64 has ten callee-saved registers (x19-x28) to x64's five: the string run kernels' read keeps its source,
+  bytes left, count, element and stride in x20-x24 with one spill (the new string around the widen call), the UTF-16
+  and pair writes none, where x64 spills more (#347, storage-347-350).
 - NativeAOT: ILC compiles with the JIT, which takes the same options as `--codegenopt`: publish
   `runtimes/csharp/benchmarks/Nino.Benchmark -r linux-x64` with `PublishAot` set in a props file passed as
   `-p:CustomBeforeMicrosoftCommonProps=` (conditioned on the project name, or the netstandard references get it) and

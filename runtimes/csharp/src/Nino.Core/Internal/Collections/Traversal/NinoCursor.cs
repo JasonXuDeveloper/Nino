@@ -37,40 +37,23 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Reads into <paramref name="value"/> (a string, or a value read as one) the value at
-        /// <paramref name="source"/> (<paramref name="available"/> bytes), as its formatter's <c>Deserialize</c> reads
-        /// it, with its checks: too few bytes and values no write makes are invalid data. Returns the bytes read. An
-        /// item of a pair merged into an existing dictionary (NinoDictionary.Refill), read apart.
+        /// <paramref name="source"/> (<paramref name="available"/> bytes) through its run item, the one cursor read of
+        /// an item (<see cref="INinoRunItem.ReadAt"/>: <see cref="NinoValueItem{T,TFormatter}"/>,
+        /// <see cref="NinoUtf8Item"/>, <see cref="NinoUtf16Item"/>), with its checks: too few bytes and values no write
+        /// makes are invalid data; an unchanged string is kept. Returns the bytes read. An item of a pair merged into an
+        /// existing dictionary (NinoDictionary.Refill), read apart.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ReadAt<T, TFormatter>(ref byte source, int available, ref T value)
             where TFormatter : struct, INinoFormatter<T>
         {
+            ref byte item = ref Unsafe.As<T, byte>(ref value);
             if (NinoRuns.ScattersItems<T, TFormatter>())
-            {
-                int size = NinoKind.Stride<T, TFormatter>();
-                if ((uint)available < (uint)size)
-                    NinoThrow.EndOfData();
-                NinoBlocks.ReadItem<T, TFormatter>(ref value, ref source);
-                return size;
-            }
-
+                return default(NinoValueItem<T, TFormatter>).ReadAt(ref source, available, ref item, false);
             // A string, told by its formatter's type (a constant in code shared over a class too).
-            ref string slot = ref Unsafe.As<T, string>(ref value);
-            string current = slot, read;
-            int bytes;
-            if (typeof(TFormatter) == typeof(Utf8StringFormatter))
-            {
-                SizedString utf8 = Reader.ReadUtf8At(ref source, available, current);
-                read = utf8.Value;
-                bytes = utf8.Size;
-            }
-            else
-                read = NinoStrings.Read(ref source, available, current, out bytes);
-
-            // An unchanged string (a read into an existing collection) is not stored again: no write barrier.
-            if (!ReferenceEquals(read, current))
-                slot = read;
-            return bytes;
+            return typeof(TFormatter) == typeof(Utf8StringFormatter)
+                ? default(NinoUtf8Item).ReadAt(ref source, available, ref item, false)
+                : default(NinoUtf16Item).ReadAt(ref source, available, ref item, false);
         }
 
         /// <summary>

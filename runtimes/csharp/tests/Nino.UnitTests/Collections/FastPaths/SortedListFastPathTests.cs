@@ -160,4 +160,56 @@ public class SortedListFastPathTests
         Assert.AreSequenceEqual(expected, reused);
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes.AsSpan(0, bytes.Length - 1), ref reused));
     }
+
+    public enum Rank : short
+    {
+    }
+
+    /// <summary>
+    /// The one write and read of every raw pair (#350): keys and values of different sizes, with and without padding,
+    /// enum and float keys (NaN orders first under the default comparer), at every length around the vector widths,
+    /// write what a dictionary of the same pairs writes and read back in order, and out of order (a list keyed in reverse)
+    /// through the adds.
+    /// </summary>
+    [TestMethod]
+    public void SortedListMovesEveryRawPairAsItsPairs()
+    {
+        Check<int, uint>(i => i * 7 - 9, i => (uint)i * 0x9E3779B9u);
+        Check<long, int>(i => (long)i << 33, i => -i);
+        Check<byte, int>(i => (byte)i, i => i * 3);
+        Check<int, long>(i => -i * 5, i => (long)i << 40);
+        Check<Rank, Rank>(i => (Rank)(i - 20), i => (Rank)i);
+        Check<float, double>(i => i == 0 ? float.NaN : i * 0.5f - 3, i => i / 3.0);
+        Check<ulong, ulong>(i => ((ulong)(uint)i << 60) + (uint)i, i => ulong.MaxValue - (ulong)i);
+
+        // Pairs whose memory is their wire form but hold a bool are checked, never split as they lie.
+        var flags = new SortedList<byte, bool>();
+        for (int i = 0; i < 40; i++)
+            flags.Add((byte)i, i % 3 == 0);
+        byte[] bad = NinoSerializer.Serialize(flags);
+        bad[4 + 2 * 37 + 1] = 2;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<SortedList<byte, bool>>(bad));
+
+        static void Check<TKey, TValue>(Func<int, TKey> key, Func<int, TValue> value)
+        {
+            foreach (int count in new[] { 0, 1, 3, 4, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65, 200 })
+            {
+                var list = new SortedList<TKey, TValue>();
+                for (int i = 0; i < count; i++)
+                    list.Add(key(i), value(i));
+
+                string name = $"<{typeof(TKey).Name}, {typeof(TValue).Name}> count={count}";
+                byte[] bytes = NinoSerializer.Serialize(list);
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(new Dictionary<TKey, TValue>(list)), bytes, name);
+                var back = NinoDeserializer.Deserialize<SortedList<TKey, TValue>>(bytes);
+                CollectionAssert.AreEqual(list.Keys.ToArray(), back.Keys.ToArray(), name);
+                CollectionAssert.AreEqual(list.Values.ToArray(), back.Values.ToArray(), name);
+
+                var reversed = new SortedList<TKey, TValue>(Comparer<TKey>.Create((a, b) => Comparer<TKey>.Default.Compare(b, a)));
+                NinoDeserializer.Deserialize(bytes, ref reversed);
+                CollectionAssert.AreEqual(list.Keys.Reverse().ToArray(), reversed.Keys.ToArray(), name);
+                CollectionAssert.AreEqual(list.Values.Reverse().ToArray(), reversed.Values.ToArray(), name);
+            }
+        }
+    }
 }

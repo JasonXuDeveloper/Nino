@@ -61,7 +61,10 @@ queues](#priority-queues).
   at 128 bits. With the linux-x64 runtime pack as references, Crossgen2 emitted 150/125/101-byte methods for the three
   supported widths. An Arm64 CoreLib reference can emit calls to unsupported-intrinsic stubs instead. Run the fused
   probe natively before selecting dispatch thresholds.
-- Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+. For full wide
+- Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+ (since #350 the
+  layers of the one SortedList read, `BclDictionaries.SplitInPlace`: every pair whose memory is its wire form
+  (`NinoGather.InPlace`) and needs no check splits straight out of the data, the vector deinterleave, Arm64's fused split and order check and the `int` order check over it; the
+  arrays are grown before the fused split, which no longer falls back to the gather when they are short). For full wide
   read batches, use AVX2 lane shuffles plus 64-bit reordering or AVX-512 two-source dword permutes. Keep the exact ISA
   test in the existing out-of-line entry so Arm64 Tier 0 drops it. Let the wide helper call that entry for the
   remainder, which is below the wide threshold. Returning the processed count to the narrow entry grew its x64 listing
@@ -125,7 +128,9 @@ queues](#priority-queues).
 
 ## Pair interleave
 
-- Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64 `zip1/zip2` or
+- Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation (since #350 a layer of the
+  one SortedList write, `BclDictionaries.Zip` under `NinoGather.Write`, whose in-place fill hands it the writer's
+  buffer where the pairs' memory is their wire form; other pairs zip into chunks for the run loops). Use Arm64 `zip1/zip2` or
   SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot take the two arrays
   directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%. Keep the dual-source loop in
   `NinoSimd.Interleave` and call it only for at least one vector. Extracting it cut seven-pair write time by about 30%
