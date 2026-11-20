@@ -182,6 +182,14 @@ public class SortedListFastPathTests
         Check<float, double>(i => i == 0 ? float.NaN : i * 0.5f - 3, i => i / 3.0);
         Check<ulong, ulong>(i => ((ulong)(uint)i << 60) + (uint)i, i => ulong.MaxValue - (ulong)i);
 
+        // Pairs whose memory is their wire form but hold a bool are checked, never split as they lie.
+        var flags = new SortedList<byte, bool>();
+        for (int i = 0; i < 40; i++)
+            flags.Add((byte)i, i % 3 == 0);
+        byte[] bad = NinoSerializer.Serialize(flags);
+        bad[4 + 2 * 37 + 1] = 2;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<SortedList<byte, bool>>(bad));
+
         static void Check<TKey, TValue>(Func<int, TKey> key, Func<int, TValue> value)
         {
             foreach (int count in new[] { 0, 1, 3, 4, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65, 200 })

@@ -426,9 +426,10 @@ namespace Nino.Core
                 _at += chunk.Length;
                 ref var pair = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(chunk);
 #if NET8_0_OR_GREATER
-                // Pairs of two 4-byte values whose memory is their wire form: one vector pass.
+                // Pairs of two 4-byte values whose memory is their wire form (raw, or a block that is its memory): one
+                // vector pass.
                 if (Unsafe.SizeOf<TKey>() == 4 && Unsafe.SizeOf<TValue>() == 4 && NinoSimd.CanInterleave<int>(chunk.Length) &&
-                    NinoBlockPlan<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>.IsMemory)
+                    NinoGather.InPlace<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>())
                 {
                     NinoSimd.DeinterleaveInt32(ref Unsafe.As<KeyValuePair<TKey, TValue>, byte>(ref pair), ref Unsafe.As<TKey, int>(ref key),
                         ref Unsafe.As<TValue, int>(ref value), chunk.Length);
@@ -454,15 +455,19 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Whether a read splits the pairs straight out of the data (<see cref="SplitInPlace"/>): raw pairs whose memory
-        /// is their wire form, copied as they are (no bool to check). A JIT-time constant.
+        /// Whether a read splits the pairs straight out of the data (<see cref="SplitInPlace"/>): pairs whose memory is
+        /// their wire form (<see cref="NinoGather.InPlace{T,TFormatter}"/>: raw, or a block that is its memory, as a
+        /// <c>KeyValuePair</c> of raw items is), read as they lie (no bool to check, no Untrusted check of their
+        /// fields). A JIT-time constant.
         /// </summary>
         private static bool SplitsInPlace
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => NinoGather.InPlace<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>() &&
-                   NinoKind.Of<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>() == NinoElementKind.Raw &&
-                   NinoLayout<KeyValuePair<TKey, TValue>>.CopiesAsIs;
+                   (NinoKind.Of<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>() == NinoElementKind.Raw
+                       ? NinoLayout<KeyValuePair<TKey, TValue>>.CopiesAsIs
+                       : NinoBlockPlan<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>.ReadSize > 0 &&
+                         !NinoBlockPlan<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>.Rejects);
         }
 
         /// <summary>
@@ -493,20 +498,13 @@ namespace Nino.Core
                     return false;
                 }
             }
-            // Four-byte keys and values: the vector deinterleave (the pairs are raw and their memory their wire form,
-            // which Split's own test of the block plan does not see for raw pairs: it read 1,000 SortedList<int, int>
-            // pairs 1.7 times as long, local quick runs).
-            if (NinoSimd.IsPackedLane32<TKey>() && NinoSimd.IsPackedLane32<TValue>())
-            {
-                NinoSimd.DeinterleaveInt32(ref source, ref Unsafe.As<TKey, int>(ref NinoUnsafe.GetArrayDataReference(keys)),
-                    ref Unsafe.As<TValue, int>(ref NinoUnsafe.GetArrayDataReference(values)), length);
-                if (byDefault && typeof(TKey) == typeof(int))
-                    return NinoSimd.AreStrictlyIncreasingInt32(ref source, length);
-                return InOrder(keys, length, comparer);
-            }
 #endif
             new Split(keys, values).Add(System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
                 ref Unsafe.As<byte, KeyValuePair<TKey, TValue>>(ref source), length));
+#if NET8_0_OR_GREATER
+            if (byDefault && typeof(TKey) == typeof(int) && Unsafe.SizeOf<TValue>() == 4)
+                return NinoSimd.AreStrictlyIncreasingInt32(ref source, length);
+#endif
             return InOrder(keys, length, comparer);
         }
 
