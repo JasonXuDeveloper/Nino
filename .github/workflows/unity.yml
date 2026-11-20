@@ -16,7 +16,7 @@ name: Unity
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "exp/il2cpp-fold-probe" ]
     paths: &paths
       - 'runtimes/csharp/src/Nino.Core/**'
       - 'runtimes/csharp/src/Nino.Generator/**'
@@ -82,7 +82,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   # The benchmark's run: the release player, and Nino.Core's Release build (the one the package ships).
-  BENCHMARK: ${{ inputs.benchmark && 'true' || 'false' }}
+  BENCHMARK: ${{ (inputs.benchmark || github.ref_name == 'exp/il2cpp-fold-probe') && 'true' || 'false' }}
 
 jobs:
   unity-tests:
@@ -113,7 +113,7 @@ jobs:
       # The image with the Linux IL2CPP module, which the player step below needs: one image for both steps.
       UNITY_IMAGE: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
       # Debug builds for the tests (their assertions), Release for the benchmark (what the package ships).
-      NINO_CONFIG: ${{ inputs.benchmark && 'Release' || 'Debug' }}
+      NINO_CONFIG: ${{ (inputs.benchmark || github.ref_name == 'exp/il2cpp-fold-probe') && 'Release' || 'Debug' }}
 
     steps:
       - &check-tag
@@ -307,12 +307,12 @@ jobs:
         id: player-tests
         # The benchmark's run times every case of the .NET suite (some 110, each both ways and in two or three sample
         # groups of about a second) in the player.
-        timeout-minutes: ${{ inputs.benchmark && 60 || 35 }}
+        timeout-minutes: ${{ (inputs.benchmark || github.ref_name == 'exp/il2cpp-fold-probe') && 60 || 35 }}
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-          ENGINE_LAUNCH_WRAPPER: timeout -k 60 ${{ inputs.benchmark && '45m' || '20m' }}
+          ENGINE_LAUNCH_WRAPPER: timeout -k 60 ${{ (inputs.benchmark || github.ref_name == 'exp/il2cpp-fold-probe') && '45m' || '20m' }}
         with:
           projectPath: ./runtimes/csharp/src/Nino.Unity
           testMode: standalone
