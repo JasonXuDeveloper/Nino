@@ -181,7 +181,27 @@ says which CPUs and cases moved.
   `NinoRecycler.MayRecycle<T, TFormatter>` / `Recycle` / `DiscardAll<T, TFormatter>`, and a composite's items through
   its formatter's internal `RecyclesItems` / `ItemsMayRecycle` / `RecycleItems` (pairs, value tuples, entries), never a
   per-collection pair walk (`DiscardPairs` went). Keep the walk over dropped elements and a composite's may-recycle test
-  out of line (`NoInlining`): inlined, `List<(int, long)>` deserialize grew 1,196 to 1,678 bytes. Add no generic member to `INinoFormatter<T>`: Unity
+  out of line (`NoInlining`): inlined, `List<(int, long)>` deserialize grew 1,196 to 1,678 bytes. A composite object
+  (a `Tuple`) recycles its items through the same members (`NinoRecycler.Recycle`, `Replace` and `Discard` of `<T,
+  TFormatter>`: its items where no handler takes the tuple and no pool takes it back), but a collection asks it only as
+  itself (`NinoRecycler<T>.MayRecycle`, true for a non-sealed class once a pool exists): asking its items too, even out
+  of line, compiled a call into the read of every list of classes (asm.py: 30 `ListFormatter<__Canon, ...>.Deserialize`
+  and generated bodies, storage-typed), whose code is shared. Compose the cursor form of a composite of more than two
+  items as a chain of its items (`NinoItems`: `NinoItem<T, TFormatter, TNext>` ... `NinoItemsEnd`, a value tuple of three
+  to seven), walked once per run through a generic interface method (`INinoItemsNext.Write<THead>`, a constrained call
+  on the exact chain) that picks each item's run item by JIT-time constants into one element (`NinoItemChain`): the
+  string kernel is instantiated over the items alone, never over the tuple, so a run over code shared over a class pays
+  one lookup per run, none per element. Beside a string, a slot's value (a raw `T?`) is an item in its single value's
+  bytes (`NinoSlotItem` over two internal non-generic members of `INinoFormatter<T>`, `WriteAt`/`ReadAt`, implemented by
+  `UnmanagedNullableFormatter`): `NinoCursor.Item` is the one predicate of what may sit beside a string. A raw run Nino
+  checks (bools, Untrusted mode) is checked in the data out of line and then copied as one block in `NinoRuns.Read`
+  (`CheckRaw`), never sent to the per-value loop: nothing the check rejects is stored, so a rejected read leaves an
+  existing array as it was. A package outside Nino.Core that walks a collection (Nino.Immutable's `ImmutableQueue`,
+  the `ImmutableHashSet` fallback) writes each element through `NinoElement.Write` (CompilerServices: a raw `T?` as a
+  slot, the kind a JIT-time constant), never by a guess of its own at which elements are slots, and keeps its loop over
+  the collection's struct enumerator: through `IEnumerable<T>` (Nino.Core's enumerable write, the gather) each step is
+  two interface calls, and 1,000 ints of an `ImmutableQueue` were written in 1.6 times the time, walked into a rented
+  array first still 1.2 times (local quick runs, storage-typed). Add no generic member to `INinoFormatter<T>`: Unity
   2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`). The
   view is one cursor, `NinoRun` (#355 PR 3: the first value, count, stride, the in-use test of free entries, whose rule
   each runtime proves at startup), and the loops are `NinoRuns`, a kernel per kind and one loop of values per direction:
