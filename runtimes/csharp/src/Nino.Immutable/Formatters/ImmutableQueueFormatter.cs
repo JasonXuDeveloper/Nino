@@ -18,22 +18,9 @@ namespace Nino.Immutable
                 return;
             }
 
-            if (ImmutableCollections.Slots<T>.Possible)
-            {
-                ImmutableCollections.WriteEnumerated<T, TFormatter>(value, ref writer);
-                return;
-            }
-
-            // No count: patched after the elements.
-            int countPos = writer.ReserveInt32();
-            int count = 0;
-            foreach (var item in value)
-            {
-                default(TFormatter).Serialize(item, ref writer);
-                count++;
-            }
-
-            writer.PatchInt32(countPos, count);
+            // Its nodes through Nino.Core's write of an enumerable, a chunk at a time: each element as a collection of
+            // them writes it (raw ones as one block, a raw T? as a slot), the count patched after them.
+            writer = ImmutableCollections.WriteEnumerated<T, TFormatter>(value, writer);
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableQueue<T> value)
