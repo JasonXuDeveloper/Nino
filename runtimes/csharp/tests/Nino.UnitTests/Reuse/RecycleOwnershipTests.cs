@@ -455,11 +455,6 @@ public class RecycleOwnershipTests
         Read(ref target, null);
         Assert.IsNull(target);
         AssertRecycled(As(second));
-
-        var items = new[] { new RcItem(), new RcItem(), new RcItem() };
-        var list = items.Select((x, i) => Tuple.Create(x, (long)i)).ToList();
-        Read(ref list, new List<Tuple<RcItem, long>> { Tuple.Create(new RcItem(), 5L) });
-        AssertRecycled(As(items[0]), As(items[1]), As(items[2]));
     }
 
     [TestMethod]

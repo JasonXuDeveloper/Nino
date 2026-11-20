@@ -204,19 +204,14 @@ namespace Nino.Core
         /// Whether a dropped <typeparamref name="T"/> may recycle anything (<see cref="NinoRecycler{T}.MayRecycle"/>),
         /// its items included where <typeparamref name="TFormatter"/> composes it of items (a pair, a value tuple,
         /// <see cref="INinoFormatter.RecyclesItems"/>): what a collection asks before it walks the elements it drops.
-        /// A composite object (a <c>Tuple</c>) is asked out of line: the code of a collection of classes is shared, and
-        /// a field of its formatter's would be a lookup there; the question is asked only where the collection drops
-        /// elements.
+        /// A composite object (a <c>Tuple</c>) is asked only as itself, which is not sealed and so may recycle once a
+        /// pool exists or a handler for it is set: its items' tests stay out of every collection of classes, whose code
+        /// is shared (asked out of line, a call compiled into every list of classes' read, asm.py).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool MayRecycle<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            NinoRecycler<T>.MayRecycle || (typeof(T).IsValueType
-                ? NinoKind<TFormatter>.RecyclesItems && ItemsMayRecycle<T, TFormatter>()
-                : ObjectItemsMayRecycle<T, TFormatter>());
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static bool ObjectItemsMayRecycle<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            NinoKind<TFormatter>.RecyclesItems && default(TFormatter).ItemsMayRecycle;
+            NinoRecycler<T>.MayRecycle ||
+            typeof(T).IsValueType && NinoKind<TFormatter>.RecyclesItems && ItemsMayRecycle<T, TFormatter>();
 
         // Out of line: inlined, a composite's items' tests and the walk took the budget of the read around them (asm.py:
         // a List<(int, long)>'s read 1,196 to 1,678 bytes, 4 to 10 stack accesses).
