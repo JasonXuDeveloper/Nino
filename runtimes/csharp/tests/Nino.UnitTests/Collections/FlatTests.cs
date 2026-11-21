@@ -338,5 +338,27 @@ namespace Nino.UnitTests
                 ? new FlatMany { Id = p.Id, Name = p.Name, Tag = p.Tag, At = p.At, Flag = p.Flag, Text = p.Text, Price = p.Price }
                 : null));
         }
+
+        [TestMethod]
+        public void LongUtf8StringsAtEveryHeaderSize()
+        {
+            // The flat kernels size a long UTF-8 string by its length where every count of its bytes takes one header
+            // size, and count the bytes elsewhere: the bytes are WriteUtf8's either way, at each boundary.
+            int[] lengths = { 1024, 1025, 21845, 21846, 30000, 65535, 65536, 70000 };
+            foreach (int length in lengths)
+            foreach (bool wide in new[] { false, true })
+            {
+                var text = new string('a', length).ToCharArray();
+                if (wide)
+                    for (int i = 0; i < length; i += 3)
+                        text[i] = i % 2 == 0 ? '\u4E2D' : '\u00E9';
+                var value = new FlatMany { Id = length, Tag = new string(text), Text = "t" };
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(Props(value)), NinoSerializer.Serialize(value), $"{length} {wide}");
+                var run = Enumerable.Repeat(value, NinoFlatRuns.MinRun).ToArray();
+                byte[] bytes = NinoSerializer.Serialize(run);
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(run.Select(Props).ToArray()), bytes, $"run {length} {wide}");
+                Assert.AreEqual(value.Tag, NinoDeserializer.Deserialize<FlatMany[]>(bytes)[NinoFlatRuns.MinRun - 1].Tag);
+            }
+        }
     }
 }
