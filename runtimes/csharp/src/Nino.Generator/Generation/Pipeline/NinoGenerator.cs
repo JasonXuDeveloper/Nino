@@ -333,10 +333,11 @@ public sealed partial class NinoGenerator : IIncrementalGenerator
             {
                 bool isBase = m.IsDispatchRoot;
                 bool isTarget = m.IsDispatchTarget;
-                return isBase || isTarget
+                bool middle = m.DispatchesSubtypes && !isBase;
+                return isBase || isTarget || middle
                     ? new DispatchEntry(m.TypeName, m.FormatterName, m.TypeParameterList, m.TypeId, isBase, isTarget,
                         m.Inheritance.NinoBaseClasses, m.Inheritance.NinoInterfaces, m.Inheritance.NinoGenericAncestors,
-                        m.RawBody, !m.Depth.Nests)
+                        m.RawBody, !m.Depth.Nests, middle)
                     : null;
             })
             .Select(static (x, _) => new EquatableArray<DispatchEntry>(

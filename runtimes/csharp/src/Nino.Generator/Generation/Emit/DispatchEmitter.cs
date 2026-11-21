@@ -57,13 +57,25 @@ internal static class DispatchEmitter
         int closedCount = 0;
         foreach (var e in entries)
         {
+            // A class below a root dispatches its own subtypes only, without the run loop: its collections go value
+            // by value, which measured faster than a loop per such class (see EmitWriteRun).
+            if (e.Middle)
+            {
+                w.Open($"partial struct {e.Self}");
+                EmitBase(w, e.TypeName, Subtypes(subtypesOf, e.TypeName, e.TypeId), services, closedForm: false, e,
+                    runLoop: false);
+                w.Close();
+                w.Line();
+                continue;
+            }
+
             if (!e.IsBase)
                 continue;
             if (e.TypeParameterList.Length == 0)
             {
                 var own = Subtypes(subtypesOf, e.TypeName, e.TypeId);
                 w.Open($"partial struct {e.Self}");
-                EmitBase(w, e.TypeName, own, services, closedForm: false, e);
+                EmitBase(w, e.TypeName, own, services, closedForm: false, e, runLoop: true);
                 w.Close();
                 w.Line();
                 continue;
@@ -80,7 +92,8 @@ internal static class DispatchEmitter
                 foreach (var c in closed)
                 {
                     w.Open($"static class __NinoDispatch{closedCount++}");
-                    EmitBase(w, c, Subtypes(subtypesOf, c, 0), services, closedForm: true, root: null);
+                    EmitBase(w, c, Subtypes(subtypesOf, c, 0), services, closedForm: true, root: null,
+                        runLoop: false);
                     w.Close();
                     w.Line();
                 }
@@ -123,7 +136,7 @@ internal static class DispatchEmitter
         int bodies = 0;
         foreach (var entry in entries)
         {
-            if (!entry.IsBase)
+            if (!entry.IsBase && !entry.Middle)
                 continue;
             if (++bodies == 2 || (entry.TypeParameterList.Length != 0 && closedOf != null &&
                 closedOf.ContainsKey(entry.TypeName)))
@@ -205,7 +218,7 @@ internal static class DispatchEmitter
 
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
     private static void EmitBase(CodeWriter w, string t, List<DispatchEntry>? subtypes, string services, bool closedForm,
-        DispatchEntry? root)
+        DispatchEntry? root, bool runLoop)
     {
         // value.GetType() == typeof(X) compiles to one method table compare. WriteExactShallow is inlined where the
         // caller's inlining budget allows (the dispatch is inlined into its callers), else called as shared code. A
@@ -234,7 +247,7 @@ internal static class DispatchEmitter
                 w.Line(WriteShallow(s, services, "return;"));
             w.Line(WriteOther(t, services) + ";");
             w.Close();
-            if (!closedForm)
+            if (runLoop)
                 EmitWriteRun(w, t, root!, subtypes, services);
 
             w.Line();

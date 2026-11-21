@@ -322,7 +322,6 @@ internal static partial class ModelBuilder
             SharedBase: type.TypeKind == TypeKind.Class && type.BaseType is { } baseType &&
                         facts.IsDelegatable(baseType) && SharedInstance(baseType),
             DispatchRoot: dispatchRoot == null ? "" : Global(dispatchRoot),
-            DispatchRootFormatter: dispatchRoot == null ? "" : FormatterName(dispatchRoot),
             NinoBaseClasses: new EquatableArray<string>(ancestors
                 .Where(static a => a.TypeKind != TypeKind.Interface).Select(Global)),
             NinoInterfaces: new EquatableArray<string>(ancestors
