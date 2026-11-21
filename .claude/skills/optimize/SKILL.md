@@ -221,7 +221,19 @@ says which CPUs and cases moved.
   `ImmutableSortedDictionary` 0.75, `ImmutableSortedSet` 0.82, `ImmutableDictionary` 0.84, `ImmutableHashSet` 0.92
   (local quick runs, three per side in both orders, Xeon 2.10 GHz). What a node holds is the collection's
   `INinoTreeNodes<T>` struct (an element at an offset, a key and value made a pair, a hash bucket's first item that
-  ends the fill when the bucket holds more). Keep a struct enumerator in a local for a fill's loop, written back once:
+  ends the fill when the bucket holds more). Walk a tree of class elements over a struct holding one reference
+  (`NinoTreeWalk.Reference` and `ReferenceAt`; Nino.Immutable's `ItemReference` and `BucketReferences`, a node read as
+  `HashTree<object>`'s), never over the class `T` itself: over a class the walk and its `INinoTreeNodes<T>` struct are
+  code shared over every class, and each element's `Take` is a dictionary lookup and an indirect call (and a generic
+  static such as a hash tree's `NoMore` a lookup per element: pass it in the struct, read once per fill, which is also
+  the form IL2CPP and NativeAOT keep constant, #436; it costs a value item's hash-tree fill 8 stack accesses once per
+  fill). Put the class walk in a method of its own (`FillReferences`) and keep `NinoTreeItems<T>.Fill`
+  `AggressiveInlining`: with the class branch inline, folded away for a value element, the JIT judged the fill an
+  "unprofitable inline" into `NinoGather.Write` (read from `MethodJitInliningFailed`, #434), a call per fill for
+  `SortedSet<int>` and the immutable trees of values.
+  `PolymorphicFooImmutableList` serialized in 0.74-0.77 of the base's time, 1,000 values of an `ImmutableHashSet` of a
+  class 0.61-0.66 (local, alternated, #355 polymorphic step). A key and value pair holding a class
+  (`ImmutableDictionary<int, Base>`) still takes them through shared code. Keep a struct enumerator in a local for a fill's loop, written back once:
   a field of the source reached through it is read and written in memory each step (`ImmutableStack` 0.75 of the base
   with the local). Walk linked nodes through a checked mirror where the enumerator's steps are calls
   (`ImmutableQueue`'s and `ImmutableStack`'s enumerators call `Pop` and `Peek` per element, another assembly's, not

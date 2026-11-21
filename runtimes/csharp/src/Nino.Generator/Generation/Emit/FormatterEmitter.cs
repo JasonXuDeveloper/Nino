@@ -50,7 +50,8 @@ internal static class FormatterEmitter
         if (m.RawBody)
             iface += $", {CoreCompilerServices}INinoRawBodyFormatter<{t}>";
 
-        w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.FormatterConstraints}");
+        // Partial where NinoGen.Dispatch.g.cs adds its dispatch: every class that dispatches its subtypes.
+        w.Open($"internal {(m.DispatchesSubtypes ? "partial " : "")}struct {self} : {iface}{m.FormatterConstraints}");
         if (m.Kind == FormatterKind.Union)
         {
             EmitTypeId(w, m);
@@ -475,27 +476,12 @@ internal static class FormatterEmitter
     {
         string t = m.TypeName;
         string self = m.Self;
-        // The root's dispatch covers every subtype of this class. Writing needs nothing more (its checks are exact);
-        // reading checks that the type the data named is one of this class. A generic type is its own root: its
-        // dispatch selects one of its closed instances (DispatchEmitter).
-        bool root = m.IsDispatchRoot;
-        string rootFormatter = "", rootType = "";
-        if (m.DispatchesSubtypes && !root)
-        {
-            rootFormatter = m.Need(m.Inheritance.DispatchRootFormatter, nameof(m.Inheritance.DispatchRootFormatter));
-            rootType = m.Need(m.Inheritance.DispatchRoot, nameof(m.Inheritance.DispatchRoot));
-        }
-
-        string write = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer);"
-            : root ? "__WriteSubtype(value, ref writer);"
-            : $"{rootFormatter}.__WriteSubtype(value, ref writer);";
-        string[] read = !m.DispatchesSubtypes ? new[] { $"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value);" }
-            : root ? new[] { "__ReadSubtype(id, ref reader, ref value);" }
-            : new[]
-            {
-                $"{rootFormatter}.__ReadSubtype(id, ref reader, ref {CoreCompilerServices}NinoObject.AsBaseSlot<{t}, {rootType}>(ref value));",
-                $"{CoreCompilerServices}NinoObject.EnsureSubtype<{t}>(value);",
-            };
+        // Every class that dispatches its subtypes has dispatch methods (DispatchEmitter): a root's cover its
+        // hierarchy; a class below it tests its own subtypes, or forwards to a base's and checks that the type read is
+        // one of its own (DispatchEmitter.ForwardTarget). A generic type is its own root: its dispatch selects one of
+        // its closed instances.
+        const string write = "__WriteSubtype(value, ref writer);";
+        const string read = "__ReadSubtype(id, ref reader, ref value);";
         w.Line(names.Inline);
         w.Open(Signature.Serialize(t));
         if (ownId)
@@ -515,23 +501,14 @@ internal static class FormatterEmitter
         w.Line(names.Inline);
         w.Open(Signature.Deserialize(t));
         w.Line("int id = reader.UnsafeRead<int>();");
-        if (!ownId)
+        if (ownId)
         {
-            foreach (var line in read)
-                w.Line(line);
+            w.Line($"if (!{CoreCompilerServices}NinoObject.TryReadOwn<{t}, {self}>(id, ref reader, ref value))");
+            w.IndentedLine(read);
         }
         else
         {
-            w.Line($"if (!{CoreCompilerServices}NinoObject.TryReadOwn<{t}, {self}>(id, ref reader, ref value))");
-            if (read.Length == 1)
-                w.IndentedLine(read[0]);
-            else
-            {
-                w.Open();
-                foreach (var line in read)
-                    w.Line(line);
-                w.Close();
-            }
+            w.Line(read);
         }
         w.Close();
     }

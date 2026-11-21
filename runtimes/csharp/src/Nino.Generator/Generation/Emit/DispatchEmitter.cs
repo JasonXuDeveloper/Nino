@@ -55,15 +55,72 @@ internal static class DispatchEmitter
         string genericServices = services == CompactServices ? GeneratedCode.CompilerServicesAlias + "::" : services;
         var w = new CodeWriter(4096);
         int closedCount = 0;
+        Dictionary<string, DispatchEntry>? dispatchers = null;
+        Dictionary<string, bool>? ownDispatch = null;
         foreach (var e in entries)
         {
+            if (e.Middle || (e.IsBase && e.TypeParameterList.Length == 0))
+                (dispatchers ??= new Dictionary<string, DispatchEntry>(StringComparer.Ordinal))[e.TypeName] = e;
+        }
+
+        // The nearest base of a class below a root that has a dispatch of its own, when the class forwards to it:
+        // its own subtypes are more than half of that base's. A dispatch per (base, subtype) pair would grow with the
+        // square of the depth of a chain of classes (PolymorphicFooBase's FooA to FooH, 16 to 19 of 20 subtypes each,
+        // 1.8x the generated dispatch of the benchmark project and its generator benchmark 1.5x as long to analyze,
+        // for no measured gain: PolymorphicClass 0.99-1.05x); halving at each level keeps it to n log n. A class with
+        // few of the root's subtypes (CustomerEvent, 2 of DomainEvent's 8) tests only those: the root's whole chain
+        // took the inlining budget of every caller (MethodJitInliningFailed "inline exceeds budget").
+        DispatchEntry? ForwardTarget(DispatchEntry e, int count)
+        {
+            foreach (var ancestor in e.BaseClasses.Concat(e.Interfaces))
+            {
+                if (dispatchers == null || !dispatchers.TryGetValue(ancestor, out var a) || !OwnDispatchOf(a))
+                    continue;
+                int baseCount = Subtypes(subtypesOf, a.TypeName, a.TypeId)?.Count ?? 0;
+                return count * 2 > baseCount ? a : null;
+            }
+
+            return null;
+        }
+
+        bool OwnDispatchOf(DispatchEntry e)
+        {
+            if (!e.Middle)
+                return true;
+            ownDispatch ??= new Dictionary<string, bool>(StringComparer.Ordinal);
+            if (!ownDispatch.TryGetValue(e.TypeName, out bool own))
+                ownDispatch[e.TypeName] = own =
+                    ForwardTarget(e, Subtypes(subtypesOf, e.TypeName, e.TypeId)?.Count ?? 0) == null;
+            return own;
+        }
+
+        foreach (var e in entries)
+        {
+            // A class below a root dispatches its own subtypes only where they are at most half of the subtypes of the
+            // nearest base with a dispatch of its own, without the run loop: its collections go value by value, which
+            // measured faster than a loop per such class (see EmitWriteRun). Any other class below a root forwards to
+            // that base's dispatch (OwnDispatchOf).
+            if (e.Middle)
+            {
+                var own = Subtypes(subtypesOf, e.TypeName, e.TypeId);
+                var via = ForwardTarget(e, own?.Count ?? 0);
+                w.Open($"partial struct {e.Self}");
+                if (via == null)
+                    EmitBase(w, e.TypeName, own, services, closedForm: false, e, runLoop: false);
+                else
+                    EmitForward(w, e.TypeName, via, services);
+                w.Close();
+                w.Line();
+                continue;
+            }
+
             if (!e.IsBase)
                 continue;
             if (e.TypeParameterList.Length == 0)
             {
                 var own = Subtypes(subtypesOf, e.TypeName, e.TypeId);
                 w.Open($"partial struct {e.Self}");
-                EmitBase(w, e.TypeName, own, services, closedForm: false, e.Self);
+                EmitBase(w, e.TypeName, own, services, closedForm: false, e, runLoop: true);
                 w.Close();
                 w.Line();
                 continue;
@@ -80,7 +137,8 @@ internal static class DispatchEmitter
                 foreach (var c in closed)
                 {
                     w.Open($"static class __NinoDispatch{closedCount++}");
-                    EmitBase(w, c, Subtypes(subtypesOf, c, 0), services, closedForm: true, self: null);
+                    EmitBase(w, c, Subtypes(subtypesOf, c, 0), services, closedForm: true, root: null,
+                        runLoop: false);
                     w.Close();
                     w.Line();
                 }
@@ -123,7 +181,7 @@ internal static class DispatchEmitter
         int bodies = 0;
         foreach (var entry in entries)
         {
-            if (!entry.IsBase)
+            if (!entry.IsBase && !entry.Middle)
                 continue;
             if (++bodies == 2 || (entry.TypeParameterList.Length != 0 && closedOf != null &&
                 closedOf.ContainsKey(entry.TypeName)))
@@ -203,9 +261,24 @@ internal static class DispatchEmitter
         return true;
     }
 
+    /// <summary>
+    /// The dispatch of a class below a root through the dispatch of <paramref name="via"/>, a base of it: writing
+    /// needs nothing more (its checks are exact); reading checks that the type the data named is one of this class.
+    /// </summary>
+    private static void EmitForward(CodeWriter w, string t, DispatchEntry via, string services)
+    {
+        w.Line($"{WriteSubtype(t)} => {via.Self}.__WriteSubtype(value, ref writer);");
+        w.Line();
+        w.Line(GeneratedCode.Inline);
+        w.Open(ReadSubtype(t));
+        w.Line($"{via.Self}.__ReadSubtype(id, ref reader, ref {services}NinoObject.AsBaseSlot<{t}, {via.TypeName}>(ref value));");
+        w.Line($"{services}NinoObject.EnsureSubtype<{t}>(value);");
+        w.Close();
+    }
+
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
     private static void EmitBase(CodeWriter w, string t, List<DispatchEntry>? subtypes, string services, bool closedForm,
-        string? self)
+        DispatchEntry? root, bool runLoop)
     {
         // value.GetType() == typeof(X) compiles to one method table compare. WriteExactShallow is inlined where the
         // caller's inlining budget allows (the dispatch is inlined into its callers), else called as shared code. A
@@ -234,8 +307,8 @@ internal static class DispatchEmitter
                 w.Line(WriteShallow(s, services, "return;"));
             w.Line(WriteOther(t, services) + ";");
             w.Close();
-            if (!closedForm)
-                EmitWriteRun(w, t, self!, subtypes, services);
+            if (runLoop)
+                EmitWriteRun(w, t, root!, subtypes, services);
 
             w.Line();
             w.Line($"{GeneratedCode.NoInline} static {Core}Writer __WriteSubtypeDeep({t} value, {Core}Writer writer)");
@@ -300,11 +373,12 @@ internal static class DispatchEmitter
     /// writer in memory: LuminPack's List&lt;IFoo&gt; of 1,000 values of 20 subtypes took 5.0 us that way and 3.85 in
     /// this form (LuminPack 4.4; local x64, #305). A loop in Nino.Core calling a generated step per value lost on
     /// large hierarchies (#355's probe, run 44379569172: 1.4-1.8x the time of this loop for 20 subtypes), so the
-    /// generator writes the loop and Nino.Core its pieces.
+    /// generator writes the loop and Nino.Core its pieces. A root that is a class of its own tests its own type first.
     /// </summary>
-    private static void EmitWriteRun(CodeWriter w, string t, string self, List<DispatchEntry> subtypes,
+    private static void EmitWriteRun(CodeWriter w, string t, DispatchEntry root, List<DispatchEntry> subtypes,
         string services)
     {
+        string self = root.Self;
         string run = $"{services}NinoRun";
         string loops = $"{Core}INinoFormatter";
         w.Line();
@@ -328,6 +402,13 @@ internal static class DispatchEmitter
         w.Line($"{run}.WriteKey(ref entry, key, ref writer);");
         w.Line($"var value = {run}.Value<{t}>(ref entry);");
         w.Line("if (value == null) { writer.UnsafeWrite(0); continue; }");
+        // A root that is a class of its own (not abstract) tests its own type first, as its Serialize does. Left to the
+        // registry (NinoSubtypes.Serialize: a lookup and a virtual call), 1,000 values of a root with four subtypes,
+        // most of its own type, wrote in 0.76-0.80 of the time (local x64, #355). Classes below the root keep no loop of
+        // their own: one per class with subtypes (its own type, then its subtypes) wrote 1,000 values 1.14-1.22x as
+        // long for three subtypes and 1.04-1.06x for twelve, against the value-by-value loop with the root's dispatch.
+        if (root.IsTarget)
+            w.Line(WriteShallow(root, services, "continue;"));
         foreach (var s in subtypes)
             w.Line(WriteShallow(s, services, "continue;"));
         // A subtype the chain does not know: the registry, with the writer by reference. With the writer by value

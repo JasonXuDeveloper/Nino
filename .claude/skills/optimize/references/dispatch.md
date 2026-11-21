@@ -254,6 +254,35 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   `Dictionary<int, Foo>` member lost the old pair loop's writer in registers: the pair loop's by-value fallback
   (`writer = __WriteSubtypeDeep(value, writer)`, 15-25 % faster on pairs locally) exposed no address, and one loop
   for both takes the element loop's by-reference fallback (run 43849791156). The landing A/B decides between them.
+- Test a root's own type first in its generated run loop where the root is a class of its own (not abstract), as
+  its `Serialize` does (`DispatchEmitter.EmitWriteRun`, `DispatchEntry.IsTarget`). Why: the chain lists only the
+  subtypes, so each value of the root's own type fell through to `NinoSubtypes<T>.Serialize`, a registry lookup and a
+  virtual call. Evidence (#355 polymorphic step, local x64, base and head alternated three times; 1,000 values of a
+  root with four subtypes, most of its own type): array 0.76-0.80, `List` 0.76-0.82, `Dictionary<int, T>` 0.65-0.71
+  of the base's time; found by #355's seam prototype (6.4 against 9.1-12.9 us). Give a class below the root no run
+  loop of its own: its collections go value by value (its own type inline, then its dispatch, next bullet). A loop per
+  middle class with subtypes here (its own type, then its subtypes, the root's registry as fallback) wrote 1,000 values
+  1.14-1.22x as long with three subtypes and 1.04-1.06x with twelve; forwarded to the root's loop, 1.10-1.12x. The
+  listing: the loop's writer is a local whose address reaches the inlined registry fallback (262 stack accesses
+  against the value-by-value loop's 78, which works through the caller's writer by reference and folds a row's
+  stride, key and in-use tests). Keep the dispatch form the compare chain (the next bullets): a cached last type needs
+  a jump table to reach the cached branch, the indirect jump #305 measured mispredicting (16.0 against 6.5 us in a
+  random order), and the chain's position costs nothing measurable (#305: the first against the nineteenth subtype
+  differed by its body). Against LuminPack in the same local runs, Nino wrote `PolymorphicFooArray` in 4.1-4.6 us
+  against 5.1-5.7 and read it in 15.3-17.1 against 20.4-23.2.
+- Give a class below a root a dispatch of its own only where its subtypes are at most half of those of the nearest
+  base with one (`DispatchEmitter.ForwardTarget`); any other forwards to that base's. Why: the root's chain tests
+  every subtype of the hierarchy, and inlined into a middle class's `Serialize` it spent the caller's budget on types
+  that cannot be its values (`CustomerEventFormatter.Serialize`, two of `DomainEvent`'s seven: "inline exceeds
+  budget", gone with its own two-type chain); a dispatch for every middle class grows with the square of a chain's
+  depth. Evidence (#355 polymorphic step, local x64): a dispatch for every middle class made the benchmark project's
+  `NinoGen.Dispatch.g.cs` 312 KB against 170 KB and `GeneratorBenchmark --generics` 55,327 generated lines against
+  44,527, analysis 995-1,014 against 642-678 ms, emit 1,157-1,179 against 1,021-1,046 ms, for no measured gain
+  (`PolymorphicClass`, `PolymorphicClassArray` 0.99-1.05x, TC=0 0.95-1.03x; `EventStream`, `RpcCall`,
+  `CardBattleLog` 0.90-1.09x). With the halving rule the file is 197 KB, `FooA` to `FooH` (12 to 19 of 20) forward
+  to the root, and the generator benchmark writes 49,147 lines (IL 1.17 against 1.10 MB) with generate 181-189
+  against 175-185 ms and analysis 694-702 against 655-730 ms, on par; `PolymorphicClassFormatter.ReadBody` keeps inlining `FooD`'s 20-case switch and running out
+  of locals ("too many locals"), which measured nothing.
 - Write an array or a list of a polymorphic base through the base's generated loop (since #355 PR 3 the run loop
   above; before it `INinoFormatter<T>.WriteElements`, `DispatchEmitter.EmitWriteElements`): the chain of type checks
   inline in the loop, the writer in a local, the depth checked once before it. Why: written one element at a time through

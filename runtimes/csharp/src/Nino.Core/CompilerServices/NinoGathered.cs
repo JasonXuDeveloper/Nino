@@ -251,6 +251,30 @@ namespace Nino.Core.CompilerServices
             return true;
         }
 
+        /// <summary>
+        /// A reference as the element of a fill (<see cref="NinoTreeItems{T}"/> of a class <c>T</c>): a struct, so that
+        /// the walk over it is not code shared over every class.
+        /// </summary>
+        internal struct Reference
+        {
+            public object Value;
+        }
+
+        /// <summary>The reference at one offset of each node.</summary>
+        internal readonly struct ReferenceAt : INinoTreeNodes<Reference>
+        {
+            private readonly int _offset;
+
+            public ReferenceAt(int offset) => _offset = offset;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool Take(object node, ref Reference item)
+            {
+                item.Value = ObjectFields.At<object>(node, _offset);
+                return true;
+            }
+        }
+
         /// <summary>A fill's shape, and where it stopped.</summary>
         private struct Path
         {
@@ -310,10 +334,32 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Marked to inline: with the class branch the JIT judged it an unprofitable inline into the gather's write
+        /// (a call per fill, the caller's registers spent around it), where without it the walk was inlined.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Fill(Span<T> chunk)
         {
+            if (!typeof(T).IsValueType)
+                return FillReferences(chunk);
             var items = new At(_item);
             return _nodes.Fill(chunk, ref items);
+        }
+
+        /// <summary>
+        /// Class elements (a polymorphic base's) as references in a struct of one field: code shared over a class T
+        /// calls the take of each element through a lookup, an indirect call (the walk is generic over the take, a
+        /// struct generic over T), where over a struct the walk is its own instantiation, the take inlined into it. A
+        /// method of its own: inline in <see cref="Fill"/>, its IL (though folded away) kept a value element's walk
+        /// from inlining there (asm.py: a call per chunk in NinoTreeItems&lt;int&gt;.Fill).
+        /// </summary>
+        private int FillReferences(Span<T> chunk)
+        {
+            var references = new NinoTreeWalk.ReferenceAt(_item);
+            return _nodes.Fill(MemoryMarshal.CreateSpan(
+                ref Unsafe.As<T, NinoTreeWalk.Reference>(ref MemoryMarshal.GetReference(chunk)), chunk.Length),
+                ref references);
         }
 
         /// <inheritdoc/>

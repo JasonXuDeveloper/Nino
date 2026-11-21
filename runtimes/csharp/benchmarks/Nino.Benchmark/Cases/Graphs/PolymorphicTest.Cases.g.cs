@@ -8,6 +8,7 @@
 #if !NINO_BENCH_V3
 using System;
 using System.Buffers;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -43,6 +44,8 @@ partial class PolymorphicTest
     private static readonly P.PolymorphicClassList PolymorphicClassArrayProto;
     private static readonly byte[][] SerializedUnionArray;
     private static readonly byte[][] SerializedTaggedUnionArray;
+    private static readonly byte[][] SerializedPolymorphicFooImmutableList;
+    private static readonly byte[][] SerializedPolymorphicFooImmutableStack;
 
     static PolymorphicTest()
     {
@@ -82,11 +85,19 @@ partial class PolymorphicTest
         SerializedTaggedUnionArray = new byte[3][];
         SerializedTaggedUnionArray[2] = NinoSerializer.Serialize(TaggedUnionArray);
 
+        SerializedPolymorphicFooImmutableList = new byte[3][];
+        SerializedPolymorphicFooImmutableList[2] = NinoSerializer.Serialize(PolymorphicFooImmutableList);
+
+        SerializedPolymorphicFooImmutableStack = new byte[3][];
+        SerializedPolymorphicFooImmutableStack[2] = NinoSerializer.Serialize(PolymorphicFooImmutableStack);
+
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClass), SerializedPolymorphicClass[2]);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicFooArray), SerializedPolymorphicFooArray[2]);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClassArray), SerializedPolymorphicClassArray[2]);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeUnionArray), SerializedUnionArray[2]);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTaggedUnionArray), SerializedTaggedUnionArray[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicFooImmutableList), SerializedPolymorphicFooImmutableList[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicFooImmutableStack), SerializedPolymorphicFooImmutableStack[2]);
 
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClass), SerializedPolymorphicClass[1]);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[1]);
@@ -318,6 +329,22 @@ partial class PolymorphicTest
         return _ninoBuffer.WrittenCount;
     }
 
+    [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicFooImmutableListSerialize")]
+    public int NinoSerializePolymorphicFooImmutableList()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(PolymorphicFooImmutableList, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicFooImmutableStackSerialize")]
+    public int NinoSerializePolymorphicFooImmutableStack()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(PolymorphicFooImmutableStack, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicClassDeserialize")]
     public PolymorphicClassBase NinoDeserializePolymorphicClass()
     {
@@ -460,6 +487,18 @@ partial class PolymorphicTest
     public UnionTagged[] NinoDeserializeTaggedUnionArray()
     {
         return NinoDeserializer.Deserialize<UnionTagged[]>(SerializedTaggedUnionArray[2]);
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicFooImmutableListDeserialize")]
+    public object NinoDeserializePolymorphicFooImmutableList()
+    {
+        return NinoDeserializer.Deserialize<ImmutableList<PolymorphicFooBase>>(SerializedPolymorphicFooImmutableList[2]);
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("PolymorphicFooImmutableStackDeserialize")]
+    public object NinoDeserializePolymorphicFooImmutableStack()
+    {
+        return NinoDeserializer.Deserialize<ImmutableStack<PolymorphicFooBase>>(SerializedPolymorphicFooImmutableStack[2]);
     }
 }
 #else

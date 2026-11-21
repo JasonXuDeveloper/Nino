@@ -80,7 +80,12 @@ none is free), slots through the slot kernels, strings and pairs holding them th
 others value by value through the one loop of values (`NinoRuns.WriteLoop`: the step, the in-use test, the key and the
 value, each tested against the constants its caller passes, so a run in a row compiles as a span's); a polymorphic
 base's values through its generated `WriteRun`, the compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep
-path are Nino.Core's. A ring that wraps (a `Queue<T>`'s) is the same write in two segments, one reservation for both
+path are Nino.Core's. A root that is a class of its own tests its own type first in that chain, so its own values never
+reach the registry. A class below the root has no loop of its own: its collections go value by value, its own type
+tested inline and the root's dispatch after it, which measured faster than a loop per class (#355). A collection that is not one run is gathered a
+chunk at a time into the same loops; a tree of class elements is walked over a struct holding one reference
+(`NinoTreeWalk.Reference`), so the walk is not code shared over every class, which would take each element through a
+lookup and an indirect call. A ring that wraps (a `Queue<T>`'s) is the same write in two segments, one reservation for both
 where the elements have a fixed size; the run itself stays one segment, since every loop over it would read a second
 segment's fields. A pair (a `KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes
 its items (block, string items, dispatch bit), never a loop of its own. What a composite of any number of items does on
@@ -348,7 +353,9 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
 
 * **Generated dispatch (fast path)**: the topmost dispatching class of each hierarchy in an assembly (and each
   `[NinoType]` interface) gets two methods, emitted with the registry (`NinoGen.Dispatch.g.cs`), that list the
-  subtypes declared in the same assembly (non-generic, not tracked). Classes below the root call the root's.
+  subtypes declared in the same assembly (non-generic, not tracked). A class below the root that dispatches (not
+  sealed) gets the same methods over its own subtypes when they are at most half of those of the nearest base with
+  methods of its own; any other calls that base's (#355).
   * Serialize: a chain of `value.GetType() == typeof(Sub)` checks, each one method table compare, writing the
     subtype's id and body directly (up to 64 subtypes; beyond, the registry). With 20 subtypes this writes 1.3x
     as fast as the registry when the subtypes repeat in a fixed order, and 3x when they come in random order.
@@ -371,13 +378,21 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
     registry. Before, a generic base had no generated dispatch and went through the registry, which wrote and read an
     array of subtypes in random order several times slower than a non-generic base; now both take the same time
     (`GenericPolymorphicTest`).
-  * A class below the root reads through the root's switch and then checks that the type the data named is one
-    of its own (`NinoObject.EnsureSubtype`), so data naming a sibling type throws instead of being stored.
-  * Each subtype costs three lines per hierarchy (not per ancestor), so generated code stays linear in the number
-    of types: the 330-type workload grows by 12%. Writes call `NinoObject.WriteExact` from the chain (inlined where
-    the caller's budget allows, else shared code): a non-generic method per subtype there too wrote 4.5% fewer
-    instructions for an array of 20 subtypes, but more where the bodies would have been inlined, and cost about
-    2.5% more compile time on the 330-type workload.
+  * A class below the root with methods of its own writes and reads through its own chain and switch, which hold
+    only its subtypes, and falls back to its own registry (`NinoSubtypes<TMiddle>`); one without reads through its
+    base's switch and then checks that the type the data named is one of its own (`NinoObject.EnsureSubtype`).
+    Either way data naming a sibling type throws instead of being stored. Through the root's dispatch every subtype
+    of the hierarchy is a compare or a case, which spent the budget of the bodies it was inlined into:
+    `CustomerEventFormatter.Serialize` tested seven subtypes where two can be its values ("inline exceeds budget").
+  * Each subtype costs three lines per hierarchy and as many per class above it with methods of its own. Halving
+    the subtypes at each such level keeps this to n log n; methods for every dispatching class grow with the square
+    of a chain's depth (`PolymorphicFooBase`'s `FooA` to `FooH`, 12 to 19 of its 20 subtypes each: the benchmark
+    project's dispatch file 1.8x as large and the generator benchmark's analysis 1.5x as long, for no measured gain;
+    `PolymorphicClassFormatter.ReadBody` still inlines `FooD`'s 20-case switch and runs out of locals, which costs
+    nothing measurable). The dispatch grows the 330-type workload by 12%. Writes call `NinoObject.WriteExact` from
+    the chain (inlined where the caller's budget allows, else shared code): a non-generic method per subtype there
+    too wrote 4.5% fewer instructions for an array of 20 subtypes, but more where the bodies would have been inlined,
+    and cost about 2.5% more compile time on the 330-type workload.
   * A subtype whose body is one raw block (a class that is not version tolerant, keyed or tracked, whose members
     are all raw values, see `INinoRawBodyFormatter<T>`) is written by `NinoObject.WriteExactRaw`: one capacity
     check (`Reserve`) for its type id and body together, then constant-offset stores, instead of one check for the

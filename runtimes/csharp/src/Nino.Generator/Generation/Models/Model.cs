@@ -168,10 +168,9 @@ internal sealed record InheritanceModel(
     int BaseMemberCount,
     // Whether the first members are a shared generic base's, written here instead of through its WriteMembers.
     bool SharedBase,
-    // The topmost base class of this assembly that dispatches subtypes (and its formatter), or "": a dispatching
-    // type below it uses its dispatch.
+    // The topmost base class of this assembly that dispatches subtypes, or "": a dispatching type below it is not a
+    // root (DispatchEntry.Middle).
     string DispatchRoot,
-    string DispatchRootFormatter,
     // The [NinoType] base classes (nearest first) and interfaces (global names), for the subtype dispatch.
     EquatableArray<string> NinoBaseClasses,
     EquatableArray<string> NinoInterfaces,
@@ -532,12 +531,13 @@ internal sealed record InterceptedCall(string Signature, string Method, string T
     public string Call => CallWith(Method, Formatter);
 }
 
-// A type in the per-assembly subtype dispatch: a base (DispatchesSubtypes), a target (IsDispatchTarget), or both.
-// TypeParameterList: a generic base's (TypeModel.TypeParameterList), "" otherwise. RawBody: the target's body is one raw
-// block (TypeModel.RawBody), written with its type id in one reservation.
+// A type in the per-assembly subtype dispatch: a base (DispatchesSubtypes: a root, IsBase, or a class below one,
+// Middle), a target (IsDispatchTarget), or both. TypeParameterList: a generic base's (TypeModel.TypeParameterList), ""
+// otherwise. RawBody: the target's body is one raw block (TypeModel.RawBody), written with its type id in one
+// reservation.
 internal sealed record DispatchEntry(string TypeName, string FormatterName, string TypeParameterList, int TypeId,
     bool IsBase, bool IsTarget, EquatableArray<string> BaseClasses, EquatableArray<string> Interfaces,
-    EquatableArray<GenericAncestor> GenericAncestors, bool RawBody, bool Flat)
+    EquatableArray<GenericAncestor> GenericAncestors, bool RawBody, bool Flat, bool Middle)
 {
     /// <inheritdoc cref="TypeModel.Self"/>
     public string Self => TypeModel.SelfOf(FormatterName, TypeParameterList);
