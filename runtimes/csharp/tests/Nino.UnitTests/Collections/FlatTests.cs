@@ -1,5 +1,7 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -120,10 +122,107 @@ namespace Nino.UnitTests
             Assert.IsFalse(HasFlat(Formatter<FlatOneProps>()));
             Assert.IsFalse(HasFlat(Formatter<FlatManyProps>()));
             Assert.IsTrue(HasFlat(Formatter<FlatOneDerived>()));
+            Assert.IsTrue(HasFlat(Formatter<FlatLeaf>()));
             // The generator predicted FlatOne's block as CoreCLR lays it out (64-bit; others take the chain of fields).
             if (Environment.Is64BitProcess && Type.GetType("Mono.Runtime") == null)
                 Assert.IsTrue(Checked<FlatOne>("Write"));
             Assert.AreEqual(Checked<FlatMany>("Write") && !NinoSettings.Untrusted, Checked<FlatMany>("Read"));
+        }
+
+        /// <summary>
+        /// The runs of flat classes go through the kernels, seen on the stack (their drivers are never inlined), which
+        /// costs the kernels nothing: equal bytes cannot tell, a run written element by element writes them too (a
+        /// branch placed after the one for formatters that write on a local writer once sent sealed flat classes
+        /// there). Writes are seen from the pool of a buffer that starts with one byte, reads from the exception of a
+        /// cut run. Through the generated formatter: this assembly reaches the Subset's types through
+        /// CachedFormatter, which forwards no kernel.
+        /// </summary>
+        [TestMethod]
+        public void RunsGoThroughTheKernels()
+        {
+            const string sealedWrite = "NinoFlat`2.WriteSealed", typedWrite = "NinoFlat`2.WriteTyped";
+            const string sealedRead = "NinoFlat`2.ReadSealed", typedRead = "NinoFlat`2.ReadTyped";
+            var manys = Manys(100, false);
+            var leaves = Enumerable.Range(0, 100).Select(static i => new FlatLeaf { Id = i, Name = "leaf " + i }).ToArray();
+            var (manyWrites, manyRead) = Stacks(manys);
+            var (leafWrites, leafRead) = Stacks(leaves);
+            var (_, oneRead) = Stacks(Ones(100, false));
+            Assert.IsTrue(manyWrites[0].Contains(sealedWrite), "FlatMany[] write");
+            Assert.IsTrue(manyWrites[1].Contains(sealedWrite), "List<FlatMany> write");
+            Assert.IsTrue(leafWrites[0].Contains(typedWrite), "FlatLeaf[] write");
+            Assert.IsTrue(leafWrites[1].Contains(typedWrite), "List<FlatLeaf> write");
+            Assert.IsTrue(manyRead[0].Contains(sealedRead), "FlatMany[] read");
+            Assert.IsTrue(manyRead[1].Contains(sealedRead), "List<FlatMany> read");
+            Assert.IsTrue(leafRead[0].Contains(typedRead), "FlatLeaf[] read");
+            Assert.IsTrue(leafRead[1].Contains(typedRead), "List<FlatLeaf> read");
+            // A base with subtypes: written through its dispatch loop (INinoFormatter.WriteRun), read by the kernels.
+            Assert.IsTrue(oneRead[0].Contains(typedRead), "FlatOne[] read");
+            Assert.IsTrue(oneRead[1].Contains(typedRead), "List<FlatOne> read");
+
+            // The probes see a run element by element too: a class with properties is not flat.
+            var (propWrites, propRead) = Stacks(manys.Select(Props).ToArray());
+            Assert.IsFalse(propWrites[0].Contains("NinoFlat`2") || propRead[0].Contains("NinoFlat`2"));
+            Assert.IsTrue(propWrites[0].Contains("Grow"), "the probe saw no growth");
+        }
+
+        /// <summary>
+        /// The stacks of an array and a list of <paramref name="values"/> through the generated formatter: of every
+        /// growth of the buffer they are written to, and of the exception reading their bytes without the last three.
+        /// </summary>
+        private static (string[] Writes, string[] Reads) Stacks<T>(T[] values) =>
+            ((string[], string[]))typeof(FlatTests).GetMethod(nameof(StacksWith), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(typeof(T), Formatter<T>()).Invoke(null, new object[] { values })!;
+
+        private static (string[] Writes, string[] Reads) StacksWith<T, TFormatter>(T[] values)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            var list = values.ToList();
+            return (new[] { WriteStacks<T[], ArrayFormatter<T, TFormatter>>(values),
+                    WriteStacks<List<T>, ListFormatter<List<T>, T, TFormatter>>(list) },
+                new[] { CutReadStack<T[], ArrayFormatter<T, TFormatter>>(values),
+                    CutReadStack<List<T>, ListFormatter<List<T>, T, TFormatter>>(list) });
+        }
+
+        private static string WriteStacks<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
+        {
+            var pool = new StackPool();
+            using var buffer = new NinoArrayBufferWriter(1, pool);
+            var writer = new Writer(buffer);
+            default(TFormatter).Serialize(value, ref writer);
+            writer.Flush();
+            return pool.Stacks.ToString();
+        }
+
+        private static string CutReadStack<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
+        {
+            var buffer = new NinoArrayBufferWriter();
+            var writer = new Writer(buffer);
+            default(TFormatter).Serialize(value, ref writer);
+            writer.Flush();
+            byte[] bytes = buffer.WrittenSpan.ToArray();
+            var thrown = Assert.ThrowsExactly<NinoDataException>(() =>
+            {
+                var reader = new Reader(bytes.AsSpan(0, bytes.Length - 3));
+                T read = default;
+                default(TFormatter).Deserialize(ref reader, ref read);
+            });
+            return thrown.StackTrace;
+        }
+
+        /// <summary>A pool that records the stack of each array it hands out (a writer's buffer growing).</summary>
+        private sealed class StackPool : ArrayPool<byte>
+        {
+            public readonly System.Text.StringBuilder Stacks = new();
+
+            public override byte[] Rent(int minimumLength)
+            {
+                Stacks.AppendLine(new StackTrace().ToString());
+                return new byte[minimumLength];
+            }
+
+            public override void Return(byte[] array, bool clearArray = false)
+            {
+            }
         }
 
         /// <summary>A flag of the startup check (__Check) of <typeparamref name="T"/>'s formatter.</summary>

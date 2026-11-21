@@ -29,6 +29,17 @@ namespace Nino.UnitTests.Subset.Flat
         public int Extra;
     }
 
+    /// <summary>
+    /// A flat class that is not sealed and has no subtype: its runs are written by the typed kernels (a base with
+    /// subtypes, <see cref="FlatOne"/>, writes them through its dispatch loop and reads them through the kernels).
+    /// </summary>
+    [NinoType]
+    public class FlatLeaf
+    {
+        public int Id;
+        public string Name;
+    }
+
     /// <summary><see cref="FlatOne"/>'s members as auto-properties: the same body, not flat (the generated body).</summary>
     [NinoType]
     public class FlatOneProps
