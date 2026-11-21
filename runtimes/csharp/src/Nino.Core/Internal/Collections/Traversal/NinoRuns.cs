@@ -176,6 +176,21 @@ namespace Nino.Core.Internal
                 return;
             }
 
+            // A class whose generated body is flat (#355): the flat kernels, from NinoFlatRuns.MinRun elements on; runs with
+            // free entries (a set's) and short ones take the loop below. After the kinds above, before the local writes, which
+            // sealed flat classes take too (NinoKind.FlatClass), where the kernels went unused and ScatteredTest's write of a
+            // million items took 1.33 times the base's: a static readonly of NinoKind<TFormatter> read in code shared over
+            // classes is no constant, and read first it turned a string array's and a polymorphic base's writes from 4 to 29
+            // and 86 to 234 stack accesses (asm.py).
+            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun &&
+                (row || run.InUse == NinoRun.AllInUse))
+            {
+                if (counted)
+                    writer.WriteLength(length);
+                default(TFormatter).WriteFlat(run, ref writer);
+                return;
+            }
+
             // Values without references through a local copy of the writer, out of line, the length too; others by
             // reference, as their formatters' calls take it anyway (NinoElements.WritesOnLocal). Empty collections (the
             // leaves of a tree) skip the call and the copies of the writer in and out.
@@ -190,19 +205,6 @@ namespace Nino.Core.Internal
                     writer = WriteEach<T, TFormatter>(ref run.First, count, length, writer);
                 else
                     writer = WriteEach<T, TFormatter>(run, length, writer);
-                return;
-            }
-
-            // A class whose generated body is flat (#355): the flat kernels, from NinoFlatRuns.MinRun elements on; runs
-            // with free entries (a set's) and short ones take the loop below. After the kinds above: a static readonly
-            // of NinoKind<TFormatter> read in code shared over classes is no constant, and read first it turned a
-            // string array's and a polymorphic base's writes from 4 to 29 and 86 to 234 stack accesses (asm.py).
-            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun &&
-                (row || run.InUse == NinoRun.AllInUse))
-            {
-                if (counted)
-                    writer.WriteLength(length);
-                default(TFormatter).WriteFlat(run, ref writer);
                 return;
             }
 
