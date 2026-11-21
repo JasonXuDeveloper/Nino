@@ -226,7 +226,17 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   in registers saves, and the loop it was for did not get faster. Evidence (#305, 31ecdf6a's dispatch, run
   44255510084 against main c2c6920b, 3 rounds, EPYC 7763 and Neoverse-N2): GenericSealedClassTupleBase read
   0.68–0.81x, GenericOpenClassTupleBase 0.73–0.80x, WorkloadTest CardBattleLog 0.74–0.79x, PolymorphicFooArray and
-  PolymorphicClass on par (0.96–1.06x); not landed.
+  PolymorphicClass on par (0.96–1.06x); not landed. Measured again after #439 (#305 lead step, local x64, three
+  rounds, Tier1, LuminPack 2.0.0-rc.2 in the same processes), neither kept: the registry's fallback taking the reader
+  by value and returning it (`reader = NinoSubtypes<T>.ReadOther(id, reader, ref value)`, so no address of it escapes)
+  moved every read within noise and gave each `__ReadExactN` a 64-byte frame for the copy; and every `__ReadExactN`
+  marked to inline (the non-flat ones too) left GenericSealedClassTupleBase where it was (Lumin/Nino 0.84 against
+  0.83) and GenericOpenClassTupleBase within noise (0.91 against 0.93), while FooArray in a random order went 1.09 to
+  0.99, NonGenericBase 1.09 to 1.00 and GenericIntBase 1.04 to 0.99. What those two cases cost is shared generic code:
+  `ProbeBox<T>` over a tuple holding a class is compiled once for every reference type argument, so `NinoRuns.ReadEach`
+  calls the formatter's `Deserialize` through a runtime lookup (`call rax`) and `__ReadSubtype` picks the closed
+  dispatch through the method's generic context per element, before the case's `ReadBody` call (four calls per
+  element against one for a non-generic base).
   Give each case the subtype's body and nothing else (`NinoObject.ReadExactShallow` in `__ReadExactN`, each case a
   tail call), the depth checked once before the switch (`NinoObject.IsDeep(ref Reader)`), and leave a body too deep,
   null and an unknown id (after the switch) and a slot holding another subtype (from the case) to the registry
@@ -279,18 +289,37 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   1.73-1.79 / 1.62-1.65, composed pair step 2.18-2.35 / 1.96-2.13; Small3 (3 subtypes) array and list, step inline
   0.99 / 1.27, dictionary 0.95-1.02 / 0.84-0.85. The listings: the chain inlined into the kernel but each body cost a
   call, the kernel's writer on the stack and its address passed to every body (the cursor back in memory per element).
-  The run loop's locals (`stride`, `key`, `inUse`) are read from the run once and the pieces take them as arguments:
-  through the run (a struct the writer's stores may alias) each would be a load per element. A dictionary's key is
-  written by `NinoRun.WriteKey` where its memory is its wire form (raw without padding, a block that is its memory) or
-  it is a string (`NinoRuns.KeyOf`); any other key goes value by value, since a generic member would trip Unity 2022.3's
-  IL2CPP (#405). The inline-body step for hierarchies of up to 3-4 subtypes (on par or faster above) is not emitted:
-  one member serves every hierarchy until the landing A/B says otherwise. The listings of `WriteRun` against the
-  loops it replaced (`asm.py dump --filter Polymorphic`, x64 Tier1, PolymorphicFooBase): no call per element on
-  either side; arrays keep `WriteElements`' shape (the writer in memory, its address reaching only the registry's
-  fallback) plus the `inUse` and `key` tests and two locals spilled (the count, the value), while the
-  `Dictionary<int, Foo>` member lost the old pair loop's writer in registers: the pair loop's by-value fallback
-  (`writer = __WriteSubtypeDeep(value, writer)`, 15-25 % faster on pairs locally) exposed no address, and one loop
-  for both takes the element loop's by-reference fallback (run 43849791156). The landing A/B decides between them.
+  The run loop's stride is read from the run once; the key and the in-use test only in the loop of a set's or a
+  dictionary's entries (next bullet), and the pieces take them as arguments: through the run (a struct the writer's
+  stores may alias) each would be a load per element. A dictionary's key is written by `NinoRun.WriteKey` where its
+  memory is its wire form (raw without padding, a block that is its memory) or it is a string (`NinoRuns.KeyOf`); any
+  other key goes value by value, since a generic member would trip Unity 2022.3's IL2CPP (#405). The inline-body step
+  for hierarchies of up to 3-4 subtypes (on par or faster above) is not emitted: one member serves every hierarchy
+  until the landing A/B says otherwise.
+- Keep the writer's cursor and free bytes in two locals in the generated run loop (`Writer.UnsafeCursor`, given back
+  with `UnsafeSetCursor` around anything else that writes: a key, a body that is not one raw block, the registry;
+  `UnsafeGrowAt` out of line where a raw body or a null does not fit), each raw subtype's id and block written at the
+  cursor after one check of the free bytes; and give an array's or a list's run, which has no keys and no free
+  entries, a loop without either test, a set's or a dictionary's entries a loop of their own (`__WriteEntries`,
+  `NoInlining`, selected once per run). Why: a writer copied into the loop's local (`target.CopyTo(ref writer)`) stays
+  in memory once its address reaches a call (the registry's fallback), so every element stored the cursor and the
+  free bytes and loaded them back; and a loop holding the key and the in-use test, even behind one test of a local,
+  kept them in two of x64's six callee-saved registers and spilled the count and the value. Evidence (#305 lead step,
+  `claude/storage-lead`, LuminPack 2.0.0-rc.2 in the same processes, local x64, base and head alternated three
+  rounds, Tier1, Lumin/Nino time): cursor locals with one test of a local for keys and free entries wrote
+  PolymorphicFooArray 0.81 to 0.93, PolymorphicClass 0.82 to 0.90, FooArray in a random order 0.88 to 0.96,
+  NonGenericBase 0.93 to 1.12 (`WriteRun` of PolymorphicFooBase 5,012 to 2,912 bytes); the separate entries loop then
+  1.15, 1.23, 1.17 and 1.21, PolymorphicClassArray 0.83 to 1.01, the dictionary member (`ClassPart.map`, 12 pairs) 1.00
+  to 1.04 (`WriteRun` 1,684 bytes, no stack access in the loop but the value's spill around the non-raw bodies).
+  Mark the loop of a hierarchy of up to eight types to inline (`MaxInlinedRunLoop`): with the cursor's hand-offs the
+  JIT no longer inlined small hierarchies' `WriteRun` into the collection's write, which it had for the old loop, and
+  collections of one to five values paid a call and the run's copy each (WorkloadTest StateSnapshot 1.44x and
+  LockstepFrames 1.21x of base's time; `NetEntityFormatter.__WriteBody` 1,925 to 475 bytes plus the call). Marked:
+  StateSnapshot 0.77x, LockstepFrames 0.53x, AoiUpdate 0.85x of base's time, PolymorphicFooArray 0.68x,
+  PolymorphicClass 0.68x, PolymorphicClassArray 0.80x, NonGenericBase 0.74x, every other case of WorkloadTest,
+  SimpleTest, AppDataTest and GenericPolymorphicTest within noise (local x64, the benchmark's own cases, three
+  rounds, Tier1); at TC=0 the unmarked form already wrote the polymorphic cases 0.77-0.79x and the workloads
+  0.82-0.92x.
 - Test a root's own type first in its generated run loop where the root is a class of its own (not abstract), as
   its `Serialize` does (`DispatchEmitter.EmitWriteRun`, `DispatchEntry.IsTarget`). Why: the chain lists only the
   subtypes, so each value of the root's own type fell through to `NinoSubtypes<T>.Serialize`, a registry lookup and a
@@ -338,7 +367,10 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   selected once per collection, wrote GenericSealedClassTupleBase 22 % and GenericOpenClassTupleBase 12 % slower
   (7.2 to 8.8 us, 7.5 to 8.4; two rounds, local x64), their subtypes each holding a class whose nested writes, all
   inlined into one loop, ran out of registers; the other generic bases moved within noise. The closed dispatch stays
-  marked to inline into the collection loop, as before.
+  marked to inline into the collection loop, as before. Measured again with the cursor-local loop above (#305 lead
+  step, local x64, three rounds, Tier1): GenericIntBase 2.77 to 2.15 us, but GenericUnmanagedTupleBase 4.43 to 5.60,
+  GenericSealedClassTupleBase 6.84 to 7.62, GenericManagedTupleBase 7.94 to 8.78, GenericOpenClassTupleBase 6.93 to
+  7.32; not kept.
 - Write a `Dictionary<TKey, Base>` of a polymorphic base through the base's generated loop with the entries walked in
   place and the writer in a local (since #355 PR 3 the run loop above, a key written by `NinoRun.WriteKey`, free entries
   skipped; the measurements below are of its predecessor, the pair loop: `INinoFormatter.HasPairLoop`,
