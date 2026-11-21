@@ -9,12 +9,12 @@ namespace Nino.Generator.Generation.Emit;
 
 /// <summary>
 /// Emits, for each base formatter that dispatches subtypes, the dispatch to the subtypes declared in this assembly:
-/// on write a chain of exact runtime type checks (one method table compare each), on read a switch on the type id,
-/// each writing the subtype's id and body, or calling a method of the base formatter that reads that subtype. Anything
-/// else (subtypes in other assemblies, generic subtypes, tracked types) falls back to <c>NinoSubtypes&lt;T&gt;</c>.
-/// A generic base dispatches each of its closed instances that subtypes here derive from in the same way.
-/// Only calls are emitted, never subtype bodies (a raw body's type id and block reserved here, then its formatter's
-/// WriteRawBody called), so the size is two lines and a one-line method per (base, subtype) pair.
+/// on write a chain of exact runtime type checks (one method table compare each), in <c>__WriteSubtype</c> and in the
+/// run loop; on read a switch on the type id whose cases read a subtype's body. Nino.Core owns the rest: the depth
+/// (checked once, before the chain or the switch), the deep path, a slot holding another type, null, and anything the
+/// dispatch does not know (subtypes in other assemblies, generic subtypes, tracked types), all through
+/// <c>NinoSubtypes&lt;T&gt;</c>. A generic base dispatches each of its closed instances that subtypes here derive from
+/// in the same way.
 /// </summary>
 internal static class DispatchEmitter
 {
@@ -127,9 +127,9 @@ internal static class DispatchEmitter
             }
 
             // A generic base: each closed instance its subtypes here derive from gets the dispatch of a non-generic
-            // base, in a class of its own (where ReadExact is not shared code). The generic formatter selects it by
-            // comparing types, which the JIT folds where the type arguments are value types; for reference types it is
-            // one lookup in the method's generic context.
+            // base, in a class of its own (where ReadExactShallow is not shared code). The generic formatter selects it
+            // by comparing types, which the JIT folds where the type arguments are value types; for reference types it
+            // is one lookup in the method's generic context.
             var closed = closedOf != null && closedOf.TryGetValue(e.TypeName, out var instances) ? instances : null;
             int first = closedCount;
             if (closed != null)
@@ -191,24 +191,56 @@ internal static class DispatchEmitter
         return false;
     }
 
-    /// <summary>
-    /// A switch on the ids, which compiles to a binary search of conditional branches; each case ends with a tail
-    /// call, so the dispatch keeps nothing across a call and saves no registers.
-    /// Measured against a dense switch through a perfect hash of the ids (a multiplication, a shift and an indirect
-    /// jump through a table) and the registry (an indirect call): with 20 subtypes in random order the hash read
-    /// about 45% slower, since the indirect jump mispredicts where the conditional branches mostly do not, and in a
-    /// fixed order it was equal; it executes one instruction more on x64 and three fewer on ARM64.
-    /// </summary>
     /// <summary>A type name as a comment shows it: without the <c>global::</c> qualifier.</summary>
     private static string Display(string typeName) => typeName.Replace("global::", "");
 
-    private static void EmitReadSwitch(CodeWriter w, List<DispatchEntry> subtypes)
+    /// <summary>
+    /// <c>__ReadSubtype</c>: the depth checked once, then a switch on the ids whose cases only read a body
+    /// (<c>NinoObject.ReadExactShallow</c>: the slot holds null or that subtype), each ending in a tail call;
+    /// the rest goes to the registry (<c>NinoSubtypes.DeserializeOther</c>): a body too deep, null or an id the
+    /// switch does not know after the switch, a slot holding another type from the case. Each case returning
+    /// whether it read, with the registry once after the switch, cost the out-of-line cases their tail call (a
+    /// call, a test and a frame; __NinoDispatch0.__ReadSubtype 207 to 331 bytes). The switch compiles to a
+    /// binary search of conditional branches. Measured against a dense switch through a perfect hash of the ids
+    /// (a multiplication, a shift and an indirect jump through a table) and the registry (an indirect call):
+    /// with 20 subtypes in random order the hash read about 45% slower, since the indirect jump mispredicts
+    /// where the conditional branches mostly do not, and in a fixed order it was equal; it executes one
+    /// instruction more on x64 and three fewer on ARM64. Each case reading its own deep path, replacement and
+    /// deferral (as before #355's switch step) spent the containing body's locals (PolymorphicClass.ReadBody:
+    /// "too many locals" with FooD's 20 cases inlined). The ids are 32-bit hashes, never dense enough for
+    /// Roslyn to emit an IL switch (a jump table) instead.
+    /// </summary>
+    private static void EmitReadSubtype(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
     {
+        w.Line(GeneratedCode.Inline);
+        w.Open(ReadSubtype(t));
+        w.Line($"if (!{services}NinoObject.IsDeep(ref reader))");
+        w.Open();
         w.Open("switch (id)");
         for (int i = 0; i < subtypes.Count; i++)
+        {
             // The subtype's name after the id: the ids alone do not say which type a case reads.
-            w.Line($"case {subtypes[i].TypeId.ToString(CultureInfo.InvariantCulture)}: __ReadExact{i}(ref reader, ref value); return; // {Display(subtypes[i].TypeName)}");
+            var s = subtypes[i];
+            w.Line($"case {s.TypeId.ToString(CultureInfo.InvariantCulture)}: __ReadExact{i}(ref reader, ref value); return; // {Display(s.TypeName)}");
+        }
         w.Close();
+        w.Close();
+        w.Line();
+        w.Line(ReadOther(t, services) + ";");
+        w.Close();
+
+        // Each subtype's read in a method of this non-generic struct, where ReadExactShallow is not shared code.
+        // Only flat bodies (no class body inside, DispatchEntry.Flat) are inlined into the switch, which is inlined
+        // into the element loop, as LuminPack reads its unions: out of line, each element took a call and two jumps
+        // (LuminPack's List<IFoo> of 1,000 read in 21.0 us against 18.1 inlined, LuminPack 17.5; local x64, #305).
+        // Subtypes holding a class each, inlined too, read 3-14 % slower on every runner CPU
+        // (GenericSealedClassTupleBase, GenericOpenClassTupleBase, run 43764424839), the rest 11-20 % faster.
+        w.Line();
+        for (int i = 0; i < subtypes.Count; i++)
+        {
+            var s = subtypes[i];
+            w.Line($"{(s.Flat ? GeneratedCode.Inline : GeneratedCode.NoInline)} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExactShallow<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
+        }
     }
 
     /// <summary>
@@ -287,7 +319,8 @@ internal static class DispatchEmitter
         // 2.5% more compile time on a workload of hierarchies; outlining only the subtypes whose bodies nest (a70aab2c)
         // cost Neoverse-N2 a call per element (GenericSealedClassTupleBase serialize 0.84x). The depth is checked once
         // here instead: each subtype keeps its write inline without the deep path (a writer copy, or a deferral, per
-        // subtype), and a body too deep goes out of line with the writer by value, so its address reaches no call.
+        // subtype), and a body too deep goes to the registry out of line with the writer by value
+        // (NinoSubtypes.SerializeDeep), so its address reaches no call and no second chain is generated for it.
         // A closed generic base's dispatch (__NinoDispatch<n>) is reached through the base formatter's selection, one
         // inlining level more than a non-generic base's: it is marked to inline, or a collection loop calls it per
         // element (341560ef without it: GenericIntBase serialize 0.84x on x64 runners, run 43174700489). The
@@ -299,7 +332,7 @@ internal static class DispatchEmitter
             w.Open(WriteSubtype(t));
             w.Line($"if ({services}NinoObject.IsDeep(ref writer))");
             w.Open();
-            w.Line("writer = __WriteSubtypeDeep(value, writer);");
+            w.Line($"writer = {services}NinoSubtypes<{t}>.SerializeDeep(value, writer);");
             w.Line("return;");
             w.Close();
             w.Line();
@@ -309,15 +342,6 @@ internal static class DispatchEmitter
             w.Close();
             if (runLoop)
                 EmitWriteRun(w, t, root!, subtypes, services);
-
-            w.Line();
-            w.Line($"{GeneratedCode.NoInline} static {Core}Writer __WriteSubtypeDeep({t} value, {Core}Writer writer)");
-            w.Open();
-            foreach (var s in subtypes)
-                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return writer; }""");
-            w.Line(WriteOther(t, services) + ";");
-            w.Line("return writer;");
-            w.Close();
         }
         else
         {
@@ -331,25 +355,7 @@ internal static class DispatchEmitter
         }
 
         w.Line();
-        w.Line(GeneratedCode.Inline);
-        w.Open(ReadSubtype(t));
-        EmitReadSwitch(w, subtypes);
-        w.Line(ReadOther(t, services) + ";");
-        w.Close();
-
-        // Each subtype's instance check and body in a method of this non-generic struct, where NinoObject.ReadExact is
-        // not shared code (see there), and the switch inlined into the element loop, as LuminPack reads its unions: out
-        // of line, each element took a call and two jumps (LuminPack's List<IFoo> of 1,000 read in 21.0 us against 18.1
-        // inlined, LuminPack 17.5; Dictionary<int, IFoo> 362 against 314 ns; local x64, #305). Only flat bodies (no
-        // class body inside, DispatchEntry.Flat) are inlined into the switch: subtypes holding a class each, inlined
-        // too, read 3-14 % slower on every runner CPU (GenericSealedClassTupleBase, GenericOpenClassTupleBase, run
-        // 43764424839), the rest 11-20 % faster.
-        w.Line();
-        for (int i = 0; i < subtypes.Count; i++)
-        {
-            var s = subtypes[i];
-            w.Line($"{(s.Flat ? GeneratedCode.Inline : GeneratedCode.NoInline)} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
-        }
+        EmitReadSubtype(w, t, subtypes, services);
     }
 
     /// <summary>
@@ -409,10 +415,14 @@ internal static class DispatchEmitter
         // long for three subtypes and 1.04-1.06x for twelve, against the value-by-value loop with the root's dispatch.
         if (root.IsTarget)
             w.Line(WriteShallow(root, services, "continue;"));
+        // The chain written out here again, not shared with __WriteSubtype through one AggressiveInlining method
+        // (returning whether it wrote, or ending in the registry): the run loop of PolymorphicFooBase's 20 subtypes
+        // then called it per element at Tier1 ("too many locals": the inlinee's argument temporaries on top of the
+        // loop's; WriteRun 2,620 to 1,391 bytes plus the call), and at FullOpts the chain was a root of its own.
         foreach (var s in subtypes)
             w.Line(WriteShallow(s, services, "continue;"));
         // A subtype the chain does not know: the registry, with the writer by reference. With the writer by value
-        // (writer = __WriteSubtypeDeep(value, writer)), dictionaries' pair loops wrote 12-100 pairs 15-25 % faster
+        // (writer = NinoSubtypes<T>.SerializeDeep(value, writer)), dictionaries' pair loops wrote 12-100 pairs 15-25 % faster
         // (local x64), but arrays' element loops PolymorphicFooArray (20 subtypes) 12 % slower on Neoverse-N2 and 5 %
         // on EPYC 9V74, and NonGenericBase 6 % slower on 9V74 (run 43849791156); one loop now serves both.
         w.Line(WriteOther(t, services) + ";");

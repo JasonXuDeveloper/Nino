@@ -380,6 +380,40 @@ namespace Nino.UnitTests
         }
 
         [TestMethod]
+        public void DeepReadsIntoExistingInstancesGoThroughTheRegistry()
+        {
+            // The switch reads only shallow bodies into null or the same subtype; past NinoDepth.Inline open bodies, and
+            // into a slot holding another type, the registry reads, reusing an instance of the same subtype there too.
+            DispatchRoot Chain(int depth, Func<int, DispatchRoot> leaf)
+            {
+                DispatchRoot node = leaf(-1);
+                for (int i = 0; i < depth; i++)
+                    node = new DispatchHolder { A = i, Kids = new List<DispatchRoot> { node, leaf(i) } };
+                return node;
+            }
+
+            var bytes = NinoSerializer.Serialize(Chain(200, i => new DispatchSibling { A = i, D = i * 2 }));
+            // The target: the same holders, its leaves of another type every other level and of the same type else.
+            DispatchRoot target = Chain(200, i => i % 2 == 0 ? new DispatchMid { B = "old" } : new DispatchSibling());
+            var kept = new List<DispatchRoot>();
+            for (var node = target; node is DispatchHolder h; node = h.Kids[0])
+                kept.Add(h.Kids[1]);
+
+            NinoDeserializer.Deserialize(bytes, ref target);
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(target));
+            int level = 0;
+            for (var node = target; node is DispatchHolder h; node = h.Kids[0], level++)
+            {
+                var leaf = (DispatchSibling)h.Kids[1];
+                Assert.AreEqual(h.A * 2d, leaf.D);
+                if (kept[level] is DispatchSibling)
+                    Assert.AreSame(kept[level], leaf);
+            }
+
+            Assert.AreEqual(200, level);
+        }
+
+        [TestMethod]
         public void EveryLevelRoundTrips()
         {
             DispatchRoot[] values =
