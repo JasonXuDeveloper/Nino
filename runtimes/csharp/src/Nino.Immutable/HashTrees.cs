@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Nino.Core;
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
@@ -261,11 +262,29 @@ namespace Nino.Immutable
                         _inBucket = false;
                     }
 
-                    var buckets = new Buckets();
-                    filled += _buckets.Fill(chunk.Slice(filled), ref buckets);
-                    if (buckets.Held == null)
+                    Node held;
+                    var rest = chunk.Slice(filled);
+                    if (!typeof(TItem).IsValueType)
+                    {
+                        // Class items as references in a struct, the walk its own instantiation and the take inlined
+                        // into it: over a class TItem it is code shared over every class, which calls the take of each
+                        // item through a lookup (as NinoTreeItems).
+                        var references = new BucketReferences(NoMore);
+                        filled += _buckets.Fill(MemoryMarshal.CreateSpan(
+                            ref Unsafe.As<TItem, ItemReference>(ref MemoryMarshal.GetReference(rest)), rest.Length),
+                            ref references);
+                        held = Unsafe.As<Node>(references.Held);
+                    }
+                    else
+                    {
+                        var buckets = new Buckets(NoMore);
+                        filled += _buckets.Fill(rest, ref buckets);
+                        held = buckets.Held;
+                    }
+
+                    if (held == null)
                         return filled;
-                    _more = ListNode<TItem>.Items(Unsafe.As<ListNode<TItem>>(buckets.Held._value._additionalElements),
+                    _more = ListNode<TItem>.Items(Unsafe.As<ListNode<TItem>>(held._value._additionalElements),
                         NoMore);
                     _inBucket = true;
                 }
@@ -282,14 +301,23 @@ namespace Nino.Immutable
         /// <summary>A bucket's first item; one with further items ends the fill, which then walks them.</summary>
         private struct Buckets : INinoTreeNodes<TItem>
         {
+            // NoMore read once per fill: in code shared over a class item (a pair holding one) the static field is a
+            // lookup each time.
+            private readonly ListNode<TItem> _noMore;
             public Node Held;
+
+            public Buckets(ListNode<TItem> noMore)
+            {
+                _noMore = noMore;
+                Held = null;
+            }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool Take(object node, ref TItem item)
             {
                 var bucket = Unsafe.As<Node>(node);
                 item = bucket._value._firstValue;
-                if (bucket._value._additionalElements == NoMore)
+                if (bucket._value._additionalElements == _noMore)
                     return true;
                 Held = bucket;
                 return false;
@@ -312,6 +340,41 @@ namespace Nino.Immutable
             // Halves that differ by at most one item: heights that differ by at most one, as an AVL tree needs.
             node._height = (byte)(1 + Math.Max(node._left._height, node._right._height));
             return node;
+        }
+    }
+
+    /// <summary>A class item as the element of a fill (<see cref="HashTree{TItem}.Items"/>): a struct of one reference.</summary>
+    internal struct ItemReference
+    {
+        public object Value;
+    }
+
+    /// <summary>
+    /// <see cref="HashTree{TItem}"/>'s take of a bucket's first item where the items are classes, not generic over
+    /// them: a node of class items read as <c>HashTree&lt;object&gt;</c>'s, whose fields lie where theirs do; one with
+    /// further items ends the fill.
+    /// </summary>
+    internal struct BucketReferences : INinoTreeNodes<ItemReference>
+    {
+        // The empty list that marks a bucket of one item: the items' own (ListTree<object>'s is another instance).
+        private readonly object _noMore;
+        public object Held;
+
+        public BucketReferences(object noMore)
+        {
+            _noMore = noMore;
+            Held = null;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool Take(object node, ref ItemReference item)
+        {
+            var bucket = Unsafe.As<HashTree<object>.Node>(node);
+            item.Value = bucket._value._firstValue;
+            if (bucket._value._additionalElements == _noMore)
+                return true;
+            Held = bucket;
+            return false;
         }
     }
 

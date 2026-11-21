@@ -251,6 +251,30 @@ namespace Nino.Core.CompilerServices
             return true;
         }
 
+        /// <summary>
+        /// A reference as the element of a fill (<see cref="NinoTreeItems{T}"/> of a class <c>T</c>): a struct, so that
+        /// the walk over it is not code shared over every class.
+        /// </summary>
+        internal struct Reference
+        {
+            public object Value;
+        }
+
+        /// <summary>The reference at one offset of each node.</summary>
+        internal readonly struct ReferenceAt : INinoTreeNodes<Reference>
+        {
+            private readonly int _offset;
+
+            public ReferenceAt(int offset) => _offset = offset;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool Take(object node, ref Reference item)
+            {
+                item.Value = ObjectFields.At<object>(node, _offset);
+                return true;
+            }
+        }
+
         /// <summary>A fill's shape, and where it stopped.</summary>
         private struct Path
         {
@@ -312,6 +336,17 @@ namespace Nino.Core.CompilerServices
         /// <inheritdoc/>
         public int Fill(Span<T> chunk)
         {
+            // Class elements (a polymorphic base's) as references in a struct of one field: code shared over a class T
+            // calls the take of each element through a lookup, an indirect call (the walk is generic over the take, a
+            // struct generic over T), where over a struct the walk is its own instantiation, the take inlined into it.
+            if (!typeof(T).IsValueType)
+            {
+                var references = new NinoTreeWalk.ReferenceAt(_item);
+                return _nodes.Fill(MemoryMarshal.CreateSpan(
+                    ref Unsafe.As<T, NinoTreeWalk.Reference>(ref MemoryMarshal.GetReference(chunk)), chunk.Length),
+                    ref references);
+            }
+
             var items = new At(_item);
             return _nodes.Fill(chunk, ref items);
         }

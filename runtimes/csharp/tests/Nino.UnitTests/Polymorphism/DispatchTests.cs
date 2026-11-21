@@ -97,6 +97,16 @@ namespace Nino.UnitTests
             CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(dictionary.ToArray()));
             var concurrent = new ConcurrentDictionary<int, T>(dictionary);
             CollectionAssert.AreEqual(Pairs(concurrent, concurrent.Count), NinoSerializer.Serialize(concurrent));
+            // Gathered a chunk at a time (Nino.Immutable): a tree's nodes, a stack's (bottom to top) and a queue's, a
+            // hash tree's buckets in their enumeration order, and a sorted tree's pairs.
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(ImmutableList.CreateRange(values)));
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(ImmutableStack.CreateRange(values)));
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(ImmutableQueue.CreateRange(values)));
+            var hashSet = ImmutableHashSet.CreateRange(ByReference<T>.Instance, values.Where(v => v != null));
+            CollectionAssert.AreEqual(Elements(hashSet, hashSet.Count), NinoSerializer.Serialize(hashSet));
+            var immutable = ImmutableDictionary.CreateRange(dictionary);
+            CollectionAssert.AreEqual(Pairs(immutable, immutable.Count), NinoSerializer.Serialize(immutable));
+            CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(ImmutableSortedDictionary.CreateRange(dictionary)));
 
             // Keys the generated run loop takes (HasRunLoop: their memory is their wire form, or strings).
             PairsMatch(values, i => "key" + i);
@@ -123,6 +133,14 @@ namespace Nino.UnitTests
         }
 
         private static byte[] Pairs<TKey, T>(Dictionary<TKey, T> dictionary) => Pairs(dictionary, dictionary.Count);
+
+        private static byte[] Elements<T>(IEnumerable<T> values, int count)
+        {
+            var expected = new List<byte>(BitConverter.GetBytes(count));
+            foreach (var value in values)
+                expected.AddRange(NinoSerializer.Serialize(value));
+            return expected.ToArray();
+        }
 
         private static byte[] Pairs<TKey, T>(IEnumerable<KeyValuePair<TKey, T>> dictionary, int count)
         {
