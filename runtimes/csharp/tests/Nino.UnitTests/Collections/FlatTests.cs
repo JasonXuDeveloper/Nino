@@ -272,11 +272,15 @@ namespace Nino.UnitTests
             byte[] bad = (byte[])one.Clone();
             bad[flag] = 2;
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatMany>(bad));
-            byte[] run = BitConverter.GetBytes(3).Concat(one).Concat(one).Concat(bad).ToArray();
+            // A run long enough for the flat kernels (NinoFlatRuns.MinRun), the bad element last.
+            int count = NinoFlatRuns.MinRun + 4;
+            byte[] run = BitConverter.GetBytes(count).Concat(Enumerable.Repeat(one, count - 1).SelectMany(x => x))
+                .Concat(bad).ToArray();
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatMany[]>(run));
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<List<FlatMany>>(run));
 
-            byte[] presence = BitConverter.GetBytes(2).Concat(one).Concat(new byte[] { 7 }).Concat(one.Skip(1)).ToArray();
+            byte[] presence = BitConverter.GetBytes(count).Concat(Enumerable.Repeat(one, count - 1).SelectMany(x => x))
+                .Concat(new byte[] { 7 }).Concat(one.Skip(1)).ToArray();
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatMany[]>(presence));
         }
     }
