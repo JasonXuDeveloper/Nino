@@ -262,19 +262,10 @@ namespace Nino.Immutable
                         _inBucket = false;
                     }
 
-                    Node held;
                     var rest = chunk.Slice(filled);
+                    Node held;
                     if (!typeof(TItem).IsValueType)
-                    {
-                        // Class items as references in a struct, the walk its own instantiation and the take inlined
-                        // into it: over a class TItem it is code shared over every class, which calls the take of each
-                        // item through a lookup (as NinoTreeItems).
-                        var references = new BucketReferences(NoMore);
-                        filled += _buckets.Fill(MemoryMarshal.CreateSpan(
-                            ref Unsafe.As<TItem, ItemReference>(ref MemoryMarshal.GetReference(rest)), rest.Length),
-                            ref references);
-                        held = Unsafe.As<Node>(references.Held);
-                    }
+                        filled += FillReferences(rest, out held);
                     else
                     {
                         var buckets = new Buckets(NoMore);
@@ -288,6 +279,21 @@ namespace Nino.Immutable
                         NoMore);
                     _inBucket = true;
                 }
+            }
+
+            /// <summary>
+            /// Class items as references in a struct, the walk its own instantiation and the take inlined into it:
+            /// over a class TItem it is code shared over every class, which calls the take of each item through a
+            /// lookup (as NinoTreeItems). A method of its own, so that its IL does not weigh on a value item's fill.
+            /// </summary>
+            private int FillReferences(Span<TItem> rest, out Node held)
+            {
+                var references = new BucketReferences(NoMore);
+                int filled = _buckets.Fill(MemoryMarshal.CreateSpan(
+                    ref Unsafe.As<TItem, ItemReference>(ref MemoryMarshal.GetReference(rest)), rest.Length),
+                    ref references);
+                held = Unsafe.As<Node>(references.Held);
+                return filled;
             }
 
             public void Finish()

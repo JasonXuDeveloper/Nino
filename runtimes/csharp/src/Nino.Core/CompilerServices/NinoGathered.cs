@@ -336,19 +336,25 @@ namespace Nino.Core.CompilerServices
         /// <inheritdoc/>
         public int Fill(Span<T> chunk)
         {
-            // Class elements (a polymorphic base's) as references in a struct of one field: code shared over a class T
-            // calls the take of each element through a lookup, an indirect call (the walk is generic over the take, a
-            // struct generic over T), where over a struct the walk is its own instantiation, the take inlined into it.
             if (!typeof(T).IsValueType)
-            {
-                var references = new NinoTreeWalk.ReferenceAt(_item);
-                return _nodes.Fill(MemoryMarshal.CreateSpan(
-                    ref Unsafe.As<T, NinoTreeWalk.Reference>(ref MemoryMarshal.GetReference(chunk)), chunk.Length),
-                    ref references);
-            }
-
+                return FillReferences(chunk);
             var items = new At(_item);
             return _nodes.Fill(chunk, ref items);
+        }
+
+        /// <summary>
+        /// Class elements (a polymorphic base's) as references in a struct of one field: code shared over a class T
+        /// calls the take of each element through a lookup, an indirect call (the walk is generic over the take, a
+        /// struct generic over T), where over a struct the walk is its own instantiation, the take inlined into it. A
+        /// method of its own: inline in <see cref="Fill"/>, its IL (though folded away) kept a value element's walk
+        /// from inlining there (asm.py: a call per chunk in NinoTreeItems&lt;int&gt;.Fill).
+        /// </summary>
+        private int FillReferences(Span<T> chunk)
+        {
+            var references = new NinoTreeWalk.ReferenceAt(_item);
+            return _nodes.Fill(MemoryMarshal.CreateSpan(
+                ref Unsafe.As<T, NinoTreeWalk.Reference>(ref MemoryMarshal.GetReference(chunk)), chunk.Length),
+                ref references);
         }
 
         /// <inheritdoc/>
