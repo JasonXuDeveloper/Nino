@@ -256,7 +256,14 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadAt(ref byte source, int available, object value, bool fresh)
         {
-            int size = default(NinoUtf16Item).ReadAt(ref source, available, ref default(TMember).Ref(value), fresh);
+            // As NinoUtf16Item's read, with an existing string compared out of line (Reader.ReadString's way): inline,
+            // a body read into its caller (a polymorphic base's dispatch, ChatMessage) took 14 to 61 stack accesses.
+            ref string slot = ref Unsafe.As<byte, string>(ref default(TMember).Ref(value));
+            string current = fresh ? null : slot;
+            SizedString read = Reader.ReadStringAt(ref source, available, current);
+            if (fresh || !ReferenceEquals(read.Value, current))
+                slot = read.Value;
+            int size = read.Size;
             return size + default(TNext).ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, value,
                 fresh);
         }
