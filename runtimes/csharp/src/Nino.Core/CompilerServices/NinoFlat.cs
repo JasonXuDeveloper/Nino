@@ -319,8 +319,8 @@ namespace Nino.Core.CompilerServices
     /// <summary>
     /// What a generated formatter of a flat class calls, over its layout and its chain of items (a generated class
     /// derives this one to name both once): the runs of a collection (<see cref="INinoFormatter.WriteFlat"/>,
-    /// <see cref="INinoFormatter.ReadFlat"/>) and one body (the formatter's <c>WriteBody</c> / <c>ReadBody</c>, a
-    /// base's <c>WriteMembers</c> / <c>ReadMembers</c>).
+    /// <see cref="INinoFormatter.ReadFlat"/>) and one body's write (the formatter's <c>WriteBody</c>, a base's
+    /// <c>WriteMembers</c>; one body is read member by member).
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public abstract class NinoFlat<TLayout, TBody>
@@ -384,41 +384,5 @@ namespace Nino.Core.CompilerServices
             long max = default(TBody).MaxSize(value);
             writer.Commit(default(TBody).WriteAt(ref writer.Ensure(max > int.MaxValue ? -1 : (int)max), value));
         }
-
-        /// <summary>
-        /// Reads the body into <paramref name="value"/> (not null; its strings kept where the data holds the same), out
-        /// of line on a local copy of the reader's cursor.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void ReadBody(object value, ref Reader reader)
-        {
-            Reader local = default;
-            reader.CopyCursorTo(ref local);
-            ReadInline(value, ref local);
-            local.CopyCursorTo(ref reader);
-        }
-
-        /// <summary>As <see cref="ReadBody"/>, inlined into the caller: a small body.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ReadInline(object value, ref Reader reader) =>
-            reader.UnsafeAdvance(default(TBody).ReadAt(ref reader.Peek(), reader.Remaining, value, false));
-
-        /// <summary>
-        /// As <see cref="ReadBody"/>, into a new object (<paramref name="value"/> just made, every reference field
-        /// null): its strings stored without a look at what the field holds.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void ReadNew(object value, ref Reader reader)
-        {
-            Reader local = default;
-            reader.CopyCursorTo(ref local);
-            ReadNewInline(value, ref local);
-            local.CopyCursorTo(ref reader);
-        }
-
-        /// <summary>As <see cref="ReadNew"/>, inlined into the caller.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ReadNewInline(object value, ref Reader reader) =>
-            reader.UnsafeAdvance(default(TBody).ReadAt(ref reader.Peek(), reader.Remaining, value, true));
     }
 }

@@ -156,7 +156,16 @@ internal static class FormatterEmitter
         w.Line();
         if (m.Flat != null)
         {
+            // Runs and one value's writes go through the flat kernels; one value's read member by member, as any
+            // other body (FlatEmitter's summary says why).
             FlatEmitter.Emit(w, m, names);
+            w.Line();
+            body.EmitReadBody();
+            if (m.Inheritance.EmitMembers)
+            {
+                w.Line();
+                body.EmitReadMembers();
+            }
         }
         else if (m.RawStruct)
         {
@@ -253,9 +262,9 @@ internal static class FormatterEmitter
         // have it created in a method of its own (__WriteTop, see INinoTopFormatter), where the JIT keeps it in
         // registers and knows it starts empty (no region open, no context) instead of loading it from the caller's
         // memory and storing it back.
-        // A flat body (TypeModel.Flat) the same way, through its chain inlined into __WriteTop and __ReadTop.
+        // A flat body (TypeModel.Flat) the same way, through its chain inlined into __WriteTop.
         bool serializeTop = !m.TopInline && (m.LocalWriter || m.Flat != null);
-        bool readTop = m.ReadTop || m.Flat != null;
+        bool readTop = m.ReadTop;
         if (serializeTop)
         {
             w.Line(names.NoInline);
@@ -298,16 +307,8 @@ internal static class FormatterEmitter
             w.Line($"var __r = new {Core}Reader(data);");
             w.Line("if (!__r.ReadPresent())");
             w.IndentedLine("return null;");
-            if (m.Flat != null)
-            {
-                w.Line($"{t} value = {BodyEmitter.Create(m, names.CompactSyntax)};");
-                w.Line($"{FlatEmitter.Body(m)}.ReadNewInline(value, ref __r);");
-            }
-            else
-            {
-                w.Line($"{t} value = null;");
-                w.Line($"{(m.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref __r, ref value);");
-            }
+            w.Line($"{t} value = null;");
+            w.Line($"{(m.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref __r, ref value);");
             w.Line("__r.ReleaseReferences();");
             w.Line("return value;");
             w.Close();
@@ -318,7 +319,7 @@ internal static class FormatterEmitter
             w.Line($"public {t} Read(global::System.ReadOnlySpan<byte> data) => {CoreCompilerServices}NinoDirect.Deserialize<{t}, {top}>(data);");
         }
         ForwardWriteBody(w, m, names, m.TopInline ? "__WriteBodyInline" : null);
-        ForwardReadBody(w, m, names, m.TopInline ? "__ReadBodyInline" : null);
+        ForwardReadBody(w, m, names, m.ReadTopInline ? "__ReadBodyInline" : null);
         if (m.Flat != null)
             FlatEmitter.EmitHooks(w, m, names, top);
         EmitPrefetch(w, m, names, twin: true);

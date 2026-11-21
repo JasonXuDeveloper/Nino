@@ -96,13 +96,13 @@ internal static class FlatEmitter
     }
 
     /// <summary>
-    /// <c>WriteBody</c> and <c>ReadBody</c> (and a base's <c>WriteMembers</c> / <c>ReadMembers</c>): one body through
-    /// the chain of fields, which needs no check (a block's copy pays off in runs, not in one body). A sealed class's
-    /// writes are out of line on a local copy of the writer whatever their size: the chain inlined into its callers (a
-    /// polymorphic base's dispatch, a union's cases) took their inlining budgets, which then left the accessors
-    /// themselves as calls (PolymorphicTest's UnionArray, 1.08 times the base's time to write), and its own JIT budget
-    /// inlines the whole chain. A small body's read stays inline; a large one's reads a new object's strings without a
-    /// look at the field (<c>ReadNew</c>).
+    /// <c>WriteBody</c> (and a base's <c>WriteMembers</c>): one body through the chain of fields, which needs no check
+    /// (a block's copy pays off in runs, not in one body). A sealed class's writes are out of line on a local copy of
+    /// the writer whatever their size: the chain inlined into its callers (a polymorphic base's dispatch, a union's
+    /// cases) took their inlining budgets, which then left the accessors themselves as calls (PolymorphicTest's
+    /// UnionArray, 1.08 times the base's time to write), and its own JIT budget inlines the whole chain. One body's
+    /// read is the member-by-member one (BodyEmitter): through the chain, a body in a dispatch kept more on the stack
+    /// (ChatMessage's 14 stack accesses became 33) and UnionArray read in up to 1.16 times the base's time.
     /// </summary>
     private static void EmitBodies(CodeWriter w, TypeModel m, FormatterNames names)
     {
@@ -114,45 +114,12 @@ internal static class FlatEmitter
         string write = m.InlineBody && m.Kind != FormatterKind.SealedClass ? "WriteInline" : "WriteBody";
         w.Line(names.Inline);
         w.Line($"{Signature.WriteBody(t)} => {body}.{write}(value, ref writer);");
-        w.Line();
-        w.Line(names.Inline);
-        w.Open(Signature.ReadBody(t));
-        w.Line("var __v = value;");
-        if (m.InlineBody)
-        {
-            // A small body's read stays inline (its reads are no more IL than the member-by-member body's, an
-            // existing string compared out of line): out of line, UnionArray read in 1.13 times the base's time.
-            w.Line("if (__v == null)");
-            w.IndentedLine($"value = __v = {BodyEmitter.Create(m, names.CompactSyntax)};");
-            w.Line($"{body}.ReadInline(__v, ref reader);");
-            w.Close();
-            EmitMembers(w, m, names, body);
-            return;
-        }
-
-        w.Open("if (__v == null)");
-        w.Line($"value = __v = {BodyEmitter.Create(m, names.CompactSyntax)};");
-        w.Line($"{body}.ReadNew(__v, ref reader);");
-        w.Line("return;");
-        w.Close();
-        w.Line();
-        w.Line($"{body}.ReadBody(__v, ref reader);");
-        w.Close();
-        EmitMembers(w, m, names, body);
-    }
-
-    /// <summary>A base's <c>WriteMembers</c> / <c>ReadMembers</c>, inline in its subtypes' bodies.</summary>
-    private static void EmitMembers(CodeWriter w, TypeModel m, FormatterNames names, string body)
-    {
         if (!m.Inheritance.EmitMembers)
             return;
-        string t = m.TypeName;
+        // A base's WriteMembers, inline in its subtypes' bodies.
         w.Line();
         w.Line(names.Inline);
         w.Line($"{Signature.WriteMembers(t)} => {body}.WriteInline(value, ref writer);");
-        w.Line();
-        w.Line(names.Inline);
-        w.Line($"{Signature.ReadMembers(t)} => {body}.ReadInline(value, ref reader);");
     }
 
     /// <summary>

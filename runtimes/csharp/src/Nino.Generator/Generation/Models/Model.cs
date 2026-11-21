@@ -340,6 +340,12 @@ internal sealed record TypeModel(
     public bool TopInline => HasTop && InlineBody && Flat == null;
 
     /// <summary>
+    /// <see cref="TopInline"/> for reads: a flat body (<see cref="Flat"/>) reads one value member by member, as any
+    /// other body (Nino.Core's flat kernels read runs only), so its reads are inlined at the top as the others'.
+    /// </summary>
+    public bool ReadTopInline => HasTop && InlineBody;
+
+    /// <summary>
     /// Whether the body is small enough to be inlined wherever the formatter is used (at most two members that call
     /// formatters, of at most eight), for a class or struct whose body opens no class body (a struct's is then part
     /// of the loop over an array of it or of its nullable, with the reader or writer in registers: out of line, each
@@ -400,7 +406,7 @@ internal sealed record TypeModel(
     /// a local the JIT keeps in registers. Only for bodies that open no class body (<see cref="DepthModel.Nests"/> false): a
     /// nested body takes the reader's address, which would keep the local in memory too.
     /// </summary>
-    public bool LocalReader => OutOfLineBody && !Depth.Nests && !Keyed && !TrackReferences && Flat == null;
+    public bool LocalReader => OutOfLineBody && !Depth.Nests && !Keyed && !TrackReferences;
 
     /// <summary>
     /// Whether the out-of-line write body works on a local copy of the writer, written back at its end, for the
@@ -420,7 +426,7 @@ internal sealed record TypeModel(
     /// then an inlinable method that the out-of-line one calls on its local copy. Not for pooled types, whose new
     /// value comes from the pool first.
     /// </summary>
-    public bool ReadTop => HasTop && !TopInline && LocalReader && !Pooled;
+    public bool ReadTop => HasTop && !ReadTopInline && LocalReader && !Pooled;
 
     /// <summary>
     /// Whether an out-of-line body reads a new instance in a method of its own (<c>__ReadBodyFresh</c>, see
@@ -429,7 +435,7 @@ internal sealed record TypeModel(
     /// (<see cref="InlineBody"/>) have the reuse copy only: a second copy there only adds locals for the JIT to keep
     /// apart.
     /// </summary>
-    public bool SplitFresh => FreshRead && OutOfLineBody && !InlineBody && Flat == null;
+    public bool SplitFresh => FreshRead && OutOfLineBody && !InlineBody;
 
     /// <summary>
     /// The formatter's type parameters, "&lt;T1, T2, __F_T1, __F_T2&gt;": the type's, then the formatter of each
