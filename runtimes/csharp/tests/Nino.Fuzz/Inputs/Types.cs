@@ -122,6 +122,21 @@ namespace Nino.Fuzz
         public ITagged Tagged; public Flag F; public Flag[] Flags; public List<Bird> Birds;
     }
 
+    // Classes whose generated body is flat (#355): raw members, bools and strings read by Nino.Core's flat kernels in
+    // runs of 16 or more, a block of primitives copied at once (FlatOpen, not sealed: subtypes leave the run), a
+    // DateTime and a decimal Untrusted mode checks (FlatSealed).
+    [NinoType] public class FlatOpen { public long W; public int X; public string S; }
+    [NinoType] public class FlatOpenSub : FlatOpen { public short Y; }
+    [NinoType]
+    public sealed class FlatSealed
+    {
+        public int Id; public string Name; [NinoUtf8] public string Tag; public DateTime At; public bool Flag;
+        public string Text; public decimal Price;
+    }
+
+    [NinoType]
+    public sealed class FlatRoot { public FlatOpen[] Opens; public List<FlatSealed> Sealeds; public FlatSealed One; public HashSet<FlatOpen> Set; }
+
     [NinoType]
     public sealed class Prims
     {

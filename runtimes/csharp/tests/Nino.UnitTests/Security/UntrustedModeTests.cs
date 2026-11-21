@@ -124,6 +124,9 @@ public class UntrustedModeTests
 
     [TestMethod]
     public void TrailingBytesAreInvalid() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedTrailing));
+
+    [TestMethod]
+    public void StructMembersOfFlatClassesAreChecked() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedFlatRuns));
 }
 
 public static partial class SettingsProbes
@@ -204,6 +207,31 @@ public static partial class SettingsProbes
         var existing = new Dictionary<long, int>();
         NinoDeserializer.Deserialize(NinoSerializer.Serialize(new Dictionary<long, int> { [1] = 1 }), ref existing);
         return ReferenceEquals(existing.Comparer, EqualityComparer<long>.Default) && existing[1] == 1 ? "ok" : "existing";
+    }
+
+    public static string UntrustedFlatRuns(byte[] _)
+    {
+        // A flat class's struct members (DateTime, decimal) are checked in runs too: the startup check sends Untrusted
+        // mode to the chain of fields (#355), one value and runs past NinoFlatRuns.MinRun alike.
+        NinoSettings.Untrusted = true;
+        var when = new DateTime(0x0123456789ABCDEF, DateTimeKind.Utc);
+        var price = new decimal(0x11223344, 0x55667788, 0x0A0B0C0D, false, 3);
+        var value = new Nino.UnitTests.Subset.Flat.FlatMany { Id = 1, Name = "n", Tag = "t", At = when, Text = "x", Price = price };
+        byte[] one = NinoSerializer.Serialize(value);
+        int whenAt = Find(one, BitConverter.GetBytes(when.ToBinary()));
+        int priceAt = Find(one, new byte[] { 0x0D, 0x0C, 0x0B, 0x0A }) - 4;
+        byte[] badWhen = With(one, whenAt, BitConverter.GetBytes(BadTicks));
+        byte[] badPrice = With(one, priceAt, BitConverter.GetBytes(29 << 16));
+        const int count = 20;
+        byte[] Run(byte[] last) => BitConverter.GetBytes(count)
+            .Concat(Enumerable.Repeat(one, count - 1).SelectMany(x => x)).Concat(last).ToArray();
+        var back = NinoDeserializer.Deserialize<Nino.UnitTests.Subset.Flat.FlatMany[]>(Run(one));
+        if (back.Length != count || back[count - 1].At != when || back[0].Price != price)
+            return "valid run";
+        return Fails<Nino.UnitTests.Subset.Flat.FlatMany>(badWhen, "one DateTime") ??
+               Fails<Nino.UnitTests.Subset.Flat.FlatMany>(badPrice, "one decimal") ??
+               Fails<Nino.UnitTests.Subset.Flat.FlatMany[]>(Run(badWhen), "run DateTime") ??
+               Fails<List<Nino.UnitTests.Subset.Flat.FlatMany>>(Run(badPrice), "run decimal") ?? "ok";
     }
 
     public static string UntrustedValues(byte[] _)

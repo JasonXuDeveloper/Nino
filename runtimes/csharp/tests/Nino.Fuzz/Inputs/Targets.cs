@@ -58,6 +58,8 @@ namespace Nino.Fuzz
                 Samples.Imm, Samples.ImmLarge),
             Make("Holder", "polymorphism (abstract class, interface, object) mixed with reference tracking; explicit implementations of interface members (a class, a raw struct)", Samples.Holder),
             Make("Keyed", "NinoFormat.Keyed classes and structs", Samples.Keyed),
+            Make("Flat", "classes whose body is flat (raw members, bools, strings) in runs through the flat kernels: blocks, subtypes and nulls in runs, sets", Samples.Flat),
+            Untrusted(Make("FlatUntrusted", "Untrusted mode's checks of a flat class's DateTime, decimal and bool members, in runs and alone", Samples.Flat)),
             Make("Node", "deep nesting: a positional chain 300 deep", () => Samples.Chain(300)),
             Make("VNode", "deep nesting: a version-tolerant chain", () => Samples.VChain(300)),
             Make("KNode", "deep nesting: a keyed chain", () => Samples.KChain(300)),

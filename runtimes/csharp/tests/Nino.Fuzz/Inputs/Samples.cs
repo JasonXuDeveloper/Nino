@@ -158,6 +158,21 @@ namespace Nino.Fuzz
             ISS = ImmutableSortedSet.CreateRange(Enumerable.Range(0, 150)), IL = ImmutableList.CreateRange(Enumerable.Range(0, 80).Select(i => "" + i)),
         };
 
+        public static FlatRoot Flat() => new()
+        {
+            Opens = Enumerable.Range(0, 24).Select(i => i % 7 == 3 ? null : i % 5 == 2
+                ? new FlatOpenSub { W = i * 1000L, X = -i, S = "sub" + i, Y = (short)i }
+                : new FlatOpen { W = i * 1000L, X = i, S = i % 4 == 0 ? null : i % 6 == 1 ? "日本" + i : "open " + i }).ToArray(),
+            Sealeds = Enumerable.Range(0, 20).Select(i => i == 9 ? null : new FlatSealed
+            {
+                Id = i, Name = i % 3 == 0 ? null : "name " + i, Tag = i % 4 == 1 ? "ü😀" : "tag", Flag = i % 2 == 0,
+                At = new DateTime(2024, 1, 2, 3, 4, 5, (DateTimeKind)(i % 3)).AddDays(i), Text = new string('t', i * 3),
+                Price = i * 1.25m,
+            }).ToList(),
+            One = new FlatSealed { Id = 7, Name = "one", Tag = "", At = DateTime.MaxValue, Text = "x", Price = decimal.MaxValue },
+            Set = new HashSet<FlatOpen>(Enumerable.Range(0, 18).Select(i => new FlatOpen { W = i, S = "s" + i })),
+        };
+
         public static Holder Holder()
         {
             var t = new TNode { V = 1 };

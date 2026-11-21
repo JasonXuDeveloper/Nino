@@ -75,4 +75,22 @@ namespace Nino.UnitTests.Subset.Flat
         public FlatOne[] Ones;
     }
 
+    /// <summary>
+    /// A chain of nodes each holding a run of flat classes: past NinoDepth.Inline the runs go element by element, as
+    /// deferred bodies (#355).
+    /// </summary>
+    [NinoType]
+    public sealed class FlatNode
+    {
+        public FlatMany[] Items;
+        public FlatNode Next;
+    }
+
+    /// <summary><see cref="FlatNode"/> over <see cref="FlatManyProps"/>: the same bytes through generated bodies.</summary>
+    [NinoType]
+    public sealed class FlatNodeProps
+    {
+        public FlatManyProps[] Items;
+        public FlatNodeProps Next;
+    }
 }

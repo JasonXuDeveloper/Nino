@@ -76,7 +76,8 @@ Collections/                 arrays, BCL and user collections, empty ones, Stack
                              concurrent dictionaries, merges, hostile pairs, and hostile runs: bad lengths at any string
                              rejected before one is read, invalid UTF-8, repeated keys), the flat kernels of classes
                              whose body is flat (FlatTests, with Subset's FlatTypes.cs: bytes against the generated
-                             body, subtypes, reuse, sets, hostile data), the prefetch of long top-level
+                             body, subtypes, reuse, sets, runs past the inline depth, hostile data; Untrusted mode in
+                             UntrustedModeTests), the prefetch of long top-level
                              arrays
                              and lists of scattered objects and the
                              interceptors that route them there (PrefetchTests), the gather of collections that are not

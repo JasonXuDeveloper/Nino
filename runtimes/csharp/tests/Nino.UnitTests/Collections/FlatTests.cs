@@ -283,5 +283,35 @@ namespace Nino.UnitTests
                 .Concat(new byte[] { 7 }).Concat(one.Skip(1)).ToArray();
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatMany[]>(presence));
         }
+
+        [TestMethod]
+        public void RunsPastTheInlineDepthWriteTheGeneratedBodysBytes()
+        {
+            // Nodes past NinoDepth.Inline are deferred: their runs go element by element, the ones above through the
+            // kernels; both as the generated bodies write them.
+            const int depth = 200;
+            FlatNode node = null;
+            FlatNodeProps twin = null;
+            for (int i = 0; i < depth; i++)
+            {
+                var items = Manys(NinoFlatRuns.MinRun + 2, true, i);
+                node = new FlatNode { Items = items, Next = node };
+                twin = new FlatNodeProps { Items = items.Select(Props).ToArray(), Next = twin };
+            }
+
+            byte[] bytes = NinoSerializer.Serialize(node);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(twin), bytes);
+            var back = NinoDeserializer.Deserialize<FlatNode>(bytes);
+            for (FlatNode a = node, b = back; a != null; a = a.Next, b = b.Next)
+            {
+                Assert.AreEqual(a.Items.Length, b.Items.Length);
+                for (int i = 0; i < a.Items.Length; i++)
+                    Assert.IsTrue(Same(a.Items[i], b.Items[i]));
+            }
+
+            Assert.IsTrue(Same(node.Items[3], NinoDeserializer.Deserialize<FlatNodeProps>(bytes).Items[3] is { } p
+                ? new FlatMany { Id = p.Id, Name = p.Name, Tag = p.Tag, At = p.At, Flag = p.Flag, Text = p.Text, Price = p.Price }
+                : null));
+        }
     }
 }
