@@ -415,7 +415,7 @@ a file and a line above. Go, Rust and TypeScript techniques go to `optimize-runt
   outside the benchmark suite takes, such as `(byte, int)` for the 64-byte permutes, need a small program of their own).
   A clean loop is loads (`ldp`), lookups, stores (`stp`) and the cursor adds; `stp`/`ldp` to `[fp, ...]`, `mul` or
   `mov v..` in it are the signs above.
-- The signs in any listing: `Reader:Skip`, `Reader:CopyTo` or `NinoUnsafe:Read` as calls (the budget ran out);
+- The signs in any listing: `Reader:Skip`, `Reader:CopyTo` or `NinoUnsafe:Read` as calls (the budget or the local limit ran out: `asm.py --inline` names which, references/jit.md);
   `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
   reader or writer was not kept in registers).
 - The block order of a Tier1 method varies between dumps of the same code (profile data): `asm.py` dumps of

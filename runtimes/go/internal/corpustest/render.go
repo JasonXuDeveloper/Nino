@@ -237,8 +237,11 @@ func renderUnion(v reflect.Value) any {
 		return map[string]any{"$type": name, "$case": nil, "value": nil}
 	}
 	c := v.Elem()
+	if c.Kind() == reflect.Pointer && c.IsNil() {
+		return map[string]any{"$type": name, "$case": nil, "value": nil}
+	}
 	if wrapped, ok := c.Interface().(interface{ NinoUnionCase() string }); ok {
-		return map[string]any{"$type": name, "$case": wrapped.NinoUnionCase(), "value": renderValue(c.FieldByName("Value"))}
+		return map[string]any{"$type": name, "$case": wrapped.NinoUnionCase(), "value": renderValue(reflect.Indirect(c).FieldByName("Value"))}
 	}
 	return map[string]any{"$type": name, "$case": c.Interface().(interface{ NinoTypeName() string }).NinoTypeName(),
 		"value": renderValue(c)}

@@ -64,8 +64,10 @@ compare/                     comparisons of two runs, for development (never pub
                              the release body's v3 section)
 asm/                         the machine code of the cases
   asm.py                     the Tier1 machine code of the cases: dump / diff / compare REF (`compare origin/main`
-                             before committing a read or write path change)
-  jitwarm/                   the startup hook asm.py runs Nino.Benchmark with: calls each case until Tier1, then exits
+                             before committing a read or write path change); --inline: the inlines the JIT gave up
+                             and why (OUT.inline.json), and the new ones in diff
+  jitwarm/                   the startup hook asm.py runs Nino.Benchmark with: calls each case until Tier1, then exits;
+                             NINO_JIT_INLINE=FILE: the MethodJitInliningFailed events of Nino's methods
   cross-jit.sh               installs the JIT for the other 64-bit architecture, so DOTNET_JitDisasm prints x64 and
                              Arm64 code on one machine
 members/                     member-by-member v3 against v4 (run.sh: v3, v4, v3 in process; DISASM=1 for listings):

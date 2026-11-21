@@ -2960,7 +2960,7 @@ func writeChainBody(w *nino.Writer, v *Chain) {
 	WriteChain(w, v.Next)
 }
 
-// Choice is the C# union `Conformance.Choice`: ChoiceInt32, ChoiceString, *Point, ChoiceAnimal, ChoiceListInt32, ChoiceNullableInt64, or nil for the empty union.
+// Choice is the C# union `Conformance.Choice`: *ChoiceInt32, ChoiceString, *Point, *ChoiceAnimal, *ChoiceListInt32, ChoiceNullableInt64, or nil for the empty union.
 type Choice interface {
 	isChoice()
 }
@@ -2970,7 +2970,7 @@ type ChoiceInt32 struct {
 	Value int32 `json:"value" yaml:"value"`
 }
 
-func (ChoiceInt32) isChoice() {
+func (*ChoiceInt32) isChoice() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -2999,7 +2999,7 @@ type ChoiceAnimal struct {
 	Value Animal `json:"value" yaml:"value"`
 }
 
-func (ChoiceAnimal) isChoice() {
+func (*ChoiceAnimal) isChoice() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -3012,7 +3012,7 @@ type ChoiceListInt32 struct {
 	Value []int32 `json:"value" yaml:"value"`
 }
 
-func (ChoiceListInt32) isChoice() {
+func (*ChoiceListInt32) isChoice() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -3046,8 +3046,19 @@ func (ChoiceObject) NinoTypeName() string {
 	return "Conformance.Choice"
 }
 
+type ninoChoiceSlabs struct {
+	ChoiceInt32     ninoUnionSlab[ChoiceInt32]
+	Point           ninoUnionSlab[Point]
+	ChoiceAnimal    ninoUnionSlab[ChoiceAnimal]
+	ChoiceListInt32 ninoUnionSlab[ChoiceListInt32]
+}
+
 // ReadChoice reads a Choice: the type id of its case (0 for the empty union), then the case's value.
 func ReadChoice(r *nino.Reader) Choice {
+	return readChoiceSlab(r, nil)
+}
+
+func readChoiceSlab(r *nino.Reader, slabs *ninoChoiceSlabs) Choice {
 	id := r.TypeID()
 	if id == nino.NullTypeID {
 		return nil
@@ -3058,7 +3069,14 @@ func ReadChoice(r *nino.Reader) Choice {
 	var v Choice
 	switch id {
 	case 546808484:
-		v = ChoiceInt32{Value: r.I32()}
+		var p *ChoiceInt32
+		if slabs == nil {
+			p = new(ChoiceInt32)
+		} else {
+			p = slabs.ChoiceInt32.next(r, 32)
+		}
+		p.Value = r.I32()
+		v = p
 	case -65934901:
 		if value := r.StringPtr(); value != nil {
 			v = ChoiceString{Value: value}
@@ -3066,20 +3084,46 @@ func ReadChoice(r *nino.Reader) Choice {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
 	case -1773443910:
-		if value := ReadPoint(r); value != nil {
+		var value *Point
+		if slabs == nil {
+			value = ReadPoint(r)
+		} else if r.Present() {
+			value = slabs.Point.next(r, 8)
+			if d, ok := r.EnterBody(); ok {
+				readPointBody(r, value)
+				r.ExitBody(d)
+			} else {
+				nino.ReadClassInto(r, value, &pointClass)
+			}
+		}
+		if value != nil {
 			v = value
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
 	case -749123728:
 		if value := ReadAnimal(r); value != nil {
-			v = ChoiceAnimal{Value: value}
+			var p *ChoiceAnimal
+			if slabs == nil {
+				p = new(ChoiceAnimal)
+			} else {
+				p = slabs.ChoiceAnimal.next(r, 8)
+			}
+			p.Value = value
+			v = p
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
 	case -217079013:
 		if value := nino.ReadPrimitives[int32](r); value != nil {
-			v = ChoiceListInt32{Value: value}
+			var p *ChoiceListInt32
+			if slabs == nil {
+				p = new(ChoiceListInt32)
+			} else {
+				p = slabs.ChoiceListInt32.next(r, 8)
+			}
+			p.Value = value
+			v = p
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
@@ -3106,7 +3150,10 @@ func ReadChoiceInto(r *nino.Reader, v *Choice) {
 
 func WriteChoice(w *nino.Writer, v Choice) {
 	switch v := v.(type) {
-	case ChoiceInt32:
+	case *ChoiceInt32:
+		if v == nil {
+			break
+		}
 		w.TypeID(546808484)
 		if !w.EnterStruct() {
 			return
@@ -3136,8 +3183,8 @@ func WriteChoice(w *nino.Writer, v Choice) {
 		WritePoint(w, v)
 		w.ExitStruct()
 		return
-	case ChoiceAnimal:
-		if v.Value == nil {
+	case *ChoiceAnimal:
+		if v == nil || v.Value == nil {
 			break
 		}
 		w.TypeID(-749123728)
@@ -3147,8 +3194,8 @@ func WriteChoice(w *nino.Writer, v Choice) {
 		WriteAnimal(w, v.Value)
 		w.ExitStruct()
 		return
-	case ChoiceListInt32:
-		if v.Value == nil {
+	case *ChoiceListInt32:
+		if v == nil || v.Value == nil {
 			break
 		}
 		w.TypeID(-217079013)
@@ -11212,7 +11259,7 @@ func writeTreeNodeBody(w *nino.Writer, v *TreeNode) {
 	writeV83(w, v.Children)
 }
 
-// UnionTree is the C# union `Conformance.UnionTree`: UnionTreeUnionTreeArray, UnionTreeInt64, or nil for the empty union.
+// UnionTree is the C# union `Conformance.UnionTree`: *UnionTreeUnionTreeArray, *UnionTreeInt64, or nil for the empty union.
 type UnionTree interface {
 	isUnionTree()
 }
@@ -11222,7 +11269,7 @@ type UnionTreeUnionTreeArray struct {
 	Value []UnionTree `json:"value" yaml:"value"`
 }
 
-func (UnionTreeUnionTreeArray) isUnionTree() {
+func (*UnionTreeUnionTreeArray) isUnionTree() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -11235,7 +11282,7 @@ type UnionTreeInt64 struct {
 	Value int64 `json:"value" yaml:"value"`
 }
 
-func (UnionTreeInt64) isUnionTree() {
+func (*UnionTreeInt64) isUnionTree() {
 }
 
 // NinoUnionCase returns the .NET name of the case's type.
@@ -11256,8 +11303,17 @@ func (UnionTreeObject) NinoTypeName() string {
 	return "Conformance.UnionTree"
 }
 
+type ninoUnionTreeSlabs struct {
+	UnionTreeUnionTreeArray ninoUnionSlab[UnionTreeUnionTreeArray]
+	UnionTreeInt64          ninoUnionSlab[UnionTreeInt64]
+}
+
 // ReadUnionTree reads a UnionTree: the type id of its case (0 for the empty union), then the case's value.
 func ReadUnionTree(r *nino.Reader) UnionTree {
+	return readUnionTreeSlab(r, nil)
+}
+
+func readUnionTreeSlab(r *nino.Reader, slabs *ninoUnionTreeSlabs) UnionTree {
 	id := r.TypeID()
 	if id == nino.NullTypeID {
 		return nil
@@ -11269,12 +11325,26 @@ func ReadUnionTree(r *nino.Reader) UnionTree {
 	switch id {
 	case 1950069485:
 		if value := readV84(r); value != nil {
-			v = UnionTreeUnionTreeArray{Value: value}
+			var p *UnionTreeUnionTreeArray
+			if slabs == nil {
+				p = new(UnionTreeUnionTreeArray)
+			} else {
+				p = slabs.UnionTreeUnionTreeArray.next(r, 8)
+			}
+			p.Value = value
+			v = p
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
 	case 337757159:
-		v = UnionTreeInt64{Value: r.I64()}
+		var p *UnionTreeInt64
+		if slabs == nil {
+			p = new(UnionTreeInt64)
+		} else {
+			p = slabs.UnionTreeInt64.next(r, 32)
+		}
+		p.Value = r.I64()
+		v = p
 	default:
 		r.UnknownType(id)
 	}
@@ -11292,8 +11362,8 @@ func ReadUnionTreeInto(r *nino.Reader, v *UnionTree) {
 
 func WriteUnionTree(w *nino.Writer, v UnionTree) {
 	switch v := v.(type) {
-	case UnionTreeUnionTreeArray:
-		if v.Value == nil {
+	case *UnionTreeUnionTreeArray:
+		if v == nil || v.Value == nil {
 			break
 		}
 		w.TypeID(1950069485)
@@ -11303,7 +11373,10 @@ func WriteUnionTree(w *nino.Writer, v UnionTree) {
 		writeV84(w, v.Value)
 		w.ExitStruct()
 		return
-	case UnionTreeInt64:
+	case *UnionTreeInt64:
+		if v == nil {
+			break
+		}
 		w.TypeID(337757159)
 		if !w.EnterStruct() {
 			return
@@ -11942,6 +12015,23 @@ func writeZooBody(w *nino.Writer, v *Zoo) {
 	WritePlain(w, v.Plain)
 	writeObject(w, v.Anything)
 	writeV88(w, v.ByName)
+}
+
+// ninoUnionSlab gives pointer cases fresh storage in small blocks.
+type ninoUnionSlab[T any] struct {
+	slots []T
+	size  int
+}
+
+func (s *ninoUnionSlab[T]) next(r *nino.Reader, limit int) *T {
+	if len(s.slots) == 0 {
+		var z T
+		s.size = r.SliceCap(min(limit, max(1, s.size*2)), int(unsafe.Sizeof(z)))
+		s.slots = make([]T, s.size)
+	}
+	v := &s.slots[0]
+	s.slots = s.slots[1:]
+	return v
 }
 
 func readObject(r *nino.Reader) nino.Typed {
@@ -14425,12 +14515,10 @@ func readintoV85(r *nino.Reader, p *[]Choice) {
 		var z Choice
 		v = make([]Choice, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
 	}
-	for i := range n {
-		var e Choice
-		if i < len(old) {
-			e = old[i]
-		}
-		ReadChoiceInto(r, &e)
+	var slabs ninoChoiceSlabs
+	var e Choice
+	for range n {
+		e = readChoiceSlab(r, &slabs)
 		if r.Failed() {
 			*p = nil
 			return
@@ -14781,12 +14869,10 @@ func readintoV84(r *nino.Reader, p *[]UnionTree) {
 		var z UnionTree
 		v = make([]UnionTree, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
 	}
-	for i := range n {
-		var e UnionTree
-		if i < len(old) {
-			e = old[i]
-		}
-		ReadUnionTreeInto(r, &e)
+	var slabs ninoUnionTreeSlabs
+	var e UnionTree
+	for range n {
+		e = readUnionTreeSlab(r, &slabs)
 		if r.Failed() {
 			*p = nil
 			return

@@ -531,6 +531,19 @@ method listed alone, in code the change does not reach, is that variation (dump 
 `DOTNET_EnableAVX2=0` for SSSE3-only code. It shows x64 (or whatever the machine is); the
 cross JIT above shows ARM64.
 
+Why a helper stayed a call: `--inline` (on `dump` and `compare`) also records the inlines the JIT gave up, with its
+own reason, from the runtime's `MethodJitInliningFailed` events (an `EventListener` in the startup hook,
+`NINO_JIT_INLINE`): `dump` writes them next to its JSON (`head.json` -> `head.inline.json`: per root, `inlinee |
+reason` and how often), and `diff` and `compare` list the failures head has and base has not (callees marked
+`NoInlining` left out: those show as new calls). `DOTNET_TieredCompilation=0` in the environment gives the FullOpts
+code and failures (what NativeAOT and the first calls compile; one call per case, about a minute) instead of Tier1.
+What each reason asks for: `optimize`'s references/jit.md, "Inlining budget".
+
+```sh
+python3 runtimes/csharp/benchmarks/asm/asm.py compare --inline origin/main
+DOTNET_TieredCompilation=0 python3 runtimes/csharp/benchmarks/asm/asm.py dump --inline --runs 1 fullopts.json
+```
+
 ## Runtimes outside .NET
 
 Each runtime is benchmarked with its language's standard tool on this suite's cases (`--write-data`, above), against

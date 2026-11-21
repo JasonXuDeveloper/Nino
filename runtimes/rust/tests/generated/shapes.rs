@@ -2104,6 +2104,8 @@ pub enum Pick {
     PickPair(PickPair),
     /// `System.Byte`.
     Byte(u8),
+    /// `Shapes.TrackedPick`.
+    TrackedPick(Option<nino::Shared<TrackedPick>>),
 }
 impl Pick {
     /// The value of the case it holds, where a body deferred inside it is put in place.
@@ -2113,6 +2115,7 @@ impl Pick {
             Self::EmptyCase(v) => Some(v as &mut dyn core::any::Any),
             Self::PickPair(v) => Some(v as &mut dyn core::any::Any),
             Self::Byte(v) => Some(v as &mut dyn core::any::Any),
+            Self::TrackedPick(v) => Some(v as &mut dyn core::any::Any),
         }
     }
     fn read_case(r: &mut nino::Reader<'_>, id: i32) -> nino::Result<Self> {
@@ -2128,6 +2131,15 @@ impl Pick {
             }
             -2134742284 => Self::PickPair(r.read()?),
             31168724 => Self::Byte(r.read()?),
+            550720032 => {
+                let mark = r.defer_mark();
+                let value: Option<nino::Shared<TrackedPick>> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<Pick>()?.case_value()));
+                Self::TrackedPick(value)
+            }
             _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
         })
     }
@@ -2163,6 +2175,10 @@ impl NinoWrite for Pick {
                 w.i32(31168724);
                 w.write(v)
             }
+            Self::TrackedPick(v) if v.is_some() => {
+                w.i32(550720032);
+                w.write(v)
+            }
             _ => {
                 w.i32(0);
                 Ok(())
@@ -2171,7 +2187,7 @@ impl NinoWrite for Pick {
     }
 }
 impl Pick {
-    nino::type_consts!(0x292F7226u32 as i32, "Shapes.Pick", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x292F7226; deferrable=false; members=[elements]::union(type(Shapes.Empty),type(Shapes.PickPair),type(byte))");
+    nino::type_consts!(0x292F7226u32 as i32, "Shapes.Pick", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x292F7226; deferrable=false; members=[elements]::union(type(Shapes.Empty),type(Shapes.PickPair),type(Shapes.TrackedPick),type(byte))");
 }
 
 /// `Shapes.Picks`: Positional, header Presence.
@@ -2181,6 +2197,8 @@ pub struct Picks {
     pub pick: Pick,
     pub many: Option<Vec<Pick>>,
     pub measure: Measure,
+    pub by_number: Option<indexmap::IndexMap<i32, Pick>>,
+    pub grid: Option<nino::Grid<Pick, 2>>,
 }
 
 impl NinoReadBody for Picks {
@@ -2190,6 +2208,8 @@ impl NinoReadBody for Picks {
         r.read_member_into(&mut self.pick, nino::field!(Self, pick))?;
         r.read_member_into(&mut self.many, nino::field!(Self, many))?;
         r.read_member_into(&mut self.measure, nino::field!(Self, measure))?;
+        r.read_member_into(&mut self.by_number, nino::field!(Self, by_number))?;
+        r.read_member_into(&mut self.grid, nino::field!(Self, grid))?;
         Ok(())
     }
 }
@@ -2201,6 +2221,8 @@ impl NinoWriteBody for Picks {
         w.write(&self.pick)?;
         w.write(&self.many)?;
         w.write(&self.measure)?;
+        w.write(&self.by_number)?;
+        w.write(&self.grid)?;
         Ok(())
     }
 }
@@ -2232,7 +2254,7 @@ impl NinoWrite for Picks {
 }
 
 impl Picks {
-    nino::type_consts!(0x039C66DDu32 as i32, "Shapes.Picks", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x039C66DD; deferrable=true; members=Pick:Shapes.Pick:type(Shapes.Pick);Many:Shapes.Pick[]:seq(type(Shapes.Pick));Measure:Shapes.Measure:type(Shapes.Measure)");
+    nino::type_consts!(0x039C66DDu32 as i32, "Shapes.Picks", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x039C66DD; deferrable=true; members=Pick:Shapes.Pick:type(Shapes.Pick);Many:Shapes.Pick[]:seq(type(Shapes.Pick));Measure:Shapes.Measure:type(Shapes.Measure);ByNumber:System.Collections.Generic.Dictionary<int, Shapes.Pick>:map(raw(4),type(Shapes.Pick));Grid:Shapes.Pick[,]:grid(2,type(Shapes.Pick))");
 }
 
 /// `Shapes.Generic.RawPair<T>`: Positional, header None.
@@ -2779,6 +2801,38 @@ impl NinoWrite for ThingClass {
 
 impl ThingClass {
     nino::type_consts!(0x35AA4E2Du32 as i32, "Shapes.ThingClass", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x35AA4E2D; deferrable=true; members=Id:int:raw(4);Label:string:string");
+}
+
+/// `Shapes.TrackedPick`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TrackedPick {
+    pub value: i32,
+    pub next: Option<nino::Shared<TrackedPick>>,
+}
+
+impl NinoReadBody for TrackedPick {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.value)?;
+        r.read_member_into(&mut self.next, nino::field!(Self, next))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for TrackedPick {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.value)?;
+        w.write(&self.next)?;
+        Ok(())
+    }
+}
+
+impl TrackedPick {
+    nino::type_consts!(0x20D35220u32 as i32, "Shapes.TrackedPick", "format=Positional; header=Presence; trackReferences=true; raw=false; id=0x20D35220; deferrable=true; members=Value:int:raw(4);Next:Shapes.TrackedPick:type(Shapes.TrackedPick)");
 }
 
 /// `Shapes.Generic.TwinA`: Positional, header Presence.
@@ -3388,6 +3442,7 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Shapes.Strides" => f.visit::<Option<Box<Strides>>>(),
         "Shapes.ThingClass" => f.visit::<Option<Box<ThingClass>>>(),
         "Shapes.ThingStruct" => f.visit::<ThingStruct>(),
+        "Shapes.TrackedPick" => f.visit::<Option<nino::Shared<TrackedPick>>>(),
         "Shapes.TupleCell" => f.visit::<TupleCell>(),
         _ => return None,
     })
@@ -3438,6 +3493,7 @@ pub fn with_nino_serde_type<R>(name: &str, f: impl NinoSerdeVisit<R>) -> Option<
         "Shapes.Strides" => f.visit::<Option<Box<Strides>>>(),
         "Shapes.ThingClass" => f.visit::<Option<Box<ThingClass>>>(),
         "Shapes.ThingStruct" => f.visit::<ThingStruct>(),
+        "Shapes.TrackedPick" => f.visit::<Option<nino::Shared<TrackedPick>>>(),
         "Shapes.TupleCell" => f.visit::<TupleCell>(),
         _ => return None,
     })
