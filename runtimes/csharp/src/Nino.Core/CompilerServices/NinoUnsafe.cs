@@ -38,10 +38,14 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// Whether the process is 64-bit. Constant-folded by the JIT.
         /// </summary>
+        // Unsafe.SizeOf, an intrinsic the JIT replaces while it imports the getter, not IntPtr.Size, a property: one
+        // inlining level fewer for every Read and Write, with the same IL size. Deep in a top-level write the JIT
+        // gave up IntPtr.get_Size ("too deep") and left a call before each 4-byte store (FullOpts interceptors
+        // Serialize1/Serialize2, Tier1 NinoSerializeUnionArray; #434).
         public static bool Is64Bit
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => IntPtr.Size == 8;
+            get => Unsafe.SizeOf<IntPtr>() == 8;
         }
 
         /// <summary>
@@ -271,7 +275,11 @@ namespace Nino.Core.CompilerServices
         // Not AggressiveInlining, unlike WriteBytes: the 32-bit branch of Read is imported before it folds away, and
         // this body inlined there takes inlining budget from large methods (with it, on x64, a generated __WriteBody
         // made 9 stack accesses instead of 3, and a generated __ReadTop 83 instead of 69). Only the 32-bit runtimes
-        // UnalignedWide32 leaves out call it.
+        // UnalignedWide32 leaves out call it. The JIT still weighs this call as a candidate at every Read it inlines on
+        // x64 ("unprofitable inline", about 4,000 times over the benchmark suite at Tier1), but charges nothing for it.
+        // Writing Is64Bit's test out in Read (Unsafe.SizeOf<IntPtr>() == 8), which the JIT folds while it imports
+        // Read, removed the candidates and cost a byte of IL per Read, which the budget counts: five collection reads
+        // at Tier1 ran out of budget (NinoDeserializeNullableMemoryInts 11 to 29 stack accesses; #434).
         private static T ReadBytes<T>(ref byte source)
         {
             T value = default;
