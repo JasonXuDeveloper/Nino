@@ -480,10 +480,8 @@ internal static class FormatterEmitter
         // hierarchy, a class below it only its own subtypes, so neither its writes nor its reads test a type that
         // cannot be one of its values, and a type the data names that is not one of them reaches its registry, which
         // rejects it. A generic type is its own root: its dispatch selects one of its closed instances.
-        string write = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer);"
-            : "__WriteSubtype(value, ref writer);";
-        string[] read = !m.DispatchesSubtypes ? new[] { $"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value);" }
-            : new[] { "__ReadSubtype(id, ref reader, ref value);" };
+        const string write = "__WriteSubtype(value, ref writer);";
+        const string read = "__ReadSubtype(id, ref reader, ref value);";
         w.Line(names.Inline);
         w.Open(Signature.Serialize(t));
         if (ownId)
@@ -503,23 +501,14 @@ internal static class FormatterEmitter
         w.Line(names.Inline);
         w.Open(Signature.Deserialize(t));
         w.Line("int id = reader.UnsafeRead<int>();");
-        if (!ownId)
+        if (ownId)
         {
-            foreach (var line in read)
-                w.Line(line);
+            w.Line($"if (!{CoreCompilerServices}NinoObject.TryReadOwn<{t}, {self}>(id, ref reader, ref value))");
+            w.IndentedLine(read);
         }
         else
         {
-            w.Line($"if (!{CoreCompilerServices}NinoObject.TryReadOwn<{t}, {self}>(id, ref reader, ref value))");
-            if (read.Length == 1)
-                w.IndentedLine(read[0]);
-            else
-            {
-                w.Open();
-                foreach (var line in read)
-                    w.Line(line);
-                w.Close();
-            }
+            w.Line(read);
         }
         w.Close();
     }
