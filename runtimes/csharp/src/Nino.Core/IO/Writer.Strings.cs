@@ -70,7 +70,17 @@ namespace Nino.Core
                 return 1;
             }
 
-            return EncodeUtf8(value, ref destination, Utf8Capacity(value));
+            // The room was sized by Utf8MaxSize, which counted a long string's bytes. Counting them again here took a
+            // flat class of one 100,000-char UTF-8 string 1.35 times as long to write as WriteUtf8: where the
+            // shortest and the longest count (1 and 3 bytes per char) take a header of one size, the bound is
+            // enough, as the transcoder writes only the bytes it encodes and the header's size is the same.
+            int length = value.Length;
+            int capacity = length <= Utf8WorstCaseMaxChars ||
+                           length <= int.MaxValue / 3 - NinoStrings.MaxHeaderSize &&
+                           NinoStrings.HeaderSize((uint)length) == NinoStrings.HeaderSize((uint)length * 3)
+                ? length * 3
+                : Utf8ByteCount(value);
+            return EncodeUtf8(value, ref destination, capacity);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
