@@ -391,13 +391,6 @@ namespace Nino.Core.Internal
             // Strings and pairs holding them: the string run kernels, with the data and the bytes left, not the reader,
             // which stays in the caller's registers. Raw values and blocks that reach here are read one by one with
             // their checks, as before.
-            // A class whose generated body is flat (#355): the flat kernels, from NinoFlatRuns.MinRun elements on.
-            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun)
-            {
-                default(TFormatter).ReadFlat(NinoRun.Unscoped(run), ref reader);
-                return;
-            }
-
             if (NinoCursor.Own<T, TFormatter>())
             {
                 ReadStrings<T, TFormatter>(run, ref reader);
@@ -475,6 +468,16 @@ namespace Nino.Core.Internal
         private static Reader ReadEach<T, TFormatter>(scoped ref T item, int count, Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
+            // A class whose generated body is flat (#355): the flat kernels, from NinoFlatRuns.MinRun elements on. Here,
+            // out of line, not in Read: the reader's address passed there kept it in memory in every collection's read
+            // of such a class, short runs included (asm.py: 8 to 21 stack accesses, ChatMessage, ScatteredItem).
+            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun)
+            {
+                default(TFormatter).ReadFlat(NinoRun.Unscoped(new NinoRun(ref Unsafe.As<T, byte>(ref item), count,
+                    Unsafe.SizeOf<T>(), NinoRun.NoKey, NinoRun.AllInUse)), ref reader);
+                return reader;
+            }
+
             ReadLoop<T, TFormatter>(ref Unsafe.As<T, byte>(ref item), count, Unsafe.SizeOf<T>(), ref reader);
             return reader;
         }
