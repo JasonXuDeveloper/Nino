@@ -345,7 +345,7 @@ says which CPUs and cases moved.
   string): one body inlined into a polymorphic dispatch went 14 to 61 stack accesses; compare out of line
   (`Reader.ReadStringAt`, as `ReadString(current)` does). (4) Passing the reader by value, then by reference, to the
   run hook from `NinoRuns.Read`, inlined into every collection, kept it in memory even for short runs (8 to 27);
-  put the branch in `ReadEach`, the out-of-line call those runs already make. (5) The chain inlined as one body into
+  put the branch in `ReadEach`, the out-of-line call those runs already make. On the write side the branch goes after the block, run-loop and string branches (read first, `NinoKind<TFormatter>.Flat` in code shared over classes is no constant: a string array's write 4 to 29 stack accesses, a polymorphic base's `WriteRun` 86 to 234) but before `WritesOnLocal`, which sealed flat classes take too (behind it the kernels went unused, the same bytes: ScatteredTest's write 1.33x); `FlatTests` checks bytes, not which path ran, so read the listing. (5) The chain inlined as one body into
   a union's or a base's dispatch took the caller's budget and left the accessors as calls (UnionArray write 1.08x);
   one body's write is always out of line, a small one's read inline (out of line it read 1.13x). (6) A string item
   kept the field's address and old value live across the string's allocation (UnionItem's inline read 7 to 29 stack
