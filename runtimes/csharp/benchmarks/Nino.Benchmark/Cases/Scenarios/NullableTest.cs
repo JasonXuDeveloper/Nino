@@ -38,8 +38,7 @@ namespace Nino.Benchmark;
     MemoryPackUnsafeValue = "FieldsUnsafe", NullableForms = true, Proto = "NullableFields", Json = "NullableFields")]
 [BenchCase("NullableFieldsArray", Quick = true, Value = "FieldsArray", MemoryPackValue = "FieldsArrayMemoryPack",
     NinoNullableValue = "FieldsArrayNino", MemoryPackUnsafeValue = "FieldsArrayUnsafe", NullableForms = true,
-    Proto = "NullableFieldsList", Json = "NullableFieldsArray",
-    Broken = "LuminPack wrong-read: reads 100 NullableFields back other than it wrote (one reads back right)")]
+    Proto = "NullableFieldsList", Json = "NullableFieldsArray")]
 [BenchCase("NullableStruct", Value = "Struct", MemoryPackValue = "StructMemoryPack", ProtobufValue = "StructProtobuf",
     NinoNullableValue = "StructNino", NullableForms = true, Proto = "OptionalSimpleStruct", Json = "NullableSimpleStruct")]
 [BenchCase("NullableStructs", Quick = true, Value = "Structs", MemoryPackValue = "StructsMemoryPack", ProtobufValue = "StructsProtobuf",

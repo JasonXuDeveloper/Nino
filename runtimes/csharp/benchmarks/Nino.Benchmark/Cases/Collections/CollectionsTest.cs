@@ -57,8 +57,7 @@ namespace Nino.Benchmark;
 [BenchCase("SortedDictionary")]
 [BenchCase("SortedList")]
 [BenchCase("ConcurrentDictionary")]
-[BenchCase("SelfTree", Libraries = "Nino MemoryPack", Builds = "v4",
-    Broken = "LuminPack wrong-read: writes a class derived from List<T> as an object without members, reads back an empty tree")]
+[BenchCase("SelfTree", Libraries = "Nino MemoryPack", Builds = "v4")]
 [BenchClass(Buffer = "1 << 16", Bytes = "{Library}{Case}Bytes", Order = "case")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]

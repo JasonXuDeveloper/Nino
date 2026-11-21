@@ -311,7 +311,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("AsciiStringsSerialize")]
     public int LuminPackSerializeAsciiStrings()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(AsciiStrings, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -383,7 +383,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("MixedStringsSerialize")]
     public int LuminPackSerializeMixedStrings()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(MixedStrings, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -455,7 +455,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("Utf8MixedStringsSerialize")]
     public int LuminPackSerializeUtf8MixedStrings()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Utf8MixedStrings, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -527,7 +527,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("AsciiString32Serialize")]
     public int LuminPackSerializeAsciiString32()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(AsciiString32, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -599,7 +599,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("AsciiString1000Serialize")]
     public int LuminPackSerializeAsciiString1000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(AsciiString1000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -671,7 +671,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("AsciiString100000Serialize")]
     public int LuminPackSerializeAsciiString100000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(AsciiString100000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -743,7 +743,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("CjkString32Serialize")]
     public int LuminPackSerializeCjkString32()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(CjkString32, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -815,7 +815,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("CjkString1000Serialize")]
     public int LuminPackSerializeCjkString1000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(CjkString1000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -887,7 +887,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("CjkString100000Serialize")]
     public int LuminPackSerializeCjkString100000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(CjkString100000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -959,7 +959,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("Utf8AsciiString32Serialize")]
     public int LuminPackSerializeUtf8AsciiString32()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Utf8AsciiString32, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1031,7 +1031,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("Utf8AsciiString1000Serialize")]
     public int LuminPackSerializeUtf8AsciiString1000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Utf8AsciiString1000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1103,7 +1103,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("Utf8AsciiString100000Serialize")]
     public int LuminPackSerializeUtf8AsciiString100000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Utf8AsciiString100000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1175,7 +1175,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("Utf8CjkString1000Serialize")]
     public int LuminPackSerializeUtf8CjkString1000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Utf8CjkString1000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1247,7 +1247,7 @@ partial class StringsTest
     [Benchmark, BenchmarkCategory("AsciiWordsSerialize")]
     public int LuminPackSerializeAsciiWords()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(AsciiWords, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -17,7 +18,7 @@ namespace Nino.Benchmark.Workloads
     // ---------------------------------------------------------------- RPC: a request and its response, whose result is
     // an interface with a generic implementation (Ok<T>) beside two errors.
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class RpcRequest
     {
         [Key(0)] [ProtoMember(1)] public long CallId;
@@ -29,7 +30,7 @@ namespace Nino.Benchmark.Workloads
         [Key(6)] [ProtoMember(7)] public List<int> ItemIds;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class Item
     {
         [Key(0)] [ProtoMember(1)] public int Id;
@@ -39,40 +40,40 @@ namespace Nino.Benchmark.Workloads
     }
 
     /// <summary>A call's result: an interface, each kind its own type (one of them generic).</summary>
-    [NinoType, MemoryPackable, MemoryPackUnion(0, typeof(Ok<List<Item>>)), MemoryPackUnion(1, typeof(NotFound)),
-     MemoryPackUnion(2, typeof(ValidationFailed))]
+    [NinoType, MemoryPackable, LuminPackable, MemoryPackUnion(0, typeof(Ok<List<Item>>)), LuminPackUnion(0, typeof(Ok<List<Item>>)), MemoryPackUnion(1, typeof(NotFound)), LuminPackUnion(1, typeof(NotFound)),
+     MemoryPackUnion(2, typeof(ValidationFailed)), LuminPackUnion(2, typeof(ValidationFailed))]
     [Union(0, typeof(Ok<List<Item>>)), Union(1, typeof(NotFound)), Union(2, typeof(ValidationFailed))]
     [ProtoContract, ProtoInclude(1, typeof(Ok<List<Item>>)), ProtoInclude(2, typeof(NotFound)), ProtoInclude(3, typeof(ValidationFailed))]
     [JsonPolymorphic, JsonDerivedType(typeof(Ok<List<Item>>), "ok"), JsonDerivedType(typeof(NotFound), "not_found"),
      JsonDerivedType(typeof(ValidationFailed), "invalid")]
     public partial interface IRpcResult { }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class Ok<T> : IRpcResult
     {
         [Key(0)] [ProtoMember(1)] public T Value;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class NotFound : IRpcResult
     {
         [Key(0)] [ProtoMember(1)] public string Resource;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class FieldError
     {
         [Key(0)] [ProtoMember(1)] public string Field;
         [Key(1)] [ProtoMember(2)] public string Message;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class ValidationFailed : IRpcResult
     {
         [Key(0)] [ProtoMember(1)] public List<FieldError> Errors;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class RpcResponse
     {
         [Key(0)] [ProtoMember(1)] public long CallId;
@@ -82,7 +83,7 @@ namespace Nino.Benchmark.Workloads
     }
 
     /// <summary>One RPC call: the request and the response a server sends back, with 8 items.</summary>
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class RpcCall
     {
         [Key(0)] [ProtoMember(1)] public RpcRequest Request;
@@ -128,8 +129,8 @@ namespace Nino.Benchmark.Workloads
         [Key(2)] [ProtoMember(22)] public int Version;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
-    [MemoryPackUnion(0, typeof(OrderPlaced)), MemoryPackUnion(1, typeof(OrderShipped)), MemoryPackUnion(2, typeof(OrderCancelled))]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [MemoryPackUnion(0, typeof(OrderPlaced)), LuminPackUnion(0, typeof(OrderPlaced)), MemoryPackUnion(1, typeof(OrderShipped)), LuminPackUnion(1, typeof(OrderShipped)), MemoryPackUnion(2, typeof(OrderCancelled)), LuminPackUnion(2, typeof(OrderCancelled))]
     [Union(0, typeof(OrderPlaced)), Union(1, typeof(OrderShipped)), Union(2, typeof(OrderCancelled))]
     [ProtoInclude(1, typeof(OrderPlaced)), ProtoInclude(2, typeof(OrderShipped)), ProtoInclude(3, typeof(OrderCancelled))]
     [JsonPolymorphic, JsonDerivedType(typeof(OrderPlaced), "placed"), JsonDerivedType(typeof(OrderShipped), "shipped"),
@@ -139,7 +140,7 @@ namespace Nino.Benchmark.Workloads
         [Key(3)] [ProtoMember(20)] public long OrderId;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class OrderPlaced : OrderEvent
     {
         [Key(4)] [ProtoMember(1)] public Guid CustomerId;
@@ -147,7 +148,7 @@ namespace Nino.Benchmark.Workloads
         [Key(6)] [ProtoMember(3)] public List<int> Skus;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class OrderShipped : OrderEvent
     {
         [Key(4)] [ProtoMember(1)] public string Carrier;
@@ -155,14 +156,14 @@ namespace Nino.Benchmark.Workloads
         [Key(6)] [ProtoMember(3)] public DateTime? EstimatedDelivery;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class OrderCancelled : OrderEvent
     {
         [Key(4)] [ProtoMember(1)] public string Reason;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
-    [MemoryPackUnion(0, typeof(PaymentAuthorized)), MemoryPackUnion(1, typeof(PaymentCaptured)), MemoryPackUnion(2, typeof(PaymentRefunded))]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [MemoryPackUnion(0, typeof(PaymentAuthorized)), LuminPackUnion(0, typeof(PaymentAuthorized)), MemoryPackUnion(1, typeof(PaymentCaptured)), LuminPackUnion(1, typeof(PaymentCaptured)), MemoryPackUnion(2, typeof(PaymentRefunded)), LuminPackUnion(2, typeof(PaymentRefunded))]
     [Union(0, typeof(PaymentAuthorized)), Union(1, typeof(PaymentCaptured)), Union(2, typeof(PaymentRefunded))]
     [ProtoInclude(1, typeof(PaymentAuthorized)), ProtoInclude(2, typeof(PaymentCaptured)), ProtoInclude(3, typeof(PaymentRefunded))]
     [JsonPolymorphic, JsonDerivedType(typeof(PaymentAuthorized), "authorized"),
@@ -173,28 +174,28 @@ namespace Nino.Benchmark.Workloads
         [Key(4)] [ProtoMember(21)] public decimal Amount;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class PaymentAuthorized : PaymentEvent
     {
         [Key(5)] [ProtoMember(1)] public string Currency;
         [Key(6)] [ProtoMember(2)] public string CardLast4;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class PaymentCaptured : PaymentEvent
     {
         [Key(5)] [ProtoMember(1)] public DateTime CapturedAt;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class PaymentRefunded : PaymentEvent
     {
         [Key(5)] [ProtoMember(1)] public string Reason;
         [Key(6)] [ProtoMember(2)] public bool Partial;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
-    [MemoryPackUnion(0, typeof(CustomerRegistered)), MemoryPackUnion(1, typeof(CustomerRenamed))]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [MemoryPackUnion(0, typeof(CustomerRegistered)), LuminPackUnion(0, typeof(CustomerRegistered)), MemoryPackUnion(1, typeof(CustomerRenamed)), LuminPackUnion(1, typeof(CustomerRenamed))]
     [Union(0, typeof(CustomerRegistered)), Union(1, typeof(CustomerRenamed))]
     [ProtoInclude(1, typeof(CustomerRegistered)), ProtoInclude(2, typeof(CustomerRenamed))]
     [JsonPolymorphic, JsonDerivedType(typeof(CustomerRegistered), "registered"), JsonDerivedType(typeof(CustomerRenamed), "renamed")]
@@ -203,14 +204,14 @@ namespace Nino.Benchmark.Workloads
         [Key(3)] [ProtoMember(20)] public Guid CustomerId;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class CustomerRegistered : CustomerEvent
     {
         [Key(4)] [ProtoMember(1)] public string Email;
         [Key(5)] [ProtoMember(2)] public string Country;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class CustomerRenamed : CustomerEvent
     {
         [Key(4)] [ProtoMember(1)] public string OldName;
@@ -218,9 +219,9 @@ namespace Nino.Benchmark.Workloads
     }
 
     /// <summary>An event as the store keeps it: a non-generic base, one generic envelope per event family.</summary>
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
-    [MemoryPackUnion(0, typeof(Envelope<OrderEvent>)), MemoryPackUnion(1, typeof(Envelope<PaymentEvent>)),
-     MemoryPackUnion(2, typeof(Envelope<CustomerEvent>))]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [MemoryPackUnion(0, typeof(Envelope<OrderEvent>)), LuminPackUnion(0, typeof(Envelope<OrderEvent>)), MemoryPackUnion(1, typeof(Envelope<PaymentEvent>)), LuminPackUnion(1, typeof(Envelope<PaymentEvent>)),
+     MemoryPackUnion(2, typeof(Envelope<CustomerEvent>)), LuminPackUnion(2, typeof(Envelope<CustomerEvent>))]
     [Union(0, typeof(Envelope<OrderEvent>)), Union(1, typeof(Envelope<PaymentEvent>)), Union(2, typeof(Envelope<CustomerEvent>))]
     [ProtoInclude(1, typeof(Envelope<OrderEvent>)), ProtoInclude(2, typeof(Envelope<PaymentEvent>)),
      ProtoInclude(3, typeof(Envelope<CustomerEvent>))]
@@ -233,7 +234,7 @@ namespace Nino.Benchmark.Workloads
         [Key(2)] [ProtoMember(22)] public DateTime RecordedAt;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class Envelope<TEvent> : Envelope where TEvent : DomainEvent
     {
         [Key(3)] [ProtoMember(1)] public TEvent Event;
@@ -241,7 +242,7 @@ namespace Nino.Benchmark.Workloads
     }
 
     /// <summary>500 events of an event store's stream, in their envelopes.</summary>
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class EventStream
     {
         [Key(0)] [ProtoMember(1)] public long FromSequence;
@@ -308,7 +309,7 @@ namespace Nino.Benchmark.Workloads
 
     public enum Severity { Debug, Info, Warning, Error }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class LogEvent
     {
         [Key(0)] [ProtoMember(1)] public DateTime Timestamp;
@@ -319,7 +320,7 @@ namespace Nino.Benchmark.Workloads
         [Key(5)] [ProtoMember(6)] public Dictionary<string, string> Tags;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class LogBatch
     {
         [Key(0)] [ProtoMember(1)] public string Service;

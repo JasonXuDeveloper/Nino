@@ -22,18 +22,18 @@ namespace Nino.Benchmark.Workloads;
 /// </summary>
 [BenchClass(Buffer = "1 << 20", Value = "{Case}Value", Bytes = "{Library}{Case}Payload", Order = "case", JsonContext = "WorkloadJson")]
 [BenchCase("MediaContent", Quick = true, Proto = "MediaContent", Json = "MediaContent")]
-[BenchCase("StackOverflowPage", Quick = true, Broken = "LuminPack compile: its generator declares element twice for a list of objects inside an element of a list of objects (CS0136)", Proto = "StackOverflowPage", Json = "StackOverflowPage")]
-[BenchCase("RpcCall", Broken = "LuminPack compile: a generic type as a union member of a non-generic base (LuminPack015)", Proto = "RpcCall", Json = "RpcCall")]
-[BenchCase("ProfileCache", Broken = "LuminPack throws: its version-tolerant reader indexes past the members the previous version wrote", Proto = "ProfileV2", Json = "ProfileV2",
+[BenchCase("StackOverflowPage", Quick = true, Proto = "StackOverflowPage", Json = "StackOverflowPage")]
+[BenchCase("RpcCall", Proto = "RpcCall", Json = "RpcCall")]
+[BenchCase("ProfileCache", Proto = "ProfileV2", Json = "ProfileV2",
     Old = "ProfileCacheOld", OldProto = "ProfileV1", OldJson = "ProfileV1", NinoGen = "V3Versioned.NinoGen")]
-[BenchCase("EventStream", Broken = "LuminPack compile: a generic type as a union member of a non-generic base (LuminPack015)", Proto = "EventStream", Json = "EventStream")]
-[BenchCase("LogBatch", Quick = true, Broken = "LuminPack throws: reading its own bytes, length larger than buffer", Proto = "LogBatch", Json = "LogBatch")]
-[BenchCase("StateSnapshot", Quick = true, Broken = "LuminPack throws: reading its own bytes, tag 10 not found in IComponent", Proto = "StateSnapshot", Json = "StateSnapshot", InPlace = true)]
-[BenchCase("LockstepFrames", Broken = "LuminPack compile: its generator declares element twice for a list of objects inside an element of a list of objects (CS0136)", Proto = "LockstepFrames", Json = "LockstepFrames")]
-[BenchCase("AoiUpdate", Broken = "LuminPack throws: reading its own bytes, invalid collection length", Proto = "AoiUpdate", Json = "AoiUpdate")]
-[BenchCase("WorldRegion", Broken = "LuminPack throws: reading its own bytes, invalid collection length", Proto = "WorldRegion", Json = "WorldRegion", JsonContext = "WorkloadReferenceJson")]
-[BenchCase("CardBattleLog", Broken = "LuminPack compile: its generator declares element twice for a list of objects inside an element of a list of objects (CS0136)", Proto = "CardBattleLog", Json = "CardBattleLog", JsonContext = "WorkloadReferenceJson")]
-[BenchCase("IdleSave", Broken = "LuminPack throws: its version-tolerant reader indexes past the members the previous version wrote", Proto = "IdleSaveV2", Json = "IdleSaveV2",
+[BenchCase("EventStream", Proto = "EventStream", Json = "EventStream")]
+[BenchCase("LogBatch", Quick = true, Proto = "LogBatch", Json = "LogBatch")]
+[BenchCase("StateSnapshot", Quick = true, Proto = "StateSnapshot", Json = "StateSnapshot", InPlace = true)]
+[BenchCase("LockstepFrames", Proto = "LockstepFrames", Json = "LockstepFrames")]
+[BenchCase("AoiUpdate", Proto = "AoiUpdate", Json = "AoiUpdate")]
+[BenchCase("WorldRegion", Proto = "WorldRegion", Json = "WorldRegion", JsonContext = "WorkloadReferenceJson")]
+[BenchCase("CardBattleLog", Proto = "CardBattleLog", Json = "CardBattleLog", JsonContext = "WorkloadReferenceJson")]
+[BenchCase("IdleSave", Proto = "IdleSaveV2", Json = "IdleSaveV2",
     Old = "IdleSaveOld", OldProto = "IdleSaveV1", OldJson = "IdleSaveV1", InPlace = true, NinoGen = "V3Versioned.NinoGen")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]

@@ -1,7 +1,7 @@
 // A BenchGen template (runtimes/csharp/tools/BenchGen), not compiled: LuminPack, through its fastest documented calls:
-// into a reused LuminBufferWriter (ResetCore per operation), and from bytes into a new object. Its writers are sized up
-// front (Harness/LuminPackBuffers.cs: its 1.1.9 writes past the end of a writer that has to grow). A case it cannot
-// run (a 1.1.9 bug) is declared with Broken = "LuminPack <kind>: <reason>" (bench-cases.json; the charts show error).
+// into a reused LuminBufferWriter (ResetForReuse per operation: an independent session, Harness/LuminPackBuffers.cs), and
+// from bytes into a new object. Its writers are sized up front, as the other libraries' are. A case it cannot run (a bug
+// of its 2.0.0-rc.2) is declared with Broken = "LuminPack <kind>: <reason>" (bench-cases.json; the charts show error).
 using LuminPack;
 using LuminPack.Utility;
 
@@ -22,7 +22,7 @@ internal static class LuminPackAdapter
 
     public static int Serialize<T>(LuminBufferWriter buffer, T value)
     {
-        buffer.ResetCore();
+        buffer.ResetForReuse();
         LuminPackSerializer.Serialize(value, buffer);
         return buffer.CurrentIndex;
     }

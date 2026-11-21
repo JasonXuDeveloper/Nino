@@ -29,7 +29,7 @@ namespace Nino.Benchmark
     /// wire leaves out), 4 + 4 + 6 + 1 = 15 bytes, 20 in memory.
     /// </summary>
     [NinoType]
-    [MemoryPackable]
+    [MemoryPackable, LuminPackable]
     [MessagePackObject]
     [ProtoContract]
     public partial struct Waypoint

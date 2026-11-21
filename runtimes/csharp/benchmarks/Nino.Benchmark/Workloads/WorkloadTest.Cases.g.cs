@@ -51,78 +51,91 @@ partial class WorkloadTest
     private static readonly byte[] ProtobufStackOverflowPagePayload;
     private static readonly byte[] GoogleProtobufStackOverflowPagePayload;
     private static readonly byte[] JsonStackOverflowPagePayload;
+    private static readonly byte[] LuminPackStackOverflowPagePayload;
     private static readonly byte[] NinoRpcCallPayload;
     private static readonly byte[] MemoryPackRpcCallPayload;
     private static readonly byte[] MessagePackRpcCallPayload;
     private static readonly byte[] ProtobufRpcCallPayload;
     private static readonly byte[] GoogleProtobufRpcCallPayload;
     private static readonly byte[] JsonRpcCallPayload;
+    private static readonly byte[] LuminPackRpcCallPayload;
     private static readonly byte[] NinoProfileCachePayload;
     private static readonly byte[] MemoryPackProfileCachePayload;
     private static readonly byte[] MessagePackProfileCachePayload;
     private static readonly byte[] ProtobufProfileCachePayload;
     private static readonly byte[] GoogleProtobufProfileCachePayload;
     private static readonly byte[] JsonProfileCachePayload;
+    private static readonly byte[] LuminPackProfileCachePayload;
     private static readonly byte[] NinoProfileCacheOldBytes;
     private static readonly byte[] MemoryPackProfileCacheOldBytes;
     private static readonly byte[] MessagePackProfileCacheOldBytes;
     private static readonly byte[] ProtobufProfileCacheOldBytes;
     private static readonly byte[] GoogleProtobufProfileCacheOldBytes;
     private static readonly byte[] JsonProfileCacheOldBytes;
+    private static readonly byte[] LuminPackProfileCacheOldBytes;
     private static readonly byte[] NinoEventStreamPayload;
     private static readonly byte[] MemoryPackEventStreamPayload;
     private static readonly byte[] MessagePackEventStreamPayload;
     private static readonly byte[] ProtobufEventStreamPayload;
     private static readonly byte[] GoogleProtobufEventStreamPayload;
     private static readonly byte[] JsonEventStreamPayload;
+    private static readonly byte[] LuminPackEventStreamPayload;
     private static readonly byte[] NinoLogBatchPayload;
     private static readonly byte[] MemoryPackLogBatchPayload;
     private static readonly byte[] MessagePackLogBatchPayload;
     private static readonly byte[] ProtobufLogBatchPayload;
     private static readonly byte[] GoogleProtobufLogBatchPayload;
     private static readonly byte[] JsonLogBatchPayload;
+    private static readonly byte[] LuminPackLogBatchPayload;
     private static readonly byte[] NinoStateSnapshotPayload;
     private static readonly byte[] MemoryPackStateSnapshotPayload;
     private static readonly byte[] MessagePackStateSnapshotPayload;
     private static readonly byte[] ProtobufStateSnapshotPayload;
     private static readonly byte[] GoogleProtobufStateSnapshotPayload;
     private static readonly byte[] JsonStateSnapshotPayload;
+    private static readonly byte[] LuminPackStateSnapshotPayload;
     private static readonly byte[] NinoLockstepFramesPayload;
     private static readonly byte[] MemoryPackLockstepFramesPayload;
     private static readonly byte[] MessagePackLockstepFramesPayload;
     private static readonly byte[] ProtobufLockstepFramesPayload;
     private static readonly byte[] GoogleProtobufLockstepFramesPayload;
     private static readonly byte[] JsonLockstepFramesPayload;
+    private static readonly byte[] LuminPackLockstepFramesPayload;
     private static readonly byte[] NinoAoiUpdatePayload;
     private static readonly byte[] MemoryPackAoiUpdatePayload;
     private static readonly byte[] MessagePackAoiUpdatePayload;
     private static readonly byte[] ProtobufAoiUpdatePayload;
     private static readonly byte[] GoogleProtobufAoiUpdatePayload;
     private static readonly byte[] JsonAoiUpdatePayload;
+    private static readonly byte[] LuminPackAoiUpdatePayload;
     private static readonly byte[] NinoWorldRegionPayload;
     private static readonly byte[] MemoryPackWorldRegionPayload;
     private static readonly byte[] MessagePackWorldRegionPayload;
     private static readonly byte[] ProtobufWorldRegionPayload;
     private static readonly byte[] GoogleProtobufWorldRegionPayload;
     private static readonly byte[] JsonWorldRegionPayload;
+    private static readonly byte[] LuminPackWorldRegionPayload;
     private static readonly byte[] NinoCardBattleLogPayload;
     private static readonly byte[] MemoryPackCardBattleLogPayload;
     private static readonly byte[] MessagePackCardBattleLogPayload;
     private static readonly byte[] ProtobufCardBattleLogPayload;
     private static readonly byte[] GoogleProtobufCardBattleLogPayload;
     private static readonly byte[] JsonCardBattleLogPayload;
+    private static readonly byte[] LuminPackCardBattleLogPayload;
     private static readonly byte[] NinoIdleSavePayload;
     private static readonly byte[] MemoryPackIdleSavePayload;
     private static readonly byte[] MessagePackIdleSavePayload;
     private static readonly byte[] ProtobufIdleSavePayload;
     private static readonly byte[] GoogleProtobufIdleSavePayload;
     private static readonly byte[] JsonIdleSavePayload;
+    private static readonly byte[] LuminPackIdleSavePayload;
     private static readonly byte[] NinoIdleSaveOldBytes;
     private static readonly byte[] MemoryPackIdleSaveOldBytes;
     private static readonly byte[] MessagePackIdleSaveOldBytes;
     private static readonly byte[] ProtobufIdleSaveOldBytes;
     private static readonly byte[] GoogleProtobufIdleSaveOldBytes;
     private static readonly byte[] JsonIdleSaveOldBytes;
+    private static readonly byte[] LuminPackIdleSaveOldBytes;
 
     static WorkloadTest()
     {
@@ -140,6 +153,7 @@ partial class WorkloadTest
         ProtobufStackOverflowPagePayload = ProtobufModel.Serialize(StackOverflowPageValue);
         GoogleProtobufStackOverflowPagePayload = StackOverflowPageProto.ToByteArray();
         JsonStackOverflowPagePayload = JsonSerializer.SerializeToUtf8Bytes(StackOverflowPageValue, WorkloadJson.Default.StackOverflowPage);
+        LuminPackStackOverflowPagePayload = LuminPackBuffers.Bytes(StackOverflowPageValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoRpcCallPayload = NinoSerializer.Serialize(RpcCallValue);
         MemoryPackRpcCallPayload = MemoryPackSerializer.Serialize(RpcCallValue);
@@ -147,6 +161,7 @@ partial class WorkloadTest
         ProtobufRpcCallPayload = ProtobufModel.Serialize(RpcCallValue);
         GoogleProtobufRpcCallPayload = RpcCallProto.ToByteArray();
         JsonRpcCallPayload = JsonSerializer.SerializeToUtf8Bytes(RpcCallValue, WorkloadJson.Default.RpcCall);
+        LuminPackRpcCallPayload = LuminPackBuffers.Bytes(RpcCallValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoProfileCachePayload = NinoSerializer.Serialize(ProfileCacheValue);
         MemoryPackProfileCachePayload = MemoryPackSerializer.Serialize(ProfileCacheValue);
@@ -154,12 +169,14 @@ partial class WorkloadTest
         ProtobufProfileCachePayload = ProtobufModel.Serialize(ProfileCacheValue);
         GoogleProtobufProfileCachePayload = ProfileCacheProto.ToByteArray();
         JsonProfileCachePayload = JsonSerializer.SerializeToUtf8Bytes(ProfileCacheValue, WorkloadJson.Default.ProfileV2);
+        LuminPackProfileCachePayload = LuminPackBuffers.Bytes(ProfileCacheValue, (v, w) => LuminPackSerializer.Serialize(v, w));
         NinoProfileCacheOldBytes = NinoSerializer.Serialize(ProfileCacheOld);
         MemoryPackProfileCacheOldBytes = MemoryPackSerializer.Serialize(ProfileCacheOld);
         MessagePackProfileCacheOldBytes = MessagePackSerializer.Serialize(ProfileCacheOld);
         ProtobufProfileCacheOldBytes = ProtobufModel.Serialize(ProfileCacheOld);
         GoogleProtobufProfileCacheOldBytes = P.ProfileV1.Parser.ParseFrom(ProtobufModel.Serialize(ProfileCacheOld)).ToByteArray();
         JsonProfileCacheOldBytes = JsonSerializer.SerializeToUtf8Bytes(ProfileCacheOld, WorkloadJson.Default.ProfileV1);
+        LuminPackProfileCacheOldBytes = LuminPackBuffers.Bytes(ProfileCacheOld, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoEventStreamPayload = NinoSerializer.Serialize(EventStreamValue);
         MemoryPackEventStreamPayload = MemoryPackSerializer.Serialize(EventStreamValue);
@@ -167,6 +184,7 @@ partial class WorkloadTest
         ProtobufEventStreamPayload = ProtobufModel.Serialize(EventStreamValue);
         GoogleProtobufEventStreamPayload = EventStreamProto.ToByteArray();
         JsonEventStreamPayload = JsonSerializer.SerializeToUtf8Bytes(EventStreamValue, WorkloadJson.Default.EventStream);
+        LuminPackEventStreamPayload = LuminPackBuffers.Bytes(EventStreamValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoLogBatchPayload = NinoSerializer.Serialize(LogBatchValue);
         MemoryPackLogBatchPayload = MemoryPackSerializer.Serialize(LogBatchValue);
@@ -174,6 +192,7 @@ partial class WorkloadTest
         ProtobufLogBatchPayload = ProtobufModel.Serialize(LogBatchValue);
         GoogleProtobufLogBatchPayload = LogBatchProto.ToByteArray();
         JsonLogBatchPayload = JsonSerializer.SerializeToUtf8Bytes(LogBatchValue, WorkloadJson.Default.LogBatch);
+        LuminPackLogBatchPayload = LuminPackBuffers.Bytes(LogBatchValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoStateSnapshotPayload = NinoSerializer.Serialize(StateSnapshotValue);
         MemoryPackStateSnapshotPayload = MemoryPackSerializer.Serialize(StateSnapshotValue);
@@ -181,6 +200,7 @@ partial class WorkloadTest
         ProtobufStateSnapshotPayload = ProtobufModel.Serialize(StateSnapshotValue);
         GoogleProtobufStateSnapshotPayload = StateSnapshotProto.ToByteArray();
         JsonStateSnapshotPayload = JsonSerializer.SerializeToUtf8Bytes(StateSnapshotValue, WorkloadJson.Default.StateSnapshot);
+        LuminPackStateSnapshotPayload = LuminPackBuffers.Bytes(StateSnapshotValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoLockstepFramesPayload = NinoSerializer.Serialize(LockstepFramesValue);
         MemoryPackLockstepFramesPayload = MemoryPackSerializer.Serialize(LockstepFramesValue);
@@ -188,6 +208,7 @@ partial class WorkloadTest
         ProtobufLockstepFramesPayload = ProtobufModel.Serialize(LockstepFramesValue);
         GoogleProtobufLockstepFramesPayload = LockstepFramesProto.ToByteArray();
         JsonLockstepFramesPayload = JsonSerializer.SerializeToUtf8Bytes(LockstepFramesValue, WorkloadJson.Default.LockstepFrames);
+        LuminPackLockstepFramesPayload = LuminPackBuffers.Bytes(LockstepFramesValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoAoiUpdatePayload = NinoSerializer.Serialize(AoiUpdateValue);
         MemoryPackAoiUpdatePayload = MemoryPackSerializer.Serialize(AoiUpdateValue);
@@ -195,6 +216,7 @@ partial class WorkloadTest
         ProtobufAoiUpdatePayload = ProtobufModel.Serialize(AoiUpdateValue);
         GoogleProtobufAoiUpdatePayload = AoiUpdateProto.ToByteArray();
         JsonAoiUpdatePayload = JsonSerializer.SerializeToUtf8Bytes(AoiUpdateValue, WorkloadJson.Default.AoiUpdate);
+        LuminPackAoiUpdatePayload = LuminPackBuffers.Bytes(AoiUpdateValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoWorldRegionPayload = NinoSerializer.Serialize(WorldRegionValue);
         MemoryPackWorldRegionPayload = MemoryPackSerializer.Serialize(WorldRegionValue);
@@ -202,6 +224,7 @@ partial class WorkloadTest
         ProtobufWorldRegionPayload = ProtobufModel.Serialize(WorldRegionValue);
         GoogleProtobufWorldRegionPayload = WorldRegionProto.ToByteArray();
         JsonWorldRegionPayload = JsonSerializer.SerializeToUtf8Bytes(WorldRegionValue, WorkloadReferenceJson.Default.WorldRegion);
+        LuminPackWorldRegionPayload = LuminPackBuffers.Bytes(WorldRegionValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoCardBattleLogPayload = NinoSerializer.Serialize(CardBattleLogValue);
         MemoryPackCardBattleLogPayload = MemoryPackSerializer.Serialize(CardBattleLogValue);
@@ -209,6 +232,7 @@ partial class WorkloadTest
         ProtobufCardBattleLogPayload = ProtobufModel.Serialize(CardBattleLogValue);
         GoogleProtobufCardBattleLogPayload = CardBattleLogProto.ToByteArray();
         JsonCardBattleLogPayload = JsonSerializer.SerializeToUtf8Bytes(CardBattleLogValue, WorkloadReferenceJson.Default.CardBattleLog);
+        LuminPackCardBattleLogPayload = LuminPackBuffers.Bytes(CardBattleLogValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoIdleSavePayload = NinoSerializer.Serialize(IdleSaveValue);
         MemoryPackIdleSavePayload = MemoryPackSerializer.Serialize(IdleSaveValue);
@@ -216,12 +240,14 @@ partial class WorkloadTest
         ProtobufIdleSavePayload = ProtobufModel.Serialize(IdleSaveValue);
         GoogleProtobufIdleSavePayload = IdleSaveProto.ToByteArray();
         JsonIdleSavePayload = JsonSerializer.SerializeToUtf8Bytes(IdleSaveValue, WorkloadJson.Default.IdleSaveV2);
+        LuminPackIdleSavePayload = LuminPackBuffers.Bytes(IdleSaveValue, (v, w) => LuminPackSerializer.Serialize(v, w));
         NinoIdleSaveOldBytes = NinoSerializer.Serialize(IdleSaveOld);
         MemoryPackIdleSaveOldBytes = MemoryPackSerializer.Serialize(IdleSaveOld);
         MessagePackIdleSaveOldBytes = MessagePackSerializer.Serialize(IdleSaveOld);
         ProtobufIdleSaveOldBytes = ProtobufModel.Serialize(IdleSaveOld);
         GoogleProtobufIdleSaveOldBytes = P.IdleSaveV1.Parser.ParseFrom(ProtobufModel.Serialize(IdleSaveOld)).ToByteArray();
         JsonIdleSaveOldBytes = JsonSerializer.SerializeToUtf8Bytes(IdleSaveOld, WorkloadJson.Default.IdleSaveV1);
+        LuminPackIdleSaveOldBytes = LuminPackBuffers.Bytes(IdleSaveOld, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeMediaContent), NinoMediaContentPayload);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeStackOverflowPage), NinoStackOverflowPagePayload);
@@ -302,6 +328,17 @@ partial class WorkloadTest
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeIdleSave), JsonIdleSavePayload);
 
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeMediaContent), LuminPackMediaContentPayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeStackOverflowPage), LuminPackStackOverflowPagePayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeRpcCall), LuminPackRpcCallPayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeProfileCache), LuminPackProfileCachePayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeEventStream), LuminPackEventStreamPayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeLogBatch), LuminPackLogBatchPayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeStateSnapshot), LuminPackStateSnapshotPayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeLockstepFrames), LuminPackLockstepFramesPayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeAoiUpdate), LuminPackAoiUpdatePayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeWorldRegion), LuminPackWorldRegionPayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeCardBattleLog), LuminPackCardBattleLogPayload);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeIdleSave), LuminPackIdleSavePayload);
     }
 
     [GlobalSetup]
@@ -378,7 +415,7 @@ partial class WorkloadTest
     [Benchmark, BenchmarkCategory("MediaContentSerialize")]
     public int LuminPackSerializeMediaContent()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(MediaContentValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -476,6 +513,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("StackOverflowPageSerialize")]
+    public int LuminPackSerializeStackOverflowPage()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(StackOverflowPageValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("StackOverflowPageDeserialize")]
     public StackOverflowPage NinoDeserializeStackOverflowPage()
     {
@@ -510,6 +555,14 @@ partial class WorkloadTest
     public StackOverflowPage JsonDeserializeStackOverflowPage()
     {
         return JsonSerializer.Deserialize(JsonStackOverflowPagePayload, WorkloadJson.Default.StackOverflowPage);
+    }
+
+    [Benchmark, BenchmarkCategory("StackOverflowPageDeserialize")]
+    public StackOverflowPage LuminPackDeserializeStackOverflowPage()
+    {
+        StackOverflowPage result = default;
+        LuminPackSerializer.Deserialize(LuminPackStackOverflowPagePayload, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("RpcCallSerialize")]
@@ -561,6 +614,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("RpcCallSerialize")]
+    public int LuminPackSerializeRpcCall()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(RpcCallValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("RpcCallDeserialize")]
     public RpcCall NinoDeserializeRpcCall()
     {
@@ -595,6 +656,14 @@ partial class WorkloadTest
     public RpcCall JsonDeserializeRpcCall()
     {
         return JsonSerializer.Deserialize(JsonRpcCallPayload, WorkloadJson.Default.RpcCall);
+    }
+
+    [Benchmark, BenchmarkCategory("RpcCallDeserialize")]
+    public RpcCall LuminPackDeserializeRpcCall()
+    {
+        RpcCall result = default;
+        LuminPackSerializer.Deserialize(LuminPackRpcCallPayload, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ProfileCacheSerialize")]
@@ -646,6 +715,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("ProfileCacheSerialize")]
+    public int LuminPackSerializeProfileCache()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(ProfileCacheValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("ProfileCacheDeserialize")]
     public ProfileV2 NinoDeserializeProfileCache()
     {
@@ -680,6 +757,14 @@ partial class WorkloadTest
     public ProfileV2 JsonDeserializeProfileCache()
     {
         return JsonSerializer.Deserialize(JsonProfileCacheOldBytes, WorkloadJson.Default.ProfileV2);
+    }
+
+    [Benchmark, BenchmarkCategory("ProfileCacheDeserialize")]
+    public ProfileV2 LuminPackDeserializeProfileCache()
+    {
+        ProfileV2 result = default;
+        LuminPackSerializer.Deserialize(LuminPackProfileCacheOldBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("EventStreamSerialize")]
@@ -731,6 +816,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("EventStreamSerialize")]
+    public int LuminPackSerializeEventStream()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(EventStreamValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("EventStreamDeserialize")]
     public EventStream NinoDeserializeEventStream()
     {
@@ -765,6 +858,14 @@ partial class WorkloadTest
     public EventStream JsonDeserializeEventStream()
     {
         return JsonSerializer.Deserialize(JsonEventStreamPayload, WorkloadJson.Default.EventStream);
+    }
+
+    [Benchmark, BenchmarkCategory("EventStreamDeserialize")]
+    public EventStream LuminPackDeserializeEventStream()
+    {
+        EventStream result = default;
+        LuminPackSerializer.Deserialize(LuminPackEventStreamPayload, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("LogBatchSerialize")]
@@ -816,6 +917,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("LogBatchSerialize")]
+    public int LuminPackSerializeLogBatch()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(LogBatchValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("LogBatchDeserialize")]
     public LogBatch NinoDeserializeLogBatch()
     {
@@ -850,6 +959,14 @@ partial class WorkloadTest
     public LogBatch JsonDeserializeLogBatch()
     {
         return JsonSerializer.Deserialize(JsonLogBatchPayload, WorkloadJson.Default.LogBatch);
+    }
+
+    [Benchmark, BenchmarkCategory("LogBatchDeserialize")]
+    public LogBatch LuminPackDeserializeLogBatch()
+    {
+        LogBatch result = default;
+        LuminPackSerializer.Deserialize(LuminPackLogBatchPayload, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("StateSnapshotSerialize")]
@@ -901,6 +1018,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("StateSnapshotSerialize")]
+    public int LuminPackSerializeStateSnapshot()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(StateSnapshotValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("StateSnapshotDeserialize")]
     public StateSnapshot NinoDeserializeStateSnapshot()
     {
@@ -937,6 +1062,14 @@ partial class WorkloadTest
     public StateSnapshot JsonDeserializeStateSnapshot()
     {
         return JsonSerializer.Deserialize(JsonStateSnapshotPayload, WorkloadJson.Default.StateSnapshot);
+    }
+
+    [Benchmark, BenchmarkCategory("StateSnapshotDeserialize")]
+    public StateSnapshot LuminPackDeserializeStateSnapshot()
+    {
+        StateSnapshot result = default;
+        LuminPackSerializer.Deserialize(LuminPackStateSnapshotPayload, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("LockstepFramesSerialize")]
@@ -988,6 +1121,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("LockstepFramesSerialize")]
+    public int LuminPackSerializeLockstepFrames()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(LockstepFramesValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("LockstepFramesDeserialize")]
     public LockstepFrames NinoDeserializeLockstepFrames()
     {
@@ -1022,6 +1163,14 @@ partial class WorkloadTest
     public LockstepFrames JsonDeserializeLockstepFrames()
     {
         return JsonSerializer.Deserialize(JsonLockstepFramesPayload, WorkloadJson.Default.LockstepFrames);
+    }
+
+    [Benchmark, BenchmarkCategory("LockstepFramesDeserialize")]
+    public LockstepFrames LuminPackDeserializeLockstepFrames()
+    {
+        LockstepFrames result = default;
+        LuminPackSerializer.Deserialize(LuminPackLockstepFramesPayload, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("AoiUpdateSerialize")]
@@ -1073,6 +1222,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("AoiUpdateSerialize")]
+    public int LuminPackSerializeAoiUpdate()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(AoiUpdateValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("AoiUpdateDeserialize")]
     public AoiUpdate NinoDeserializeAoiUpdate()
     {
@@ -1107,6 +1264,14 @@ partial class WorkloadTest
     public AoiUpdate JsonDeserializeAoiUpdate()
     {
         return JsonSerializer.Deserialize(JsonAoiUpdatePayload, WorkloadJson.Default.AoiUpdate);
+    }
+
+    [Benchmark, BenchmarkCategory("AoiUpdateDeserialize")]
+    public AoiUpdate LuminPackDeserializeAoiUpdate()
+    {
+        AoiUpdate result = default;
+        LuminPackSerializer.Deserialize(LuminPackAoiUpdatePayload, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("WorldRegionSerialize")]
@@ -1158,6 +1323,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("WorldRegionSerialize")]
+    public int LuminPackSerializeWorldRegion()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(WorldRegionValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("WorldRegionDeserialize")]
     public WorldRegion NinoDeserializeWorldRegion()
     {
@@ -1192,6 +1365,14 @@ partial class WorkloadTest
     public WorldRegion JsonDeserializeWorldRegion()
     {
         return JsonSerializer.Deserialize(JsonWorldRegionPayload, WorkloadReferenceJson.Default.WorldRegion);
+    }
+
+    [Benchmark, BenchmarkCategory("WorldRegionDeserialize")]
+    public WorldRegion LuminPackDeserializeWorldRegion()
+    {
+        WorldRegion result = default;
+        LuminPackSerializer.Deserialize(LuminPackWorldRegionPayload, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("CardBattleLogSerialize")]
@@ -1243,6 +1424,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("CardBattleLogSerialize")]
+    public int LuminPackSerializeCardBattleLog()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(CardBattleLogValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("CardBattleLogDeserialize")]
     public CardBattleLog NinoDeserializeCardBattleLog()
     {
@@ -1277,6 +1466,14 @@ partial class WorkloadTest
     public CardBattleLog JsonDeserializeCardBattleLog()
     {
         return JsonSerializer.Deserialize(JsonCardBattleLogPayload, WorkloadReferenceJson.Default.CardBattleLog);
+    }
+
+    [Benchmark, BenchmarkCategory("CardBattleLogDeserialize")]
+    public CardBattleLog LuminPackDeserializeCardBattleLog()
+    {
+        CardBattleLog result = default;
+        LuminPackSerializer.Deserialize(LuminPackCardBattleLogPayload, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("IdleSaveSerialize")]
@@ -1328,6 +1525,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("IdleSaveSerialize")]
+    public int LuminPackSerializeIdleSave()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(IdleSaveValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("IdleSaveDeserialize")]
     public IdleSaveV2 NinoDeserializeIdleSave()
     {
@@ -1364,6 +1569,14 @@ partial class WorkloadTest
     public IdleSaveV2 JsonDeserializeIdleSave()
     {
         return JsonSerializer.Deserialize(JsonIdleSaveOldBytes, WorkloadJson.Default.IdleSaveV2);
+    }
+
+    [Benchmark, BenchmarkCategory("IdleSaveDeserialize")]
+    public IdleSaveV2 LuminPackDeserializeIdleSave()
+    {
+        IdleSaveV2 result = default;
+        LuminPackSerializer.Deserialize(LuminPackIdleSaveOldBytes, ref result);
+        return result;
     }
 }
 #else

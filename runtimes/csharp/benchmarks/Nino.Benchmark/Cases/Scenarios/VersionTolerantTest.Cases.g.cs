@@ -118,7 +118,7 @@ partial class VersionTolerantTest
     [Benchmark, BenchmarkCategory("TolerantClassSerialize")]
     public int LuminPackSerializeTolerantClass()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(TolerantClass, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -158,7 +158,7 @@ partial class VersionTolerantTest
     [Benchmark, BenchmarkCategory("TolerantClassesSerialize")]
     public int LuminPackSerializeTolerantClasses()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(TolerantClasses, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }

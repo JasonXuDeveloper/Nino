@@ -11,11 +11,16 @@
         <BaseOutputPath>bin/v3/</BaseOutputPath>
     </PropertyGroup>
 
-    <!-- The v3 run times Nino and MemoryPack only: its models keep LuminPack's attributes (LuminPack.dll), without
-         LuminPack's source generator, which would write its serializers into the v3 projects too. -->
+    <!-- The v3 run times Nino and MemoryPack only: its models keep LuminPack's attributes (LuminPack.Core.dll), without
+         LuminPack's source generator, which would write its serializers into the v3 projects too, and without its
+         interceptors and IL rewriting of the calls (LuminPack.props turns both on). -->
+    <PropertyGroup Condition="'$(NinoBenchV3)' == 'true'">
+        <LuminPackUseInterceptors>false</LuminPackUseInterceptors>
+        <LuminPackUseIlRewriting>false</LuminPackUseIlRewriting>
+    </PropertyGroup>
     <Target Name="RemoveLuminPackGenerator" BeforeTargets="CoreCompile" Condition="'$(NinoBenchV3)' == 'true'">
         <ItemGroup>
-            <Analyzer Remove="@(Analyzer)" Condition="'%(Filename)' == 'LuminPackGenerator'"/>
+            <Analyzer Remove="@(Analyzer)" Condition="'%(Filename)' == 'LuminPack.SourceGenerator' Or '%(Filename)' == 'LuminPack.CodeFixes'"/>
         </ItemGroup>
     </Target>
 </Project>

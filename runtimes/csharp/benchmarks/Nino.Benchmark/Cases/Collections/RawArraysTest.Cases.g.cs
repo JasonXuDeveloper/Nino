@@ -342,7 +342,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("IntLongPairs32Serialize")]
     public int LuminPackSerializeIntLongPairs32()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(IntLongPairs32, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -414,7 +414,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("IntLongPairs1000Serialize")]
     public int LuminPackSerializeIntLongPairs1000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(IntLongPairs1000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -486,7 +486,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("IntLongPairs100000Serialize")]
     public int LuminPackSerializeIntLongPairs100000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(IntLongPairs100000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -558,7 +558,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("ByteIntPairs32Serialize")]
     public int LuminPackSerializeByteIntPairs32()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ByteIntPairs32, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -630,7 +630,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("ByteIntPairs1000Serialize")]
     public int LuminPackSerializeByteIntPairs1000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ByteIntPairs1000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -702,7 +702,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("ByteIntPairs100000Serialize")]
     public int LuminPackSerializeByteIntPairs100000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ByteIntPairs100000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -774,7 +774,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("FiveTuples32Serialize")]
     public int LuminPackSerializeFiveTuples32()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(FiveTuples32, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -846,7 +846,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("FiveTuples1000Serialize")]
     public int LuminPackSerializeFiveTuples1000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(FiveTuples1000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -918,7 +918,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("FiveTuples100000Serialize")]
     public int LuminPackSerializeFiveTuples100000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(FiveTuples100000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -990,7 +990,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("PaddedRaws32Serialize")]
     public int LuminPackSerializePaddedRaws32()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(PaddedRaws32, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1062,7 +1062,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("PaddedRaws1000Serialize")]
     public int LuminPackSerializePaddedRaws1000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(PaddedRaws1000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1134,7 +1134,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("PaddedRaws100000Serialize")]
     public int LuminPackSerializePaddedRaws100000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(PaddedRaws100000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1206,7 +1206,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("Doubles10000Serialize")]
     public int LuminPackSerializeDoubles10000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Doubles10000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1278,7 +1278,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("Ints10000Serialize")]
     public int LuminPackSerializeInts10000()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Ints10000, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1350,7 +1350,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("GenericBoxesSerialize")]
     public int LuminPackSerializeGenericBoxes()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(GenericBoxes, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1422,7 +1422,7 @@ partial class RawArraysTest
     [Benchmark, BenchmarkCategory("LongBoxesSerialize")]
     public int LuminPackSerializeLongBoxes()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(LongBoxes, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
