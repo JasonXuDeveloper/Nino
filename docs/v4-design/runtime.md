@@ -27,13 +27,14 @@ and owned by a `NinoArrayBufferWriter`.
   overload's. The array grows by doubling as bytes arrive, and a seekable stream's `Length` sizes the first one only
   up to 1 MiB, so a stream makes Nino hold at most about twice what it delivered. The async forms return `ValueTask`
   in every build. All of this is `NinoStreams`.
-* A UTF-8 string of at most 32 chars (`[NinoUtf8]`, .NET 8+) is narrowed or widened by Nino's own word-at-a-time
-  ASCII loop when every char is ASCII, and only otherwise by the runtime's `Utf8` transcoder; the reader checks each
-  byte below 0x80 and rejects the rest as the transcoder does. The bytes are the same. The runtime's ReadyToRun
-  CoreLib transcoder uses SSE encodings, and after Nino's own 256-bit code (an inlined UTF-16 string kernel) each
-  call paid an AVX-SSE transition until the method tiered up: a class of a UTF-16 and a UTF-8 string took 177 ns to
-  write at TC=0 against 25 ns with the members swapped, and a class of seven members with both 179 ns, 26 ns with the
-  ASCII loop.
+* A UTF-8 string of at most 32 chars (`[NinoUtf8]`, .NET 8+) is narrowed or widened by Nino's own code (overlapping
+  128-bit loads, then the Latin-1 widen) when every char is ASCII, and only otherwise by the runtime's `Utf8`
+  transcoder; the reader checks each byte below 0x80 and rejects the rest as the transcoder does. The bytes are the
+  same. The runtime's ReadyToRun CoreLib transcoder uses SSE encodings, and after Nino's own 256-bit code (an inlined
+  UTF-16 string kernel) each call paid an AVX-SSE transition until the method tiered up: a class of a UTF-16 and a
+  UTF-8 string took 177 ns to write at TC=0 against 25 ns with the members swapped, and a class of seven members with
+  both 179 ns, 26 ns with Nino's own path (a word-at-a-time scalar loop there was slower than the transcoder at
+  Tier1).
 
 ## Reader
 
