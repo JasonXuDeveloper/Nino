@@ -39,7 +39,7 @@ namespace Nino.SeamProto
 
             int count = args.Length > 1 ? int.Parse(args[1]) : 1000;
             Console.WriteLine(
-                $"seam={(Seam.On ? 1 : 0)} flatA={SeamCheck.Flat<Nino_SeamProto_SeamOneFormatter>()} flatB={SeamCheck.Flat<Nino_SeamProto_SeamManyFormatter>()} count={count}");
+                $"seam={(Seam.On ? 1 : 0)} flatA={SeamCheck.Flat<Nino_SeamProto_SeamOneFormatter>()} flatB={SeamCheck.Flat<Nino_SeamProto_SeamManyFormatter>()} flatBTop={SeamCheck.Flat<Nino_SeamProto_SeamManyFormatter.__Top>()} count={count}");
             var ones = SeamData.Ones(count, false);
             var manys = SeamData.Manys(count, false);
             var oneList = new List<SeamOne>(ones);

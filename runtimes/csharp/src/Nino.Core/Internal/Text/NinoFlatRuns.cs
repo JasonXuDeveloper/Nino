@@ -44,7 +44,9 @@ namespace Nino.Core.Internal
     /// <summary>An item of a flat body: its bytes at most, written, and read, for an object of the type.</summary>
     internal interface INinoFlatItem
     {
-        int MaxSize(object value);
+        /// <summary>The most bytes <see cref="WriteAt"/> writes, as a long: a chain adds its items' without a check
+        /// per item, so the constants fold into one, and its element checks the total once.</summary>
+        long MaxSize(object value);
 
         int WriteAt(ref byte destination, object value);
 
@@ -61,7 +63,7 @@ namespace Nino.Core.Internal
         where TMember : struct, INinoMember
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(object value) => default(TMember).Size;
+        public long MaxSize(object value) => default(TMember).Size;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int WriteAt(ref byte destination, object value)
@@ -87,7 +89,7 @@ namespace Nino.Core.Internal
         where TMember : struct, INinoMember
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(object value) => 1;
+        public long MaxSize(object value) => 1;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int WriteAt(ref byte destination, object value)
@@ -116,7 +118,7 @@ namespace Nino.Core.Internal
         where TString : struct, INinoRunItem
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(object value) =>
+        public long MaxSize(object value) =>
             default(TString).MaxSize(ref default(TMember).Ref(value));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -135,12 +137,7 @@ namespace Nino.Core.Internal
         where TItem : struct, INinoFlatItem
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(object value)
-        {
-            int first = default(THead).MaxSize(value);
-            int second = default(TItem).MaxSize(value);
-            return (uint)first + (ulong)(uint)second > int.MaxValue ? -1 : first + second;
-        }
+        public long MaxSize(object value) => default(THead).MaxSize(value) + default(TItem).MaxSize(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int WriteAt(ref byte destination, object value)
@@ -172,8 +169,8 @@ namespace Nino.Core.Internal
             object value = Unsafe.As<byte, object>(ref element);
             if (value == null)
                 return 1;
-            int body = default(TBody).MaxSize(value);
-            return body < 0 || body == int.MaxValue ? -1 : body + 1;
+            long body = default(TBody).MaxSize(value);
+            return body >= int.MaxValue ? -1 : (int)body + 1;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -231,8 +228,8 @@ namespace Nino.Core.Internal
                 return 4;
             if (!default(TLayout).IsExact(value))
                 return NinoFlatRuns.Leave;
-            int body = default(TBody).MaxSize(value);
-            return body < 0 || body > int.MaxValue - 4 ? -1 : body + 4;
+            long body = default(TBody).MaxSize(value);
+            return body > int.MaxValue - 4 ? -1 : (int)body + 4;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -429,8 +426,8 @@ namespace Nino.Core.Internal
         {
             Writer local = default;
             writer.CopyCursorTo(ref local);
-            int max = default(TBody).MaxSize(value);
-            local.Commit(default(TBody).WriteAt(ref local.Ensure(max), value));
+            long max = default(TBody).MaxSize(value);
+            local.Commit(default(TBody).WriteAt(ref local.Ensure(max > int.MaxValue ? -1 : (int)max), value));
             local.CopyCursorTo(ref writer);
         }
 

@@ -218,6 +218,19 @@ namespace NinoGen
             NinoFlatRuns.ReadRun<SeamMany, Nino_SeamProto_SeamManyFormatter, NinoSealedItem<__ManyLayout, __ManyBody>>(
                 run, reader);
 
+        // The top-level twin (what an intercepted top-level call of a collection uses as its element formatter):
+        // the same hooks, its own generated body for an element that leaves the run.
+        internal partial struct __Top
+        {
+            bool INinoFormatter.HasFlat => __Flat.Has;
+
+            Writer INinoFormatter.WriteFlat(scoped NinoRun run, Writer writer) =>
+                NinoFlatRuns.WriteRun<SeamMany, __Top, NinoSealedItem<__ManyLayout, __ManyBody>>(run, writer);
+
+            Reader INinoFormatter.ReadFlat(scoped NinoRun run, Reader reader) =>
+                NinoFlatRuns.ReadRun<SeamMany, __Top, NinoSealedItem<__ManyLayout, __ManyBody>>(run, reader);
+        }
+
         /// <summary>One SeamMany's body through the items (what a formatter without a generated body would call).</summary>
         internal static void FlatWriteBody(SeamMany value, ref Writer writer) =>
             NinoFlatRuns.WriteBody<__ManyBody>(value, ref writer);

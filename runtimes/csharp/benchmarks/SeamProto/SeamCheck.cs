@@ -93,6 +93,28 @@ namespace Nino.SeamProto
                     failures);
             }
 
+            // The intercepted top-level calls, whose element formatter is the generated top-level twin (__Top), with
+            // the same hooks: concrete types, so the interceptors take them.
+            foreach (int count in new[] { 3, 1000 })
+            {
+                var manys = SeamData.Manys(count, true);
+                var buffer = new NinoArrayBufferWriter();
+                var writer = new Writer(buffer);
+                writer = NinoRuns.WriteEach<SeamMany, Nino_SeamProto_SeamManyFormatter>(NinoRun.Of<SeamMany>(manys),
+                    manys.Length, writer);
+                writer.Flush();
+                byte[] expected = buffer.WrittenSpan.ToArray();
+                byte[] array = NinoSerializer.Serialize(manys);
+                byte[] list = NinoSerializer.Serialize(new List<SeamMany>(manys));
+                var readArray = NinoDeserializer.Deserialize<SeamMany[]>(expected);
+                var readList = NinoDeserializer.Deserialize<List<SeamMany>>(expected);
+                bool same = expected.AsSpan().SequenceEqual(array) && expected.AsSpan().SequenceEqual(list);
+                for (int i = 0; same && i < manys.Length; i++)
+                    same = Same(manys[i], readArray[i]) && Same(manys[i], readList[i]);
+                if (!same)
+                    failures.Add($"SeamMany[{count}] top-level: differs from the generated body");
+            }
+
             // One body through the items against the generated body.
             foreach (var value in SeamData.Manys(200, true))
             {

@@ -314,7 +314,7 @@ internal static class FormatterEmitter
     /// </summary>
     private static void OpenTwin(CodeWriter w, TypeModel m, FormatterNames names, string name, string interfaces)
     {
-        w.Open($"internal struct {name} : {interfaces}");
+        w.Open($"internal partial struct {name} : {interfaces}");
         EmitTypeId(w, m);
         EmitDeferral(w, m, names, forwardCreate: true);
     }
