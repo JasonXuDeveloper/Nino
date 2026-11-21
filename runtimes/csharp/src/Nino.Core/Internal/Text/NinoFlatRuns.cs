@@ -5,8 +5,7 @@ namespace Nino.Core.Internal
 {
     /// <summary>
     /// The element of a run of a sealed class whose body is flat (<see cref="NinoFlat{TLayout,TBody}"/>): its presence
-    /// byte, then its body. Reads make each object (<see cref="INinoFlatLayout.Create"/>); an element that holds one already
-    /// leaves the run (a read into existing elements goes through the formatter, which keeps or recycles it).
+    /// byte, then its body. Reads go into the object an element holds, or make one (<see cref="INinoFlatLayout.Create"/>).
     /// </summary>
     internal readonly struct NinoFlatSealedItem<TLayout, TBody> : INinoRunItem
         where TLayout : struct, INinoFlatLayout
@@ -36,12 +35,13 @@ namespace Nino.Core.Internal
             return 1 + default(TBody).WriteAt(ref Unsafe.Add(ref destination, 1), value);
         }
 
-        /// <summary>Returns -1 (nothing read) where the element holds an object.</summary>
+        /// <summary>
+        /// Reads the element into the object it holds (its strings kept where unchanged), or into a new one; null
+        /// clears it, as the formatter's read into an existing value does.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadAt(ref byte source, int available, ref byte element, bool fresh)
         {
-            if (Unsafe.As<byte, object>(ref element) != null)
-                return NinoFlatRuns.Leave;
             if (available < 1)
                 NinoThrow.EndOfData();
             byte flag = source;
@@ -49,10 +49,14 @@ namespace Nino.Core.Internal
             {
                 if (flag != NinoWire.Null)
                     NinoThrow.InvalidPresence(flag);
+                Unsafe.As<byte, object>(ref element) = null;
                 return 1;
             }
 
-            object value = default(TLayout).Create();
+            object value = Unsafe.As<byte, object>(ref element);
+            if (value != null)
+                return default(TBody).ReadAt(ref Unsafe.Add(ref source, 1), available - 1, value, false) + 1;
+            value = default(TLayout).Create();
             int size = default(TBody).ReadAt(ref Unsafe.Add(ref source, 1), available - 1, value, true);
             Unsafe.As<byte, object>(ref element) = value;
             return size + 1;
@@ -93,19 +97,26 @@ namespace Nino.Core.Internal
             return 4 + default(TBody).WriteAt(ref Unsafe.Add(ref destination, 4), value);
         }
 
-        /// <summary>Returns -1 (nothing read) where the element holds an object or the id is another type's.</summary>
+        /// <summary>
+        /// Reads the element into the object it holds where that is of exactly the type, or into a new one where it
+        /// holds none; returns -1 (nothing read) for another type id, or an element holding a subtype or null data,
+        /// which the formatter reads.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadAt(ref byte source, int available, ref byte element, bool fresh)
         {
-            if (Unsafe.As<byte, object>(ref element) != null)
-                return NinoFlatRuns.Leave;
             if (available < 4)
                 NinoThrow.EndOfData();
             int id = Unsafe.ReadUnaligned<int>(ref source);
+            object value = Unsafe.As<byte, object>(ref element);
+            if (value != null)
+                return id == default(TLayout).TypeId && default(TLayout).IsExact(value)
+                    ? default(TBody).ReadAt(ref Unsafe.Add(ref source, 4), available - 4, value, false) + 4
+                    : NinoFlatRuns.Leave;
             if (id != default(TLayout).TypeId)
                 return id == NinoWire.NullTypeId ? 4 : NinoFlatRuns.Leave;
 
-            object value = default(TLayout).Create();
+            value = default(TLayout).Create();
             int size = default(TBody).ReadAt(ref Unsafe.Add(ref source, 4), available - 4, value, true);
             Unsafe.As<byte, object>(ref element) = value;
             return size + 4;
@@ -115,7 +126,7 @@ namespace Nino.Core.Internal
     /// <summary>
     /// The kernels of runs of flat objects (#355, the generator seam): the string run kernels' write loop
     /// (<see cref="NinoStringRuns"/>' WriteFitting, every element in use) and a read loop, both stopping at an element the
-    /// items leave (a subtype, another type id, an element that holds an object), which goes through the formatter out
+    /// items leave (a subtype, another type id, an element holding a subtype), which goes through the formatter out
     /// of line before the loop goes on. Generic over the element item only (structs): code specialized per type, never
     /// shared over a class; the drivers over <c>T</c> hold no loop.
     /// </summary>
