@@ -292,7 +292,7 @@ internal static class FormatterEmitter
             // A null value (its presence byte 0) is returned inline; the reader is created in a static method out of
             // line (an instance method out of line takes the twin's address: a byte stored on the caller's stack).
             w.Line(names.Inline);
-            w.Line($"public {t} Read(global::System.ReadOnlySpan<byte> data) => !data.IsEmpty && data[0] == {NinoWire.Null} ? null : __ReadTop(data);");
+            w.Line($"public {t} Read(global::System.ReadOnlySpan<byte> data) => {CoreCompilerServices}NinoDirect.ReadsNull(data) ? null : __ReadTop(data);");
             w.Line(names.NoInline);
             w.Open($"private static {t} __ReadTop(global::System.ReadOnlySpan<byte> data)");
             w.Line($"var __r = new {Core}Reader(data);");
