@@ -63,7 +63,7 @@ internal static class DispatchEmitter
             {
                 var own = Subtypes(subtypesOf, e.TypeName, e.TypeId);
                 w.Open($"partial struct {e.Self}");
-                EmitBase(w, e.TypeName, own, services, closedForm: false, e.Self);
+                EmitBase(w, e.TypeName, own, services, closedForm: false, e);
                 w.Close();
                 w.Line();
                 continue;
@@ -80,7 +80,7 @@ internal static class DispatchEmitter
                 foreach (var c in closed)
                 {
                     w.Open($"static class __NinoDispatch{closedCount++}");
-                    EmitBase(w, c, Subtypes(subtypesOf, c, 0), services, closedForm: true, self: null);
+                    EmitBase(w, c, Subtypes(subtypesOf, c, 0), services, closedForm: true, root: null);
                     w.Close();
                     w.Line();
                 }
@@ -205,7 +205,7 @@ internal static class DispatchEmitter
 
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
     private static void EmitBase(CodeWriter w, string t, List<DispatchEntry>? subtypes, string services, bool closedForm,
-        string? self)
+        DispatchEntry? root)
     {
         // value.GetType() == typeof(X) compiles to one method table compare. WriteExactShallow is inlined where the
         // caller's inlining budget allows (the dispatch is inlined into its callers), else called as shared code. A
@@ -235,7 +235,7 @@ internal static class DispatchEmitter
             w.Line(WriteOther(t, services) + ";");
             w.Close();
             if (!closedForm)
-                EmitWriteRun(w, t, self!, subtypes, services);
+                EmitWriteRun(w, t, root!, subtypes, services);
 
             w.Line();
             w.Line($"{GeneratedCode.NoInline} static {Core}Writer __WriteSubtypeDeep({t} value, {Core}Writer writer)");
@@ -300,11 +300,12 @@ internal static class DispatchEmitter
     /// writer in memory: LuminPack's List&lt;IFoo&gt; of 1,000 values of 20 subtypes took 5.0 us that way and 3.85 in
     /// this form (LuminPack 4.4; local x64, #305). A loop in Nino.Core calling a generated step per value lost on
     /// large hierarchies (#355's probe, run 44379569172: 1.4-1.8x the time of this loop for 20 subtypes), so the
-    /// generator writes the loop and Nino.Core its pieces.
+    /// generator writes the loop and Nino.Core its pieces. A root that is a class of its own tests its own type first.
     /// </summary>
-    private static void EmitWriteRun(CodeWriter w, string t, string self, List<DispatchEntry> subtypes,
+    private static void EmitWriteRun(CodeWriter w, string t, DispatchEntry root, List<DispatchEntry> subtypes,
         string services)
     {
+        string self = root.Self;
         string run = $"{services}NinoRun";
         string loops = $"{Core}INinoFormatter";
         w.Line();
@@ -328,6 +329,13 @@ internal static class DispatchEmitter
         w.Line($"{run}.WriteKey(ref entry, key, ref writer);");
         w.Line($"var value = {run}.Value<{t}>(ref entry);");
         w.Line("if (value == null) { writer.UnsafeWrite(0); continue; }");
+        // A root that is a class of its own (not abstract) tests its own type first, as its Serialize does. Left to the
+        // registry (NinoSubtypes.Serialize: a lookup and a virtual call), 1,000 values of a root with four subtypes,
+        // most of its own type, wrote in 0.76-0.80 of the time (local x64, #355). Classes below the root keep no loop of
+        // their own: one per class with subtypes (its own type, then its subtypes) wrote 1,000 values 1.14-1.22x as
+        // long for three subtypes and 1.04-1.06x for twelve, against the value-by-value loop with the root's dispatch.
+        if (root.IsTarget)
+            w.Line(WriteShallow(root, services, "continue;"));
         foreach (var s in subtypes)
             w.Line(WriteShallow(s, services, "continue;"));
         // A subtype the chain does not know: the registry, with the writer by reference. With the writer by value
