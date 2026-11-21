@@ -148,7 +148,10 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
 
 ## The machine code
 
-- Everything a top-level call reaches inlines into one method under one budget (`optimize`): the generated
+- Everything a top-level call reaches inlines into one method under one budget (`optimize`). Where a generated
+  body leaves a helper a call, read the JIT's reason first (`asm.py compare --inline`; with
+  `DOTNET_TieredCompilation=0` for FullOpts): `inline exceeds budget` and `too many locals` take different emitter
+  fixes (`optimize`'s [references/jit.md](../optimize/references/jit.md), Inlining budget). The generated
   read and write bodies keep rare paths (deferral, pooling, growth, polymorphic fallback) in calls out of line and
   the common path inline; a run of fixed-size members is one bounds check and one block copy where the layout allows.
 - No indirect call in a generated read or write path where a direct one exists (`optimize`, the owner's rule): a

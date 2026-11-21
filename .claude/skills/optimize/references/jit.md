@@ -20,6 +20,34 @@ where that is so, and its x64 sizes are listings, not throughput.
 
 ## Inlining budget
 
+- **Read the JIT's reason before fixing a helper that stayed a call**: `asm.py dump --inline` (and `compare
+  --inline`) writes, per root, every inline the JIT gave up with its own reason, from the release runtime's
+  `MethodJitInliningFailed` events (`runtimes/csharp/benchmarks/README.md`, "What a change did to the code"); with
+  `DOTNET_TieredCompilation=0` the FullOpts ones. Why: "the budget ran out" in a listing is often the local limit, and
+  the fixes differ; a fix for the wrong reason changes nothing. The reasons that matter:
+
+  | reason | limit | fix |
+  |---|---|---|
+  | `inline exceeds budget` | the root's time budget, about `(60 + 3 × root IL bytes) × 10`, spent by each inlinee's estimate from its IL size (dead branches included) | move work out of line, or start a new root (a `NoInlining` entry with a local cursor); take IL out of inlinees |
+  | `too many locals` | the root's local count, inlinee temporaries included (`MAX_LV_NUM_COUNT_FOR_INLINING`, 512 in the JIT sources, unverified) | fewer temporaries per inlinee (struct arguments, `ref` locals), or split the root; a larger root or smaller IL does not help |
+  | `too deep` | inline depth | flatten forwarders (`default(F).X` → `X`), use an intrinsic instead of a property around one |
+  | `too many il bytes` | a callee without `AggressiveInlining` over the size limit | mostly throw helpers and BCL: fine |
+  | `unprofitable inline` | the heuristic said no | a small Nino helper lacks `AggressiveInlining`, or sits in a branch not folded at import (costs a candidate, not budget) |
+
+  `DOTNET_JitInlineBudget` is a debug-JIT knob: the release JIT ignores it (20, 400 and the default gave identical
+  listings), so the only knobs are the IL's shape. Evidence (#434, .NET 11, x64, local listings): Nino roots over the
+  suite gave up, at Tier1, `too many locals` 44 times (distinct root and inlinee), `inline exceeds budget` 18 and `too
+  deep` 25; at FullOpts 64, 0 and 24 (`too many basic blocks` 19). A deep tree of `AggressiveInlining` helpers
+  stopped at `too many locals`, and padding the root with folded dead IL to raise its budget inlined nothing more.
+  `PolymorphicClassFormatter.ReadBody` (6.6 KB) is at the local limit (FooD's 20-subtype read switch inlined, then
+  `FooZFormatter.ReadBody`, `Create` and even `get_BodyTraits` left calls), `CustomerEventFormatter.Serialize` is a
+  budget case (the last subtype's `WriteExactShallow` a shared `__Canon` call), and `NinoUnsafe.Is64Bit` through
+  `IntPtr.Size` was `too deep` in top-level writes and left `call IntPtr.get_Size` before 4-byte stores: one level
+  fewer through `Unsafe.SizeOf<IntPtr>()` (same IL size) removed it, no other method changed at FullOpts. The
+  opposite trade measured worse: writing the 64-bit test out in `NinoUnsafe.Read<T>` so the JIT folds it at import
+  removed about 4,000 `ReadBytes` candidates (no budget charged for them) but added a byte of IL per `Read`, and five
+  Tier1 collection reads then exceeded their budget (`NinoDeserializeNullableMemoryInts` 11 to 29 stack accesses,
+  `DeserializeLookup` 14 to 35): an unfolded candidate is cheaper than a byte of IL in a hot inlinee.
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
   element by element loops, string allocation, recycling) out of line (`NoInlining`), with only the common path inline.
