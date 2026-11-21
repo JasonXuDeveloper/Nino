@@ -233,6 +233,11 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static string DecodeUtf8(ref byte src, int size, int length) => Decode(ref src, size, length);
 
+#if NET8_0_OR_GREATER
+        /// <summary>Longest ASCII string <see cref="Decode"/> widens itself.</summary>
+        private const int AsciiMaxChars = 32;
+#endif
+
         /// <summary><see cref="DecodeUtf8"/> inline, for <see cref="ReadUtf8At"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe string Decode(ref byte src, int size, int length)
@@ -244,6 +249,23 @@ namespace Nino.Core
                 NinoThrow.InvalidData("invalid UTF-8 string.");
             var value = NinoStrings.Allocate(length);
 #if NET8_0_OR_GREATER
+            // A short string of a byte per char is ASCII if it is UTF-8 at all: widened here, not by the runtime's
+            // transcoder, whose precompiled code pays a vector state transition after Nino's own vector code where
+            // tiering does not replace it (Writer.EncodeUtf8; #436). Any other byte is invalid, as the transcoder says.
+            if (size == length && length <= AsciiMaxChars)
+            {
+                ref char chars = ref Unsafe.AsRef(in value.GetPinnableReference());
+                for (int i = 0; i < length; i++)
+                {
+                    byte b = Unsafe.Add(ref src, i);
+                    if (b >= 0x80)
+                        NinoThrow.InvalidData("invalid UTF-8 string.");
+                    Unsafe.Add(ref chars, i) = (char)b;
+                }
+
+                return value;
+            }
+
             // Done means every byte was decoded; the chars must then fill the string exactly.
             var status = System.Text.Unicode.Utf8.ToUtf16(MemoryMarshal.CreateReadOnlySpan(ref src, size),
                 MemoryMarshal.CreateSpan(ref Unsafe.AsRef(in value.GetPinnableReference()), length),

@@ -102,11 +102,27 @@ namespace Nino.Core
             int sizeSize = NinoStrings.HeaderSize((uint)(length <= Utf8WorstCaseMaxChars ? length : capacity));
             ref byte bytes = ref Unsafe.Add(ref sizeAt, sizeSize);
 #if NET8_0_OR_GREATER
-            // Without replacement, the transcoder's call is all that is inlined; an unpaired surrogate stops it.
-            var status = System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), MemoryMarshal.CreateSpan(ref bytes, capacity),
-                out int consumed, out int written, replaceInvalidSequences: false);
-            if (status != System.Buffers.OperationStatus.Done)
-                written = EncodeUtf8Replacing(value, ref bytes, capacity, consumed, written);
+            // A short ASCII string (names, tags, keys) is narrowed here; the rest goes to the runtime's transcoder.
+            // Its precompiled (ReadyToRun) code, which runs until tiering replaces it and always where tiering is off
+            // (TieredCompilation=0), uses legacy SSE encodings, and Nino's string writes before it leave the upper
+            // halves of the vector registers dirty (masked 256-bit loads inlined into the body, after which the JIT
+            // emits no vzeroupper before a managed call): every such call then paid a transition penalty. A sealed
+            // class of an int, a string and a 4-char UTF-8 string serialized in 177 ns at TieredCompilation=0
+            // against 25 ns with the UTF-8 string first, and 28 ns with DOTNET_ReadyToRun=0 (#436).
+            int written;
+            if (length > AsciiPrefixMaxChars || !NarrowAscii(ref MemoryMarshal.GetReference(value.AsSpan()), ref bytes, length))
+            {
+                // Without replacement, the transcoder's call is all that is inlined; an unpaired surrogate stops it.
+                var status = System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(),
+                    MemoryMarshal.CreateSpan(ref bytes, capacity), out int consumed, out written,
+                    replaceInvalidSequences: false);
+                if (status != System.Buffers.OperationStatus.Done)
+                    written = EncodeUtf8Replacing(value, ref bytes, capacity, consumed, written);
+            }
+            else
+            {
+                written = length;
+            }
 #else
             int written = EncodeUtf8Replacing(value, ref bytes, capacity);
 #endif
@@ -120,6 +136,39 @@ namespace Nino.Core
             NinoStrings.WriteHeader(ref sizeAt, (uint)written);
             return countSize + sizeSize + written;
         }
+
+#if NET8_0_OR_GREATER
+        /// <summary>Longest string <see cref="EncodeUtf8"/> tries as ASCII itself before the transcoder.</summary>
+        private const int AsciiPrefixMaxChars = 32;
+
+        /// <summary>
+        /// Writes the <paramref name="length"/> chars at <paramref name="source"/> (at most
+        /// <see cref="AsciiPrefixMaxChars"/>) as bytes at <paramref name="destination"/> when all are ASCII, four at a
+        /// time in a word; false at the first that is not (the bytes written so far are overwritten by the caller).
+        /// </summary>
+        private static bool NarrowAscii(ref char source, ref byte destination, int length)
+        {
+            int i = 0;
+            for (; i + 4 <= length; i += 4)
+            {
+                ulong four = Unsafe.ReadUnaligned<ulong>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref source, i)));
+                if ((four & 0xFF80FF80FF80FF80) != 0)
+                    return false;
+                four = (four | (four >> 8)) & 0x0000FFFF0000FFFF;
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i), (uint)(four | (four >> 16)));
+            }
+
+            for (; i < length; i++)
+            {
+                char c = Unsafe.Add(ref source, i);
+                if (c >= 0x80)
+                    return false;
+                Unsafe.Add(ref destination, i) = (byte)c;
+            }
+
+            return true;
+        }
+#endif
 
         /// <summary>Moves <paramref name="count"/> bytes up to <paramref name="to"/>, overlapping (rare: out of line).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
