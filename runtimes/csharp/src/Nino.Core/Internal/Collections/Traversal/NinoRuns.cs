@@ -157,8 +157,10 @@ namespace Nino.Core.Internal
             // itself, not NinoUnsafe's: one inlinee more in this method, inlined into every collection's write, left
             // the writer of block arrays' top-level writes in memory (asm.py: ByteIntPairs32 10 to 38 stack accesses).
             // A class whose generated body is flat (#355): the flat kernels, ahead of a base's own run loop (its
-            // subtypes leave the run element by element). Runs with free entries (a set's) go the ways below.
-            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && (row || run.InUse == NinoRun.AllInUse))
+            // subtypes leave the run element by element), from NinoFlatRuns.MinRun elements on. Runs with free
+            // entries (a set's) and short ones go the ways below.
+            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun &&
+                (row || run.InUse == NinoRun.AllInUse))
             {
                 if (counted)
                     writer.WriteLength(length);
@@ -389,8 +391,8 @@ namespace Nino.Core.Internal
             // Strings and pairs holding them: the string run kernels, with the data and the bytes left, not the reader,
             // which stays in the caller's registers. Raw values and blocks that reach here are read one by one with
             // their checks, as before.
-            // A class whose generated body is flat (#355): the flat kernels.
-            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat)
+            // A class whose generated body is flat (#355): the flat kernels, from NinoFlatRuns.MinRun elements on.
+            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun)
             {
                 reader = ReadFlat<T, TFormatter>(NinoRun.Unscoped(run), reader);
                 return;

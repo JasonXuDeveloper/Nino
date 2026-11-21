@@ -103,7 +103,7 @@ internal static class FlatEmitter
     private static void EmitBodies(CodeWriter w, TypeModel m, FormatterNames names)
     {
         string t = m.TypeName;
-        string body = m.Flat!.Checks ? "__Fields" : "__Flat";
+        string body = Body(m);
         string form = m.InlineBody ? "Inline" : "Body";
         w.Line(names.Inline);
         w.Line($"{Signature.WriteBody(t)} => {body}.Write{form}(value, ref writer);");
@@ -111,9 +111,26 @@ internal static class FlatEmitter
         w.Line(names.Inline);
         w.Open(Signature.ReadBody(t));
         w.Line("var __v = value;");
-        w.Line("if (__v == null)");
-        w.IndentedLine($"value = __v = {BodyEmitter.Create(m, names.CompactSyntax)};");
-        w.Line($"{body}.Read{form}(__v, ref reader);");
+        if (m.InlineBody)
+        {
+            // Inlined wherever the formatter is used: one copy of the reads (a second for new objects only adds
+            // locals for the JIT to keep apart, as TypeModel.SplitFresh says).
+            w.Line("if (__v == null)");
+            w.IndentedLine($"value = __v = {BodyEmitter.Create(m, names.CompactSyntax)};");
+            w.Line($"{body}.ReadInline(__v, ref reader);");
+        }
+        else
+        {
+            // A new object out of line on its own: its strings stored without a look at the field.
+            w.Open("if (__v == null)");
+            w.Line($"value = __v = {BodyEmitter.Create(m, names.CompactSyntax)};");
+            w.Line($"{body}.ReadNew(__v, ref reader);");
+            w.Line("return;");
+            w.Close();
+            w.Line();
+            w.Line($"{body}.ReadBody(__v, ref reader);");
+        }
+
         w.Close();
         if (!m.Inheritance.EmitMembers)
             return;
@@ -227,6 +244,9 @@ internal static class FlatEmitter
         w.Line($"internal readonly struct {name} : {Services}INinoFlatMember {{ {names.Inline} public ref byte Ref(object v) => " +
                $"ref {Services}NinoFlatAccess.Bytes(ref {Services}NinoFlatAccess.As<{m.TypeName}>(v).{field}); " +
                $"public int Size => {size}; }}");
+
+    /// <summary>The class one body is written and read through: the chain of fields where there is one.</summary>
+    public static string Body(TypeModel m) => m.Flat!.Checks ? "__Fields" : "__Flat";
 
     private static string MemberName(MemberModel member) => "__F_" + member.Name;
 

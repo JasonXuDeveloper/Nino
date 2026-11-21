@@ -121,6 +121,14 @@ namespace Nino.Core.Internal
     /// </summary>
     internal static class NinoFlatRuns
     {
+        /// <summary>
+        /// The fewest elements a run takes the flat kernels with: their calls (the hook, the driver, the loops out of
+        /// line, the writer or reader by value through each) cost a constant per run that a short run does not win
+        /// back, so shorter ones keep their element-by-element loop. 2 elements of a class with one block and a string
+        /// were written in 2.2 times the time, 8 on par, 32 in 0.6 (local x64, Tier1, #355).
+        /// </summary>
+        public const int MinRun = 16;
+
         /// <summary>What an element item's MaxSize or ReadAt returns for an element the run leaves.</summary>
         public const int Leave = int.MinValue;
 

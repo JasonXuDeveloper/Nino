@@ -253,20 +253,22 @@ internal static class FormatterEmitter
         // have it created in a method of its own (__WriteTop, see INinoTopFormatter), where the JIT keeps it in
         // registers and knows it starts empty (no region open, no context) instead of loading it from the caller's
         // memory and storing it back.
-        bool serializeTop = !m.TopInline && m.LocalWriter;
+        // A flat body (TypeModel.Flat) the same way, through its chain inlined into __WriteTop and __ReadTop.
+        bool serializeTop = !m.TopInline && (m.LocalWriter || m.Flat != null);
+        bool readTop = m.ReadTop || m.Flat != null;
         if (serializeTop)
         {
             w.Line(names.NoInline);
             w.Open($"private static void __SerializeTop({Signature.WriteParameters(t)})");
             BodyEmitter.BeginLocalCopy(w, reader: false, cursorOnly: true);
-            EmitTopWrite(w);
+            EmitTopWrite(w, m);
             BodyEmitter.EndLocalCopy(w, reader: false, cursorOnly: true);
             w.Close();
             w.Line();
             w.Line(names.NoInline);
             w.Open($"private static void __WriteTop({t} value, {Core}NinoArrayBufferWriter buffer)");
             w.Line($"var __w = new {Core}Writer(buffer);");
-            EmitTopWrite(w);
+            EmitTopWrite(w, m);
             w.Line("__w.Flush();");
             w.Line("__w.ReleaseReferences();");
             w.Close();
@@ -285,7 +287,7 @@ internal static class FormatterEmitter
             : $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) => {CoreCompilerServices}NinoDirect.Write<{t}, {top}>(value, buffer);");
         w.Line(names.Inline);
         w.Line($"{Signature.Deserialize(t)} => {CoreCompilerServices}NinoObject.DeserializeTop<{t}, {top}>(ref reader, ref value);");
-        if (m.ReadTop)
+        if (readTop)
         {
             // A null value (its presence byte 0) is returned inline; the reader is created in a static method out of
             // line (an instance method out of line takes the twin's address: a byte stored on the caller's stack).
@@ -296,8 +298,16 @@ internal static class FormatterEmitter
             w.Line($"var __r = new {Core}Reader(data);");
             w.Line("if (!__r.ReadPresent())");
             w.IndentedLine("return null;");
-            w.Line($"{t} value = null;");
-            w.Line($"{(m.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref __r, ref value);");
+            if (m.Flat != null)
+            {
+                w.Line($"{t} value = {BodyEmitter.Create(m, names.CompactSyntax)};");
+                w.Line($"{FlatEmitter.Body(m)}.ReadNewInline(value, ref __r);");
+            }
+            else
+            {
+                w.Line($"{t} value = null;");
+                w.Line($"{(m.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref __r, ref value);");
+            }
             w.Line("__r.ReleaseReferences();");
             w.Line("return value;");
             w.Close();
@@ -351,12 +361,12 @@ internal static class FormatterEmitter
     }
 
     /// <summary>The presence byte and the body of <c>value</c>, on the local writer <c>__w</c>.</summary>
-    private static void EmitTopWrite(CodeWriter w)
+    private static void EmitTopWrite(CodeWriter w, TypeModel m)
     {
         w.Line($"byte __present = (byte)(value == null ? {NinoWire.Null} : {NinoWire.NotNull});");
         w.Line("__w.UnsafeWrite(__present);");
         w.Line($"if (__present != {NinoWire.Null})");
-        w.IndentedLine("__WriteBodyInline(value, ref __w);");
+        w.IndentedLine(m.Flat != null ? $"{FlatEmitter.Body(m)}.WriteInline(value, ref __w);" : "__WriteBodyInline(value, ref __w);");
     }
 
     /// <summary>

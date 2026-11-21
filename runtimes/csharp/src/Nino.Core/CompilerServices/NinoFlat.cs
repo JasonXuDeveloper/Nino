@@ -373,5 +373,23 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ReadInline(object value, ref Reader reader) =>
             reader.UnsafeAdvance(default(TBody).ReadAt(ref reader.Peek(), reader.Remaining, value, false));
+
+        /// <summary>
+        /// As <see cref="ReadBody"/>, into a new object (<paramref name="value"/> just made, every reference field
+        /// null): its strings stored without a look at what the field holds.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ReadNew(object value, ref Reader reader)
+        {
+            Reader local = default;
+            reader.CopyCursorTo(ref local);
+            ReadNewInline(value, ref local);
+            local.CopyCursorTo(ref reader);
+        }
+
+        /// <summary>As <see cref="ReadNew"/>, inlined into the caller.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ReadNewInline(object value, ref Reader reader) =>
+            reader.UnsafeAdvance(default(TBody).ReadAt(ref reader.Peek(), reader.Remaining, value, true));
     }
 }
