@@ -96,41 +96,29 @@ internal static class FlatEmitter
 
     /// <summary>
     /// <c>WriteBody</c> and <c>ReadBody</c> (and a base's <c>WriteMembers</c> / <c>ReadMembers</c>): one body through
-    /// the chain of fields, which needs no check (a block's copy pays off in runs, not in one body), inlined into the
-    /// caller where the body is small (<see cref="TypeModel.InlineBody"/>), else out of line on a local copy of the
-    /// writer or reader.
+    /// the chain of fields, which needs no check (a block's copy pays off in runs, not in one body). The bodies are out
+    /// of line on a local copy of the writer or reader whatever their size: the chain inlined into its callers (a
+    /// polymorphic base's dispatch, a union's cases) took their inlining budgets, which then left the accessors
+    /// themselves as calls (PolymorphicTest's UnionArray, 1.08 times the base's time to write), and its own JIT budget
+    /// inlines the whole chain. A new object's strings are stored without a look at the field (<c>ReadNew</c>).
     /// </summary>
     private static void EmitBodies(CodeWriter w, TypeModel m, FormatterNames names)
     {
         string t = m.TypeName;
         string body = Body(m);
-        string form = m.InlineBody ? "Inline" : "Body";
         w.Line(names.Inline);
-        w.Line($"{Signature.WriteBody(t)} => {body}.Write{form}(value, ref writer);");
+        w.Line($"{Signature.WriteBody(t)} => {body}.WriteBody(value, ref writer);");
         w.Line();
         w.Line(names.Inline);
         w.Open(Signature.ReadBody(t));
         w.Line("var __v = value;");
-        if (m.InlineBody)
-        {
-            // Inlined wherever the formatter is used: one copy of the reads (a second for new objects only adds
-            // locals for the JIT to keep apart, as TypeModel.SplitFresh says).
-            w.Line("if (__v == null)");
-            w.IndentedLine($"value = __v = {BodyEmitter.Create(m, names.CompactSyntax)};");
-            w.Line($"{body}.ReadInline(__v, ref reader);");
-        }
-        else
-        {
-            // A new object out of line on its own: its strings stored without a look at the field.
-            w.Open("if (__v == null)");
-            w.Line($"value = __v = {BodyEmitter.Create(m, names.CompactSyntax)};");
-            w.Line($"{body}.ReadNew(__v, ref reader);");
-            w.Line("return;");
-            w.Close();
-            w.Line();
-            w.Line($"{body}.ReadBody(__v, ref reader);");
-        }
-
+        w.Open("if (__v == null)");
+        w.Line($"value = __v = {BodyEmitter.Create(m, names.CompactSyntax)};");
+        w.Line($"{body}.ReadNew(__v, ref reader);");
+        w.Line("return;");
+        w.Close();
+        w.Line();
+        w.Line($"{body}.ReadBody(__v, ref reader);");
         w.Close();
         if (!m.Inheritance.EmitMembers)
             return;
