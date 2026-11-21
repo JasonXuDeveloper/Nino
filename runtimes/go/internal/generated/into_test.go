@@ -100,6 +100,115 @@ func TestDeserializeIntoPolymorphic(t *testing.T) {
 	}
 }
 
+// TestUnionClassCasesStayDistinct checks that batching class allocations keeps each pointer fresh, including
+// when a Reader is reused and an outer slice is read into.
+func TestUnionClassCasesStayDistinct(t *testing.T) {
+	const count = 24
+	points := func(x int32) *Unions {
+		value := &Unions{Many: make([]Choice, count)}
+		for i := range value.Many {
+			value.Many[i] = &Point{X: x + int32(i)}
+		}
+		return value
+	}
+	r := nino.NewReader(mustSerialize(t, points(1), WriteUnions))
+	value := ReadUnions(r)
+	if err := r.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if value == nil || len(value.Many) != count {
+		t.Fatalf("union sequence length changed: %+v", value)
+	}
+	earlier := make(map[*Point]int32)
+	for i, c := range value.Many {
+		p, ok := c.(*Point)
+		if !ok || p == nil || p.X != 1+int32(i) {
+			t.Fatalf("case %d: %T %+v", i, c, c)
+		}
+		earlier[p] = p.X
+	}
+	if len(earlier) != len(value.Many) {
+		t.Fatal("union cases shared an instance")
+	}
+
+	r.Reset(mustSerialize(t, points(100), WriteUnions))
+	ReadUnionsInto(r, &value)
+	if err := r.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if value == nil || len(value.Many) != count {
+		t.Fatalf("replacement union sequence length changed: %+v", value)
+	}
+	for i, c := range value.Many {
+		p, ok := c.(*Point)
+		_, reused := earlier[p]
+		if !ok || p == nil || p.X != 100+int32(i) || reused {
+			t.Fatalf("replacement case %d: %T %+v", i, c, c)
+		}
+	}
+	for p, x := range earlier {
+		if p.X != x {
+			t.Fatalf("another decode overwrote a class from %d to %d", x, p.X)
+		}
+	}
+}
+
+func TestUnionPointerCasesOwnTheirValues(t *testing.T) {
+	const count = 70
+	choices := func(start int32) *Unions {
+		value := &Unions{Number: &ChoiceInt32{Value: start}, Many: make([]Choice, count)}
+		for i := range value.Many {
+			value.Many[i] = &ChoiceInt32{Value: start + int32(i)}
+		}
+		return value
+	}
+	r := nino.NewReader(mustSerialize(t, choices(1), WriteUnions))
+	value := ReadUnions(r)
+	if r.Err() != nil || !reflect.DeepEqual(value, choices(1)) {
+		t.Fatalf("first read: %v %#v", r.Err(), value)
+	}
+	earlier := append([]Choice{value.Number}, value.Many...)
+	r.Reset(mustSerialize(t, choices(100), WriteUnions))
+	ReadUnionsInto(r, &value)
+	if r.Err() != nil || !reflect.DeepEqual(value, choices(100)) {
+		t.Fatalf("replacement read: %v %#v", r.Err(), value)
+	}
+	for i, c := range earlier {
+		old := c.(*ChoiceInt32)
+		if old.Value != int32(max(1, i)) {
+			t.Fatalf("case %d changed to %d after another decode", i, old.Value)
+		}
+		old.Value = -1
+	}
+	if !reflect.DeepEqual(value, choices(100)) {
+		t.Fatal("retained case aliases a case from the replacement sequence")
+	}
+}
+
+func TestNilUnionPointerWritesTheEmptyUnion(t *testing.T) {
+	var integer *ChoiceInt32
+	var point *Point
+	var list *ChoiceListInt32
+	for _, value := range []Choice{integer, point, list, &ChoiceListInt32{}, ChoiceString{}} {
+		bytes := mustSerialize(t, value, WriteChoice)
+		if !reflect.DeepEqual(bytes, []byte{0, 0, 0, 0}) {
+			t.Fatalf("%T: got %x", value, bytes)
+		}
+	}
+}
+
+func TestRecursiveUnionUsesPointerCases(t *testing.T) {
+	var root UnionTree = &UnionTreeInt64{Value: 1}
+	for i := range 128 {
+		root = &UnionTreeUnionTreeArray{Value: []UnionTree{root, nil, &UnionTreeInt64{Value: int64(i)}}}
+	}
+	data := mustSerialize(t, root, WriteUnionTree)
+	got, err := nino.DeserializeExact(data, ReadUnionTree)
+	if err != nil || !reflect.DeepEqual(got, root) {
+		t.Fatalf("nested union: %v", err)
+	}
+}
+
 // TestDeserializeIntoFailure leaves a value that can be written and read into again.
 func TestDeserializeIntoFailure(t *testing.T) {
 	good := mustSerialize(t, outerValue("name"), WriteOuter)

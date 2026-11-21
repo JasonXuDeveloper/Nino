@@ -216,7 +216,7 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
   `namespace` with values; declare the field and assign it. Why: the union's `XObject` class first had a parameter
   property, and `npm test` failed with TS1294 on the generated corpus module.
 - Write each language's own sum type for a choice of types, in the form a user of that language would write: a
-  TypeScript union of the types, tagged only where values cannot tell the cases apart (`TypeScriptTarget.UnionForm`),
+  TypeScript union of the types, tagged only where values cannot tell the cases apart (`TypeScriptTarget.UnionCases`),
   a Go interface the generated types implement themselves, a Rust enum. Dispatch is one `switch` on the type id and
   one chain of tests, type switch or `match`; no wrapper where the value can be the case. Why: the owner rejected a
   TypeScript class with nullable `case` and `value` fields for C# unions (not narrowable, an object per value).

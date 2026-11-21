@@ -246,7 +246,7 @@ namespace Nino.Codegen.Targets
 
         public TsShape Shape { get; }
 
-        /// <summary>The test of a value <c>v</c> of the case in a plain union (<c>typeof v === "number"</c>), else null.</summary>
+        /// <summary>The test of a direct case's value <c>v</c>, or null when the case needs a tag.</summary>
         public string? Test { get; internal set; }
     }
 
@@ -394,19 +394,19 @@ namespace Nino.Codegen.Targets
         public bool IsClassBody => Model.IsClassBody;
 
         /// <summary>
-        /// A C# union: a plain TypeScript union of its cases' types, or a union tagged with each case's name
-        /// (<see cref="Tagged"/>); null is the empty union.
+        /// A C# union's TypeScript cases, with tags only where the values alone are ambiguous. Null is the empty union.
         /// </summary>
         public bool IsUnion => Model.IsUnion;
 
-        /// <summary>Whether the union's cases are tagged (<c>{ case, value }</c>): some cannot be told apart by their values.</summary>
-        public bool Tagged => _target.UnionForm(Model).Tagged;
+        public List<TsCase> Cases => _cases ??= _target.UnionCases(Model);
 
-        /// <summary>
-        /// A union's cases: in declaration order when tagged; otherwise in the order their tests run (a subclass before
-        /// its base).
-        /// </summary>
-        public List<TsCase> Cases => _target.UnionForm(Model).Cases;
+        private List<TsCase>? _cases;
+
+        public IEnumerable<TsCase> PlainCases => Cases.Where(c => c.Test != null);
+
+        public IEnumerable<TsCase> TaggedCases => Cases.Where(c => c.Test == null);
+
+        public bool Tagged => Cases.Any(c => c.Test == null);
 
         /// <summary>Whether the union has a class for an <c>object</c> slot to hold it (<c>XObject</c>).</summary>
         public bool UnionObject => Model.IsUnion && _target.UnionObjects;
