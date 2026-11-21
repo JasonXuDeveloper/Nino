@@ -362,8 +362,9 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   (`__F_<Member>`, `__B_<First>`: `Ref(object)` returns the field, `Size` is a literal), a `__Layout` struct, the chain
   of items once as the base class of `private sealed class __Flat`, and where a block or struct member needs the
   startup check, `__Fields` (one item per member) and `__Check`. `HasFlat`, `WriteFlat` and `ReadFlat` pick one chain
-  once per call; `WriteBody` calls the chain of fields out of line whatever the body's size (inlined into a
-  dispatch, the chain took the caller's inlining budget), `ReadBody` reads a small body inline (`ReadInline`) and a
+  once per call; a sealed class's `WriteBody` calls the chain of fields out of line whatever the body's size
+  (inlined into a dispatch, the chain took the caller's inlining budget; its top-level writes have `__WriteTop`), a
+  small one of a class that is not sealed inline, `ReadBody` reads a small body inline (`ReadInline`) and a
   large one out of line (`ReadBody`, `ReadNew` for a new object), `WriteMembers` and `ReadMembers` inline, and a sealed one has its `__Top` twin
   out of line (`__WriteTop`, `__ReadTop` through the same chain) whatever its size. `FlatModel` is equatable, so an edit elsewhere leaves it cached
   (`IncrementalGeneratorTests.FlatBodiesFollowTheirMembers`).

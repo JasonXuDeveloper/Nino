@@ -97,8 +97,8 @@ internal static class FlatEmitter
 
     /// <summary>
     /// <c>WriteBody</c> and <c>ReadBody</c> (and a base's <c>WriteMembers</c> / <c>ReadMembers</c>): one body through
-    /// the chain of fields, which needs no check (a block's copy pays off in runs, not in one body). The writes are out
-    /// of line on a local copy of the writer or reader whatever their size: the chain inlined into its callers (a
+    /// the chain of fields, which needs no check (a block's copy pays off in runs, not in one body). A sealed class's
+    /// writes are out of line on a local copy of the writer whatever their size: the chain inlined into its callers (a
     /// polymorphic base's dispatch, a union's cases) took their inlining budgets, which then left the accessors
     /// themselves as calls (PolymorphicTest's UnionArray, 1.08 times the base's time to write), and its own JIT budget
     /// inlines the whole chain. A small body's read stays inline; a large one's reads a new object's strings without a
@@ -108,8 +108,12 @@ internal static class FlatEmitter
     {
         string t = m.TypeName;
         string body = Body(m);
+        // A sealed class's top-level writes have their own twin (__WriteTop), so its WriteBody serves the dispatch and
+        // the members of other types: out of line. A class that is not sealed writes a top-level value through
+        // WriteBody: out of line, one value took 1.3 times the base's time under NativeAOT; a small body stays inline.
+        string write = m.InlineBody && m.Kind != FormatterKind.SealedClass ? "WriteInline" : "WriteBody";
         w.Line(names.Inline);
-        w.Line($"{Signature.WriteBody(t)} => {body}.WriteBody(value, ref writer);");
+        w.Line($"{Signature.WriteBody(t)} => {body}.{write}(value, ref writer);");
         w.Line();
         w.Line(names.Inline);
         w.Open(Signature.ReadBody(t));
