@@ -100,20 +100,6 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// The string at <paramref name="source"/> (<paramref name="available"/> bytes) and the bytes it takes, as
-        /// <see cref="ReadString(string)"/> reads it: a new one inline, the comparison with <paramref name="current"/>
-        /// (not null) out of line, so a body inlined into its caller holds one string read (the flat kernels' one body).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static SizedString ReadStringAt(ref byte source, int available, string current)
-        {
-            if (current != null)
-                return ReadStringOver(ref source, available, current);
-            string value = NinoStrings.Read(ref source, available, null, out int size);
-            return new SizedString(value, size);
-        }
-
-        /// <summary>
         /// The UTF-8 string at <paramref name="source"/> (<paramref name="available"/> bytes) and the bytes it takes,
         /// as <see cref="ReadUtf8(string)"/> reads it: <paramref name="current"/> when it holds the same text (the
         /// cursor form of <c>Utf8StringFormatter</c>).
@@ -187,7 +173,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static SizedString ReadStringOver(ref byte source, int available, string current)
+        internal static SizedString ReadStringOver(ref byte source, int available, string current)
         {
             // The same short Latin-1 string again (a reused object's names, ids, keys) compared inline: through
             // NinoStrings.Read it took a second call (SameLatin1), where rc.7 read the header inline and made one, and

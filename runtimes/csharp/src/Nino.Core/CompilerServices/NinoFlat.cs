@@ -258,12 +258,25 @@ namespace Nino.Core.CompilerServices
         {
             // As NinoUtf16Item's read, with an existing string compared out of line (Reader.ReadString's way): inline,
             // a body read into its caller (a polymorphic base's dispatch, ChatMessage) took 14 to 61 stack accesses.
-            ref string slot = ref Unsafe.As<byte, string>(ref default(TMember).Ref(value));
-            string current = fresh ? null : slot;
-            SizedString read = Reader.ReadStringAt(ref source, available, current);
-            if (fresh || !ReferenceEquals(read.Value, current))
-                slot = read.Value;
-            int size = read.Size;
+            // Nothing held (a new object): the string stored as read, no comparison live across its allocation (a
+            // UnionItem's read kept the field's old value and the sizes in memory around it: 7 to 29 stack accesses).
+            // The field's address is taken again after the read (a constant offset from the object), not kept across
+            // the allocation either.
+            string current = fresh ? null : Unsafe.As<byte, string>(ref default(TMember).Ref(value));
+            int size;
+            if (current == null)
+            {
+                string read = NinoStrings.Read(ref source, available, null, out size);
+                Unsafe.As<byte, string>(ref default(TMember).Ref(value)) = read;
+            }
+            else
+            {
+                SizedString read = Reader.ReadStringOver(ref source, available, current);
+                if (!ReferenceEquals(read.Value, current))
+                    Unsafe.As<byte, string>(ref default(TMember).Ref(value)) = read.Value;
+                size = read.Size;
+            }
+
             return size + default(TNext).ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, value,
                 fresh);
         }
@@ -292,7 +305,12 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadAt(ref byte source, int available, object value, bool fresh)
         {
-            int size = default(NinoUtf8Item).ReadAt(ref source, available, ref default(TMember).Ref(value), fresh);
+            // As NinoFlatString's read: the field's address and old value not kept across the allocation.
+            string current = fresh ? null : Unsafe.As<byte, string>(ref default(TMember).Ref(value));
+            SizedString read = Reader.ReadUtf8At(ref source, available, current);
+            if (current == null || !ReferenceEquals(read.Value, current))
+                Unsafe.As<byte, string>(ref default(TMember).Ref(value)) = read.Value;
+            int size = read.Size;
             return size + default(TNext).ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, value,
                 fresh);
         }
