@@ -41,7 +41,7 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteQueue(ConcurrentQueue<T> value, Writer writer) =>
-            NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, IEnumerator<T>>>(new(value.GetEnumerator()), -1,
+            NinoGather.Write<T, TFormatter, NinoGathered.Enumerated<T, IEnumerator<T>>>(new(value.GetEnumerator()), -1,
                 writer);
 
         [MethodImpl(MethodImplOptions.NoInlining)]

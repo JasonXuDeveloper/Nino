@@ -79,8 +79,13 @@ NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value'
 NinoBlocks.cs                NinoBlocks: the items of composites (ItemSize, WriteItem, ReadItem: raw, or a block through
                              constrained calls), and the offsets NinoBlockMap is built from
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
-NinoElement.cs               NinoElement.Write: one element written as Nino.Core's collections write it (a raw T? as a
-                             slot), for Nino's own packages' walked collections (Nino.Immutable)
+NinoGathered.cs              the gather's seam for Nino's own packages (Nino.Immutable): INinoGatherSource<T> (how a
+                             collection that is not one run is walked, a chunk at a time), NinoGathered (Write,
+                             WriteReversed for a stack walked from its top, Enumerated over a struct enumerator),
+                             NinoTreeWalk (the one in-order walk of every binary tree: children at byte offsets, ending at
+                             null or the tree's empty node, recursive, its path saved only when a chunk is full),
+                             INinoTreeNodes<T> (what a node holds) and NinoTreeItems<T> (a tree's elements at an offset of
+                             each node)
 NinoUnsafe.cs                unaligned little-endian memory access, ReadBool, array allocation, type queries; used by
                              Reader, Writer and generated code
 NinoUnsafe.Copy.cs           NinoUnsafe.Copy and its parts: block copies by size (overlapping moves, vector loops, Arm64
@@ -235,14 +240,15 @@ ListAccess.cs                a List<T>'s elements as a span (CollectionsMarshal,
 PriorityQueueHeap.cs         a .NET 10 PriorityQueue's heap as one run of pairs, written and read in place for any
                              element and priority (Write, Adopt: published once in heap order)
 SortedSetNodes.cs            SortedSet<T> red-black trees built in one pass (SortedSetTrees, node layouts), and walked in
-                             order a chunk at a time for the gather (Walk)
+                             order a chunk at a time for the gather (Items, through NinoTreeWalk)
 NinoCollectionViews.cs       reads into the backing storage shared by Queue and Stack formatters
 ```
 
 ### Internal/Collections/Hashing/
 
 ```
-ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder)
+ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder), and its pairs walked
+                             along its buckets' chains for the gather's write (Pairs, where Plan.Chained)
 ConcurrentTables.Checks.cs   its startup checks (the layout, the hash mask, chains, a built table)
 HashTables.cs                links the entries a read filled into a new HashSet / Dictionary (Link, Unlink on a
                              rejected read), counting collisions against MaxHashCollisions; Plan, Insert, Added, Walk; one
@@ -253,7 +259,8 @@ HashTables.Checks.cs         its startup checks (the hashing of each implementat
 ### Internal/Collections/Traversal/
 
 ```
-NinoCollections.cs           shared collection helpers (rented reads, enumerable writes through the gather, AddAll)
+NinoCollections.cs           shared collection helpers (rented reads of collections built in one go, enumerable writes
+                             through the gather, AddAll)
 NinoKind.cs                  the one element-kind decision every collection reads: NinoKind<TFormatter> (what a formatter
                              says of every value, read once: Traits, IsString, Strings, Cursor, the run loop, prefetch,
                              the sized and external top-level writes), NinoKind<T, TFormatter> (NinoElementKind: raw,
@@ -377,8 +384,10 @@ NinoThreadCache.cs           helpers for the per-thread caches
 NinoGather.cs                the gather of collections that are not one run (trees, linked lists, enumerators): their
                              elements walked into a chunk of Nino's own per-thread buffer (NinoGather<T>: 16 KB chunks,
                              pinned and 64-byte aligned without references, kept for nesting), each chunk written by the
-                             run loops (Write, WriteCopied); reads fill a chunk through the read loop and hand it to the
-                             collection (Read, ReadAll); INinoGatherSource / INinoGatherTarget, Enumerated, Adds
+                             run loops (Write, the count around WriteItems, the one loop of a gather's elements: straight
+                             into the writer's free space for values whose memory is their wire form, a known count or
+                             not; WriteReversed; WriteCopied); reads fill a chunk through the read loop and hand it to
+                             the collection (Read, ReadAll); INinoGatherTarget, Adds (the sources are in CompilerServices)
 ```
 
 ### Internal/Metadata/

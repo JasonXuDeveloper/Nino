@@ -46,9 +46,9 @@ namespace Nino.Core
             object root = SortedSetTrees.RootOf(sorted);
             return root != null
                 ? NinoGather.Write<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
-                    SortedSetNodes<KeyValuePair<TKey, TValue>>.Walk>(SortedSetNodes<KeyValuePair<TKey, TValue>>.Items(root), sorted.Count, writer)
+                    NinoTreeItems<KeyValuePair<TKey, TValue>>>(SortedSetNodes<KeyValuePair<TKey, TValue>>.Items(root), sorted.Count, writer)
                 : NinoGather.Write<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
-                    NinoGather.Enumerated<KeyValuePair<TKey, TValue>, SortedDictionary<TKey, TValue>.Enumerator>>(
+                    NinoGathered.Enumerated<KeyValuePair<TKey, TValue>, SortedDictionary<TKey, TValue>.Enumerator>>(
                     new(sorted.GetEnumerator()), sorted.Count, writer);
         }
 
@@ -216,7 +216,7 @@ namespace Nino.Core
                 return count;
             }
 
-            public void End()
+            public void Finish()
             {
             }
         }
@@ -259,15 +259,21 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Through its own enumerator, typed here rather than left to the shared loop of
-        /// <see cref="NinoCollections.WriteEnumerable{T,TFormatter}"/>, whose guess at the dictionary type is made
-        /// once for every dictionary with these keys and values (4x slower when a Dictionary was seen first), and
-        /// without its count (which takes every lock, and may not match the pairs enumerated after it).
+        /// Its buckets walked where their chains can be read (<see cref="ConcurrentTables.Pairs{TKey,TValue}"/>), in the
+        /// enumerator's order without its two interface calls per pair, else through its enumerator; typed here rather
+        /// than left to the shared loop of <see cref="NinoCollections.WriteEnumerable{T,TFormatter}"/>, whose guess at
+        /// the dictionary type is made once for every dictionary with these keys and values (4x slower when a
+        /// Dictionary was seen first), and without its count (which takes every lock, and may not match the pairs
+        /// walked after it).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteConcurrent(ConcurrentDictionary<TKey, TValue> concurrent, Writer writer) =>
-            NinoGather.Write<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
-                NinoGather.Enumerated<KeyValuePair<TKey, TValue>, IEnumerator<KeyValuePair<TKey, TValue>>>>(new(concurrent.GetEnumerator()), -1, writer);
+            ConcurrentTables.Plan<TKey, TValue>.Chained
+                ? NinoGather.Write<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                    ConcurrentTables.Pairs<TKey, TValue>>(new(concurrent), -1, writer)
+                : NinoGather.Write<KeyValuePair<TKey, TValue>, KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>,
+                    NinoGathered.Enumerated<KeyValuePair<TKey, TValue>, IEnumerator<KeyValuePair<TKey, TValue>>>>(
+                    new(concurrent.GetEnumerator()), -1, writer);
 
         /// <summary>
         /// The pairs of a new dictionary filled as its constructor from the pairs fills it, without locks

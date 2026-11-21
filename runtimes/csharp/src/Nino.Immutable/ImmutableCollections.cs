@@ -1,28 +1,12 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Nino.Core;
-using Nino.Core.CompilerServices;
 
 namespace Nino.Immutable
 {
     internal static class ImmutableCollections
     {
-        /// <summary>Writes the first <paramref name="count"/> elements of a rented array as a <c>T[]</c>, then returns it.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteRented<T, TFormatter>(T[] array, int count, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            default(ArraySegmentFormatter<T, TFormatter>).Serialize(new ArraySegment<T>(array, 0, count), ref writer);
-            Return(array);
-        }
-
-        /// <summary>Returns a rented array, cleared if it may hold references (as Nino.Core returns its own).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Return<T>(T[] array) =>
-            ArrayPool<T>.Shared.Return(array, NinoUnsafe.IsReferenceOrContainsReferences<T>());
-
         /// <summary>Reads a new <c>T[]</c> (null for a null length).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T[] Read<T, TFormatter>(ref Reader reader) where TFormatter : struct, INinoFormatter<T>

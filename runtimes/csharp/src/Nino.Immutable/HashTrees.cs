@@ -1,8 +1,8 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Nino.Core;
 using Nino.Core.CompilerServices;
@@ -108,7 +108,32 @@ namespace Nino.Immutable
             var set = SetTree<int>.ViewOf(ImmutableHashSet<int>.Empty.Add(7));
             if (set._count != 1 || set._root._key != 7 || set._root._height != 1 || set._root._value._firstValue != 7)
                 return false;
-            return CheckDictionary() && CheckSet();
+            return CheckDictionary() && CheckSet() && CheckBuckets();
+        }
+
+        private static bool CheckBuckets()
+        {
+            // Hashes that collide (a long's is its halves XORed): buckets with further items, walked in the
+            // enumerator's order.
+            // Built from an enumerable, never a params call: the compiler binds those to the ReadOnlySpan overloads of
+            // newer versions, which older ones (Mono's) lack.
+            var set = ImmutableHashSet.CreateRange(Enumerable.Range(0, 4).Select(i => (long)i | (long)i << 32).Append(5L).Append(7L));
+            var dictionary = ImmutableDictionary<long, int>.Empty.AddRange(set.Select(item => new KeyValuePair<long, int>(item, (int)item + 1)));
+            return Walks(SetTree<long>.ItemsOf(set), set, set.Count) &&
+                   Walks(DictionaryTree<long, int>.PairsOf(dictionary), dictionary, dictionary.Count);
+        }
+
+        private static bool Walks<T, TSource>(TSource source, IEnumerable<T> collection, int count)
+            where TSource : struct, INinoGatherSource<T>
+        {
+            var walked = new T[count + 1];
+            int filled = source.Fill(walked);
+            source.Finish();
+            int at = 0;
+            foreach (var item in collection)
+                if (at >= filled || !EqualityComparer<T>.Default.Equals(walked[at++], item))
+                    return false;
+            return filled == count && at == count;
         }
 
         private static bool CheckDictionary()
@@ -173,14 +198,14 @@ namespace Nino.Immutable
             public object _additionalElements;
         }
 
-        /// <summary><c>ImmutableList&lt;TItem&gt;</c>: its empty one holds the empty node every bucket of one item holds.</summary>
-        private sealed class ListView
-        {
-            public object _root;
-        }
 #pragma warning restore CS0649
 
-        private static readonly object NoMore = Unsafe.As<ListView>(ImmutableList<TItem>.Empty)._root;
+        private static readonly Node Sample = new();
+        private static readonly int LeftAt = NinoTreeWalk.OffsetOf(Sample, ref Sample._left);
+        private static readonly int RightAt = NinoTreeWalk.OffsetOf(Sample, ref Sample._right);
+
+        /// <summary>The further items of a bucket that holds one: the empty node of an <c>ImmutableList</c>.</summary>
+        private static readonly ListNode<TItem> NoMore = ListTree<TItem>.End;
 
         /// <summary>
         /// The tree of <paramref name="items"/> under <paramref name="empty"/> (the collection's empty node, of the
@@ -201,31 +226,74 @@ namespace Nino.Immutable
         }
 
         /// <summary>
-        /// The <paramref name="count"/> items under <paramref name="root"/> in a rented array, in the order the
-        /// collection's enumerator yields them (by hash); null when a bucket holds more than one item, which the
-        /// enumerator is left to.
+        /// The items under <paramref name="root"/> (subtrees ending at <paramref name="empty"/>) in the order the
+        /// collection's enumerator yields them, a chunk at a time: the buckets in order of their hash
+        /// (<see cref="NinoTreeWalk"/>), each bucket's first item, then its further ones (an <c>ImmutableList</c>'s tree,
+        /// walked the same way), where the enumerator keeps a pooled stack and checks it per item.
         /// </summary>
-        public static TItem[] Copy(Node root, int count)
-        {
-            var array = ArrayPool<TItem>.Shared.Rent(count);
-            int at = 0;
-            if (CopyTo(root, array, ref at))
-                return array;
-            ImmutableCollections.Return(array);
-            return null;
-        }
+        public static Items ItemsOf(Node root, Node empty) => new(new NinoTreeWalk(root, empty, LeftAt, RightAt));
 
-        private static bool CopyTo(Node node, TItem[] array, ref int at)
+        internal struct Items : INinoGatherSource<TItem>
         {
-            // The empty node, under every leaf, has no children.
-            for (; node._left != null; node = node._right)
+            private NinoTreeWalk _buckets;
+            private NinoTreeItems<TItem> _more;
+            private bool _inBucket;
+
+            public Items(NinoTreeWalk buckets)
             {
-                if (!CopyTo(node._left, array, ref at) || node._value._additionalElements != NoMore)
-                    return false;
-                array[at++] = node._value._firstValue;
+                _buckets = buckets;
+                _more = default;
+                _inBucket = false;
             }
 
-            return true;
+            public int Fill(Span<TItem> chunk)
+            {
+                int filled = 0;
+                while (true)
+                {
+                    if (_inBucket)
+                    {
+                        // A bucket's further items: keys whose hashes are equal, rare.
+                        filled += _more.Fill(chunk.Slice(filled));
+                        if (filled == chunk.Length)
+                            return filled;
+                        _more.Finish();
+                        _inBucket = false;
+                    }
+
+                    var buckets = new Buckets();
+                    filled += _buckets.Fill(chunk.Slice(filled), ref buckets);
+                    if (buckets.Held == null)
+                        return filled;
+                    _more = ListNode<TItem>.Items(Unsafe.As<ListNode<TItem>>(buckets.Held._value._additionalElements),
+                        NoMore);
+                    _inBucket = true;
+                }
+            }
+
+            public void Finish()
+            {
+                if (_inBucket)
+                    _more.Finish();
+                _buckets.Finish();
+            }
+        }
+
+        /// <summary>A bucket's first item; one with further items ends the fill, which then walks them.</summary>
+        private struct Buckets : INinoTreeNodes<TItem>
+        {
+            public Node Held;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool Take(object node, ref TItem item)
+            {
+                var bucket = Unsafe.As<Node>(node);
+                item = bucket._value._firstValue;
+                if (bucket._value._additionalElements == NoMore)
+                    return true;
+                Held = bucket;
+                return false;
+            }
         }
 
         private static Node Make(ref TItem items, ref int hashes, int low, int high, Node empty, IntPtr type)
@@ -262,13 +330,12 @@ namespace Nino.Immutable
 
         public static View ViewOf(ImmutableDictionary<TKey, TValue> dictionary) => Unsafe.As<View>(dictionary);
 
-        /// <summary>
-        /// The <paramref name="count"/> pairs of <paramref name="dictionary"/> in a rented array, as
-        /// <see cref="HashTree{TItem}.Copy"/> copies them, or null.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static KeyValuePair<TKey, TValue>[] Copy(ImmutableDictionary<TKey, TValue> dictionary, int count) =>
-            HashTree<KeyValuePair<TKey, TValue>>.Copy(ViewOf(dictionary)._root, count);
+        private static readonly HashTree<KeyValuePair<TKey, TValue>>.Node End =
+            ViewOf(ImmutableDictionary<TKey, TValue>.Empty)._root;
+
+        /// <summary>The pairs of <paramref name="dictionary"/> in its enumerator's order, a chunk at a time.</summary>
+        public static HashTree<KeyValuePair<TKey, TValue>>.Items PairsOf(ImmutableDictionary<TKey, TValue> dictionary) =>
+            HashTree<KeyValuePair<TKey, TValue>>.ItemsOf(ViewOf(dictionary)._root, End);
 
         /// <summary>The dictionary of <paramref name="pairs"/> (sorted by hash), or null to build it the usual way.</summary>
         public static ImmutableDictionary<TKey, TValue> Create(KeyValuePair<TKey, TValue>[] pairs)
@@ -315,12 +382,10 @@ namespace Nino.Immutable
 
         public static View ViewOf(ImmutableHashSet<T> set) => Unsafe.As<View>(set);
 
-        /// <summary>
-        /// The <paramref name="count"/> items of <paramref name="set"/> in a rented array, as
-        /// <see cref="HashTree{TItem}.Copy"/> copies them, or null.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static T[] Copy(ImmutableHashSet<T> set, int count) => HashTree<T>.Copy(ViewOf(set)._root, count);
+        private static readonly HashTree<T>.Node End = ViewOf(ImmutableHashSet<T>.Empty)._root;
+
+        /// <summary>The items of <paramref name="set"/> in its enumerator's order, a chunk at a time.</summary>
+        public static HashTree<T>.Items ItemsOf(ImmutableHashSet<T> set) => HashTree<T>.ItemsOf(ViewOf(set)._root, End);
 
         /// <summary>The set of <paramref name="items"/> (sorted by hash), or null to build it the usual way.</summary>
         public static ImmutableHashSet<T> Create(T[] items)

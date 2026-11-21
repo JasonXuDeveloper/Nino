@@ -99,6 +99,27 @@ public static class Program
     }
 
     /// <summary>
+    /// <paramref name="value"/>, written by walking this runtime's internals, writes what an array of its elements in
+    /// enumeration order writes; no hash printed, as the order depends on the runtime's tables.
+    /// </summary>
+    private static void Walked<T>(string name, IEnumerable<T> value)
+    {
+        bool same;
+        try
+        {
+            same = NinoSerializer.SerializeBoxed(value, value.GetType()).SequenceEqual(NinoSerializer.Serialize(value.ToArray()));
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"{name,-24} EXCEPTION {e.GetType().Name}: {e.Message}");
+            same = false;
+        }
+
+        if (!same) _failed++;
+        Console.WriteLine($"{name,-24} {(same ? "ok" : "MISMATCH")}");
+    }
+
+    /// <summary>
     /// FNV-1a over <paramref name="bytes"/>: compares what each runtime wrote, in managed code (SHA256 needs OpenSSL,
     /// which the Arm32 job's qemu sysroot lacks).
     /// </summary>
@@ -191,6 +212,7 @@ public static class Program
 #endif
         (typeof(Nino.Immutable.ImmutableArrayFormatter<,>).Assembly, "Nino.Immutable.HashTrees", "Usable"),
         (typeof(Nino.Immutable.ImmutableArrayFormatter<,>).Assembly, "Nino.Immutable.SortedTrees", "Usable"),
+        (typeof(Nino.Immutable.ImmutableArrayFormatter<,>).Assembly, "Nino.Immutable.StackNodes", "Usable"),
     };
 
     /// <summary>
@@ -487,6 +509,34 @@ public static class Program
         Case("ImmSortedDict<int,long>", distinct.ToImmutableSortedDictionary(i => i, i => (long)i << 20));
         Case("ImmutableQueue<int>", ImmutableQueue.CreateRange(ints));
         Case("ImmutableStack<int>", ImmutableStack.CreateRange(ints));
+        // Written by walking this runtime's internals (ConcurrentTables.Pairs, NinoTreeWalk over the immutable trees
+        // and their buckets of keys that share a hash, StackNodes over the stacks and queues), across several chunks
+        // of the gather: the bytes of an array of the elements in enumeration order (a stack's reversed), whatever
+        // order this runtime keeps them in.
+        var walk = Enumerable.Range(0, 5000).ToArray();
+        var collide = walk.Select(i => (long)i | (long)i << 32).Concat(walk.Select(i => (long)i * 7919 + 1)).ToArray();
+        Walked("ConcurrentDict<int,int> walked", new ConcurrentDictionary<int, int>(walk.ToDictionary(i => i * 7, i => i)));
+        Walked("ConcurrentDict<str,str> walked", new ConcurrentDictionary<string, string>(walk.ToDictionary(i => "k" + i, i => "v" + i)));
+        Walked("ImmHashSet<long> walked", ImmutableHashSet.CreateRange(collide));
+        Walked("ImmDict<long,str> walked", collide.Distinct().ToImmutableDictionary(i => i, i => "v" + i));
+        Walked("ImmList<string> walked", ImmutableList.CreateRange(walk.Select(i => "s" + i)));
+        Walked("ImmQueue<int?> walked", ImmutableQueue.CreateRange(walk.Select(i => i % 3 == 0 ? null : (int?)i)));
+        {
+            // Grown at its back, enumerated once (which reverses its back and keeps it), then walked (StackNodes).
+            var grown = walk.Aggregate(ImmutableQueue<string>.Empty, (queue, i) => queue.Enqueue("q" + i));
+            foreach (var _ in grown)
+            {
+            }
+
+            Walked("ImmQueue<string> grown", grown);
+        }
+        Walked("ImmSortedDict<str,int> walked", walk.ToImmutableSortedDictionary(i => "k" + i, i => i, StringComparer.Ordinal));
+        {
+            var stack = ImmutableStack.CreateRange(walk.Select(i => "s" + i));
+            bool same = NinoSerializer.Serialize(stack).SequenceEqual(NinoSerializer.Serialize(stack.Reverse().ToArray()));
+            if (!same) _failed++;
+            Console.WriteLine($"{"ImmStack<string> walked",-24} {(same ? "ok" : "MISMATCH")}");
+        }
 
         // Built from the data through a runtime's internals, then used through the public API.
         Built("SortedSet built", new SortedSet<int>(Enumerable.Range(0, 2000).Select(i => i * 3)), set =>

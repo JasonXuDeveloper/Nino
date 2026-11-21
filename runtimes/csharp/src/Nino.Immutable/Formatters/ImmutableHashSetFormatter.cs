@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
@@ -22,30 +21,26 @@ namespace Nino.Immutable
                 return;
             }
 
-            // Copied out of its tree (HashTrees) in the order its enumerator yields them, and written as an array
-            // (raw elements as one block): the enumerator keeps a pooled stack of nodes and checks it per element.
-            int count = value.Count;
-            if (count != 0 && HashTrees.Usable && SetTree<T>.Copy(value, count) is { } array)
-            {
-                ImmutableCollections.WriteRented<T, TFormatter>(array, count, ref writer);
-                return;
-            }
-
-            // Element by element with its own (struct) enumerator: through IEnumerable<T>, each step is an
-            // interface call.
-            writer = WriteItems(value, count, writer);
+            writer = Write(value, writer);
         }
 
-        // Out of line, the count too: inlined into the caller, the large enumerator is kept in memory instead of
-        // registers, and this path (empty sets, runtimes whose trees HashTrees cannot read) takes the inlining
-        // budget of the common one. The writer by value and returned: one passed by reference would keep the
-        // caller's in memory.
+        // Out of line, the writer by value and returned, as Nino.Core's own trees (BclCollections.WriteSorted): inlined,
+        // the walk's setup (its source built and passed by value) took registers and stack from every caller (asm.py,
+        // a top-level ImmutableSortedSet<int> write: 43 stack accesses, 33 out of line, the writer's copy in and out).
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteItems(ImmutableHashSet<T> value, int count, Writer writer)
+        private static Writer Write(ImmutableHashSet<T> value, Writer writer)
         {
-            writer.WriteLength(count);
-            foreach (var item in value)
-                NinoElement.Write<T, TFormatter>(in item, ref writer);
+            // Its tree walked (HashTrees) in the order its enumerator yields them, a chunk at a time, each chunk written
+            // by Nino.Core's run loops (raw elements as one block): the enumerator keeps a pooled stack of nodes and
+            // checks it per element. Else that (struct) enumerator: through IEnumerable<T>, each step is two interface
+            // calls.
+            if (HashTrees.Usable)
+                NinoGathered.Write<T, TFormatter, HashTree<T>.Items>(SetTree<T>.ItemsOf(value), value.Count,
+                    ref writer);
+            else
+                NinoGathered.Write<T, TFormatter, NinoGathered.Enumerated<T, ImmutableHashSet<T>.Enumerator>>(
+                    new(value.GetEnumerator()), value.Count, ref writer);
+
             return writer;
         }
 
@@ -62,7 +57,7 @@ namespace Nino.Immutable
         }
 
         // Built as its tree where it can be (HashTrees), else added one by one to a builder (CreateRange enumerates
-        // through IEnumerable<T>); out of line like WriteItems.
+        // through IEnumerable<T>); out of line.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ImmutableHashSet<T> Build(T[] items)
         {

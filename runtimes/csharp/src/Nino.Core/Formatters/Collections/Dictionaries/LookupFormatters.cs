@@ -32,33 +32,11 @@ namespace Nino.Core
 
             // A grouping that holds its elements is written from an array, as an array's elements are, out of line
             // with the writer by value: enumerating it took two interface calls per element. Nino's own from its
-            // array; one that can copy them out (.NET's Lookup, whose groupings are lists) under the rule of
-            // NinoCollections.WriteEnumerable (elements of a fixed size, or CopiedFrom elements or more).
+            // array; others through the gather, as NinoCollections.WriteEnumerable writes a collection.
             if (value is NinoGrouping<TKey, TElement> stored)
-            {
                 writer = WriteElements(stored.Key, stored.Elements, writer);
-                return;
-            }
-
-            if (value is ICollection<TElement> collection &&
-                (NinoKind.Stride<TElement, TElementFormatter>() > 0 ||
-                 collection.Count >= NinoCollections.CopiedFrom))
-            {
-                writer = WriteCollection(value.Key, collection, writer);
-                return;
-            }
-
-            // The count first, patched after the elements: a grouping need not know its count.
-            int countPos = writer.ReserveInt32();
-            default(TKeyFormatter).Serialize(value.Key, ref writer);
-            int count = 0;
-            foreach (var element in value)
-            {
-                NinoElements.WriteOne<TElement, TElementFormatter>(element, ref writer);
-                count++;
-            }
-
-            writer.PatchInt32(countPos, count);
+            else
+                writer = WriteGathered(value, writer);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -70,18 +48,38 @@ namespace Nino.Core
             return writer;
         }
 
+        /// <summary>
+        /// A grouping that holds a collection (.NET's Lookup, whose groupings are lists) copied out by its <c>CopyTo</c>
+        /// into a chunk of the gather where it fits one, under the rule of NinoCollections.WriteEnumerable (elements of
+        /// a fixed size, or CopiedFrom elements or more); else its elements gathered from its enumerator a chunk at a
+        /// time, the count (patched after them where the grouping does not know it) before the key.
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteCollection(TKey key, ICollection<TElement> collection, Writer writer)
+        private static Writer WriteGathered(IGrouping<TKey, TElement> value, Writer writer)
         {
-            var elements = NinoCollections.RentCopied(collection, out int count);
-            try
+            int count = value is ICollection<TElement> known ? known.Count : -1;
+            if (count >= 0 && count <= NinoGather<TElement>.Length &&
+                (NinoKind.Stride<TElement, TElementFormatter>() > 0 || count >= NinoCollections.CopiedFrom))
             {
-                return WriteElements(key, new ReadOnlySpan<TElement>(elements, 0, count), writer);
+                var chunk = NinoGather<TElement>.Take();
+                ((ICollection<TElement>)value).CopyTo(chunk.Array, chunk.Start);
+                writer = WriteElements(value.Key, chunk.Span.Slice(0, count), writer);
+                NinoGather<TElement>.Return(chunk, count);
+                return writer;
             }
-            finally
-            {
-                NinoCollections.ReturnRented(elements);
-            }
+
+            int patch = -1;
+            if (count >= 0)
+                writer.WriteLength(count);
+            else
+                patch = writer.ReserveInt32();
+            default(TKeyFormatter).Serialize(value.Key, ref writer);
+            var source = new NinoGathered.Enumerated<TElement, IEnumerator<TElement>>(value.GetEnumerator());
+            int total = NinoGather.WriteItems<TElement, TElementFormatter,
+                NinoGathered.Enumerated<TElement, IEnumerator<TElement>>>(ref source, count, ref writer);
+            if (patch >= 0)
+                writer.PatchInt32(patch, total);
+            return writer;
         }
 
         public void Deserialize(ref Reader reader, ref IGrouping<TKey, TElement> value)

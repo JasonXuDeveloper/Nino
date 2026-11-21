@@ -84,7 +84,7 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteEnumerated(TSet value, int count, Writer writer) =>
-            NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, HashSet<T>.Enumerator>>(
+            NinoGather.Write<T, TFormatter, NinoGathered.Enumerated<T, HashSet<T>.Enumerator>>(
                 new(((HashSet<T>)value).GetEnumerator()), count, writer);
 
         public void Deserialize(ref Reader reader, ref TSet value)

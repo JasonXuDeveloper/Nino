@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Nino.Core.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics.X86;
@@ -200,12 +201,18 @@ namespace Nino.Core.Internal
         /// <summary>What is decided from the key and value types alone, once per pair of types.</summary>
         public static class Plan<TKey, TValue>
         {
-            /// <summary>Whether a key the dictionary added has its bucket walked (<see cref="Walk{TKey,TValue}"/>).</summary>
-            public static readonly bool Walks = !(typeof(TKey) == typeof(string) && GuardsStrings) &&
+            /// <summary>
+            /// Whether the chains of these nodes can be read on this runtime: a dictionary is then written by walking
+            /// its buckets (<see cref="Pairs{TKey,TValue}"/>).
+            /// </summary>
+            public static readonly bool Chained = ElementsAt != 0 &&
                 (NinoUnsafe.IsReferenceOrContainsReferences<TKey>() ||
                  NinoUnsafe.IsReferenceOrContainsReferences<TValue>()
                     ? ReferenceChains
                     : Chains);
+
+            /// <summary>Whether a key the dictionary added has its bucket walked (<see cref="Walk{TKey,TValue}"/>).</summary>
+            public static readonly bool Walks = !(typeof(TKey) == typeof(string) && GuardsStrings) && Chained;
 
             /// <summary>Whether a new dictionary is built here (<see cref="Builder{TKey,TValue}"/>).</summary>
             public static readonly bool Builds = Walks && ConcurrentTables.Builds;
@@ -335,6 +342,60 @@ namespace Nino.Core.Internal
                 else
                     _counts[(int)(bucket % (uint)_counts.Length)]++;
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// The pairs of a dictionary (<see cref="Plan{TKey,TValue}.Chained"/>) bucket by bucket along their chains, as
+        /// its enumerator yields them (the same order on every known implementation), a chunk at a time for the gather:
+        /// through <see cref="IEnumerable{T}"/>, each pair was two interface calls into a state machine. Not a
+        /// snapshot, as the enumerator is not: the buckets are read once, each head as the enumerator reads it.
+        /// </summary>
+        public struct Pairs<TKey, TValue> : INinoGatherSource<KeyValuePair<TKey, TValue>>
+        {
+            private readonly object _buckets;
+            private readonly int _length;
+            private int _next;
+            private object _node;
+
+            public Pairs(ConcurrentDictionary<TKey, TValue> dictionary)
+            {
+                _buckets = ObjectFields.At<object>(TablesOf(dictionary), BucketsAt);
+                _length = Unsafe.As<Array>(_buckets).Length;
+                _next = 0;
+                _node = null;
+            }
+
+            public int Fill(Span<KeyValuePair<TKey, TValue>> chunk)
+            {
+                // An array of nodes, or of structs holding one (VolatileNode): either way one reference per bucket.
+                ref object heads = ref ObjectFields.At<object>(_buckets, ElementsAt);
+                int next = _next, length = _length;
+                object node = _node;
+                ref var at = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(chunk);
+                int filled = 0;
+                while (filled < chunk.Length)
+                {
+                    if (node == null)
+                    {
+                        if (next >= length)
+                            break;
+                        node = Volatile.Read(ref Unsafe.Add(ref heads, next++));
+                        continue;
+                    }
+
+                    var pair = Unsafe.As<Node<TKey, TValue>>(node);
+                    Unsafe.Add(ref at, filled++) = new KeyValuePair<TKey, TValue>(pair._key, pair._value);
+                    node = pair._next;
+                }
+
+                _next = next;
+                _node = node;
+                return filled;
+            }
+
+            public void Finish()
+            {
             }
         }
 

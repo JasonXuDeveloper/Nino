@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -83,6 +84,8 @@ namespace Nino.UnitTests
                     Same(NinoSerializer.Serialize(set.ToArray()), set, name);
                 }
 
+                Immutables(items, sorted, name);
+
 #if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
                 var queue = new PriorityQueue<T, int>(items.Select((item, i) => (item, i % 17)));
                 Same(NinoSerializer.Serialize(queue.UnorderedItems.ToArray()), queue, name);
@@ -92,6 +95,96 @@ namespace Nino.UnitTests
                     Same(NinoSerializer.Serialize(byItem.UnorderedItems.ToArray()), byItem, name + " as priorities");
                 }
 #endif
+            }
+        }
+
+        /// <summary>
+        /// The immutable collections of <paramref name="items"/> walk their trees and nodes through the gather
+        /// (<see cref="Nino.Core.CompilerServices.NinoTreeWalk"/>): each writes what an array of its elements in its
+        /// enumerator's order writes (a stack's reversed, bottom to top).
+        /// </summary>
+        private static void Immutables<T>(T[] items, bool sorted, string name)
+        {
+            // A set of objects hashed by reference reads back in another order.
+            bool hashedAlike = typeof(T).IsValueType || typeof(T) == typeof(string);
+            Same(NinoSerializer.Serialize(items), ImmutableList.CreateRange(items), name);
+            Same(NinoSerializer.Serialize(items), ImmutableQueue.CreateRange(items), name);
+            // Grown at its back: its back stack not reversed yet (its enumerator), then reversed by that enumerator
+            // and kept (its nodes), then dequeued past its front.
+            var grown = items.Aggregate(ImmutableQueue<T>.Empty, (queue, item) => queue.Enqueue(item));
+            Same(NinoSerializer.Serialize(items), grown, name + " grown", reads: false);
+            Same(NinoSerializer.Serialize(items), grown, name + " grown, reversed", reads: false);
+            if (items.Length > 1)
+                Same(NinoSerializer.Serialize(items.Skip(1).ToArray()), grown.Dequeue(), name + " dequeued", reads: false);
+            var stack = ImmutableStack.CreateRange(items);
+            Same(NinoSerializer.Serialize(stack.Reverse().ToArray()), stack, name);
+            var hashed = ImmutableHashSet.CreateRange(items.Where(item => item != null));
+            Same(NinoSerializer.Serialize(hashed.ToArray()), hashed, name, reads: hashedAlike);
+            var keyed = ImmutableDictionary.CreateRange(items.Where(item => item != null).Distinct()
+                .Select((item, i) => new KeyValuePair<T, int>(item, i)));
+            Same(NinoSerializer.Serialize(keyed.ToArray()), keyed, name, reads: hashedAlike);
+            var byIndex = ImmutableDictionary.CreateRange(items.Select((item, i) => new KeyValuePair<int, T>(i * 3, item)));
+            Same(NinoSerializer.Serialize(byIndex.ToArray()), byIndex, name);
+            if (!sorted)
+                return;
+            var ordered = ImmutableSortedSet.CreateRange(items);
+            Same(NinoSerializer.Serialize(ordered.ToArray()), ordered, name);
+            var sortedPairs = ImmutableSortedDictionary.CreateRange(items.Distinct().Where(item => item != null)
+                .Select((item, i) => new KeyValuePair<T, string>(item, "v" + i)));
+            Same(NinoSerializer.Serialize(sortedPairs.ToArray()), sortedPairs, name);
+        }
+
+        [TestMethod]
+        public void ImmutableHashBucketsOfEqualHashesAreWalkedInTheirOrder()
+        {
+            // A long's hash is its halves XORed: every i | (i << 32) hashes to 0, one bucket of them all.
+            foreach (int count in new[] { 3, 40, 2 * NinoGather<long>.Length + 3 })
+            {
+                var colliding = Enumerable.Range(0, count).Select(i => (long)i | ((long)i << 32)).Concat(Enumerable.Range(1, 50).Select(i => (long)i * 7919));
+                var set = ImmutableHashSet.CreateRange(colliding);
+                var dictionary = ImmutableDictionary.CreateRange(set.Select(item => new KeyValuePair<long, string>(item, "v" + item)));
+                // Not read back for the bytes: a bucket keeps its items in the order they were added, which a read
+                // through the builder does not repeat.
+                Same(NinoSerializer.Serialize(set.ToArray()), set, $"{count} colliding", reads: false);
+                Same(NinoSerializer.Serialize(dictionary.ToArray()), dictionary, $"{count} colliding", reads: false);
+            }
+
+            var strings = new ConcurrentDictionary<string, DispatchRoot>(Enumerable.Range(0, 3000)
+                .Select(i => new KeyValuePair<string, DispatchRoot>("k" + i, Root(i))));
+            Same(NinoSerializer.Serialize(strings.ToArray()), strings, "string keys", reads: false);
+        }
+
+        /// <summary>A grouping that only enumerates: its count patched after its elements, which follow its key.</summary>
+        private sealed class Enumerated<TKey, T> : IGrouping<TKey, T>
+        {
+            private readonly T[] _items;
+
+            public Enumerated(TKey key, T[] items)
+            {
+                Key = key;
+                _items = items;
+            }
+
+            public TKey Key { get; }
+            public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)_items).GetEnumerator();
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        }
+
+        [TestMethod]
+        public void GroupingsGatherTheirElementsAfterTheirKey()
+        {
+            foreach (int count in Counts<string>())
+            {
+                var items = Enumerable.Range(0, count).Select(i => i % 7 == 0 ? null : "g" + i).ToArray();
+                var listed = items.GroupBy(_ => 5).SingleOrDefault() ?? new Enumerated<int, string>(5, items);
+                byte[] expected = NinoSerializer.Serialize(listed);
+                CollectionAssert.AreEqual(expected,
+                    NinoSerializer.Serialize<IGrouping<int, string>>(new Enumerated<int, string>(5, items)), $"x{count}");
+                var ints = Enumerable.Range(0, count).ToArray();
+                CollectionAssert.AreEqual(
+                    NinoSerializer.Serialize<IGrouping<int, int>>(new Enumerated<int, int>(5, ints)),
+                    NinoSerializer.Serialize(ints.GroupBy(_ => 5).SingleOrDefault() ?? new Enumerated<int, int>(5, ints)),
+                    $"ints x{count}");
             }
         }
 

@@ -54,17 +54,13 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// The count and the elements through the enumerator, where the queue's fields are not known: out of line,
-        /// the writer by value and returned.
+        /// The count and the elements through its (struct) enumerator, gathered a chunk at a time, where the queue's
+        /// fields are not known: out of line, the writer by value and returned.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteEnumerated(TQueue value, Writer writer)
-        {
-            writer.WriteLength(value.Count);
-            foreach (var item in value)
-                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
-            return writer;
-        }
+        private static Writer WriteEnumerated(TQueue value, Writer writer) =>
+            NinoGather.Write<T, TFormatter, NinoGathered.Enumerated<T, Queue<T>.Enumerator>>(
+                new(((Queue<T>)value).GetEnumerator()), value.Count, writer);
 
         public void Deserialize(ref Reader reader, ref TQueue value)
         {

@@ -1,9 +1,9 @@
 using System;
-using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Immutable
 {
@@ -22,30 +22,49 @@ namespace Nino.Immutable
                 return;
             }
 
-            // One walk of the nodes, top to bottom, into a rented array that grows as it fills, then reversed in place:
-            // counting them first walked the linked nodes twice, and the walk, not the copy, is what costs (#305:
-            // ImmutableStack<int> of 1,000 written at 0.48x LuminPack's speed on EPYC 7763, 0.81x on Neoverse-N2).
-            var array = ArrayPool<T>.Shared.Rent(16);
-            int count = 0;
-            foreach (var item in value)
-            {
-                if (count == array.Length)
-                    array = Grow(array);
-                array[count++] = item;
-            }
-
-            array.AsSpan(0, count).Reverse();
-            ImmutableCollections.WriteRented<T, TFormatter>(array, count, ref writer);
+            writer = Write(value, writer);
         }
 
-        /// <summary>A rented array twice the size of <paramref name="full"/>, holding its elements; returns it.</summary>
+        // Out of line, the writer by value and returned, as Nino.Core's own trees (BclCollections.WriteSorted): inlined,
+        // the walk's setup (its source built and passed by value) took registers and stack from every caller (asm.py,
+        // a top-level ImmutableSortedSet<int> write: 43 stack accesses, 33 out of line, the writer's copy in and out).
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static T[] Grow(T[] full)
+        private static Writer Write(ImmutableStack<T> value, Writer writer)
         {
-            var larger = ArrayPool<T>.Shared.Rent(full.Length * 2);
-            full.AsSpan().CopyTo(larger);
-            ImmutableCollections.Return(full);
-            return larger;
+            // One walk of the nodes, top to bottom, into the gather's chunks, written in reverse: counting them first
+            // walked the linked nodes twice, and the walk, not the copy, is what costs (#305: ImmutableStack<int> of
+            // 1,000 written at 0.48x LuminPack's speed on EPYC 7763, 0.81x on Neoverse-N2). The nodes through the mirror
+            // (StackNodes), where its enumerator calls Pop and Peek per element; that enumerator where it does not match.
+            if (StackNodes.Usable)
+                NinoGathered.WriteReversed<T, TFormatter, StackItems<T>>(new(StackNode<T>.Of(value), null), ref writer);
+            else
+                NinoGathered.WriteReversed<T, TFormatter, Items>(new Items(value.GetEnumerator()), ref writer);
+
+            return writer;
+        }
+
+        /// <summary>Its elements top to bottom, through its enumerator (a struct of no interface).</summary>
+        private struct Items : INinoGatherSource<T>
+        {
+            private ImmutableStack<T>.Enumerator _items;
+
+            public Items(ImmutableStack<T>.Enumerator items) => _items = items;
+
+            public int Fill(Span<T> chunk)
+            {
+                // The enumerator in a local for the loop, written back once (NinoGathered.Enumerated).
+                ref T at = ref MemoryMarshal.GetReference(chunk);
+                var items = _items;
+                int filled = 0;
+                while (filled < chunk.Length && items.MoveNext())
+                    Unsafe.Add(ref at, filled++) = items.Current;
+                _items = items;
+                return filled;
+            }
+
+            public void Finish()
+            {
+            }
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableStack<T> value)

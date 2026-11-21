@@ -98,7 +98,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteEnumerated<T, TFormatter>(IEnumerable<T> values, int count, Writer writer)
             where TFormatter : struct, INinoFormatter<T> =>
-            NinoGather.Write<T, TFormatter, NinoGather.Enumerated<T, IEnumerator<T>>>(new(values.GetEnumerator()),
+            NinoGather.Write<T, TFormatter, NinoGathered.Enumerated<T, IEnumerator<T>>>(new(values.GetEnumerator()),
                 count, writer);
 
         /// <summary>
@@ -166,19 +166,6 @@ namespace Nino.Core.Internal
             {
                 NinoThrow.NullKey(dictionary.GetType());
             }
-        }
-
-        /// <summary>
-        /// The elements of <paramref name="source"/> in a rented array (give it back with <see cref="ReturnRented{T}"/>),
-        /// in the order <see cref="ICollection{T}.CopyTo"/> puts them.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T[] RentCopied<T>(ICollection<T> source, out int count)
-        {
-            count = source.Count;
-            var array = ArrayPool<T>.Shared.Rent(count);
-            source.CopyTo(array, 0);
-            return array;
         }
 
         /// <summary>

@@ -1,6 +1,6 @@
 ---
 name: runtime-internals
-description: "How Nino reads and builds a runtime's own objects through their fields instead of the public API - CollectionViews (List, HashSet, Dictionary layouts per runtime), mirror classes and ObjectTypes.Retype, ImmutableDictionary/ImmutableHashSet trees (HashTrees), SortedSet red-black trees, LinkedList rings, ConcurrentDictionary buckets - with startup checks, public-API fallbacks and the FastPaths tests. Use when adding or changing such a path, when a collection reads or writes wrong on Mono, IL2CPP or 32-bit, or when a startup check fails. Triggers: CollectionViews, HashTrees, SortedSetNodes, ReadLinked, ConcurrentTables, Retype, mirror class, startup check, FastPaths, runtimes/csharp/tests/Nino.RuntimeTests, Mono abort, SortedSet, ConcurrentDictionary, 读错, 启动检查, 运行时内部, 镜像类, 字段布局, 红黑树."
+description: "How Nino reads and builds a runtime's own objects through their fields instead of the public API - CollectionViews (List, HashSet, Dictionary layouts per runtime), mirror classes and ObjectTypes.Retype, ImmutableDictionary/ImmutableHashSet trees (HashTrees), ImmutableStack/ImmutableQueue nodes (StackNodes), SortedSet red-black trees, LinkedList rings, ConcurrentDictionary buckets - with startup checks, public-API fallbacks and the FastPaths tests. Use when adding or changing such a path, when a collection reads or writes wrong on Mono, IL2CPP or 32-bit, or when a startup check fails. Triggers: CollectionViews, HashTrees, SortedSetNodes, ReadLinked, ConcurrentTables, Retype, mirror class, startup check, FastPaths, runtimes/csharp/tests/Nino.RuntimeTests, Mono abort, SortedSet, ConcurrentDictionary, 读错, 启动检查, 运行时内部, 镜像类, 字段布局, 红黑树."
 metadata:
   internal: true
 ---
@@ -75,6 +75,20 @@ What works everywhere so far:
   sits where the reference points (CoreCLR: method table, one header word; Mono and IL2CPP: vtable or class, then the
   monitor, two words), found at startup; call `GetType()` on a retyped object out of line (`NoInlining`), or the JIT
   folds it to the type it allocated (Arm32 did).
+- **Build a startup check's collections from enumerables, never through a `params` call** (`ImmutableList.Create(a,
+  b)`, `ImmutableHashSet.Create(...)`): C# 13 binds it to the `ReadOnlySpan<T>` overload of the System.Collections.Immutable
+  the build compiles against, which Mono's lacks, so the check throws `MissingMethodException` there, `Passes` reads it
+  as a failed layout and the path is silently off (#355 non-contiguous step: `HashTrees.Usable` and
+  `SortedTrees.Usable` were false under Mono until the checks took `CreateRange` of an enumerable; the `FastPaths` row
+  caught it).
+- **Walk a tree through `NinoTreeWalk`** (#355, `CompilerServices`): every binary tree a write walks (a `SortedSet`'s,
+  the immutable trees) is a node class with its children at offsets measured from a mirror instance
+  (`NinoTreeWalk.OffsetOf`), ending at null or at the tree's empty node; a collection adds only what a node's element is
+  (`INinoTreeNodes<T>`; a hash bucket of several keys ends the fill after its node, and the collection walks its further
+  items before the next fill; why it is recursive and takes its stack only when a fill stops, with the numbers:
+  `optimize`).
+  A tree whose subtrees end at an empty node is walked with that node as the end, so a null child there is a tree
+  changed during the write, never a crash.
 - **Hash tables filled this way still count collisions** (`audit-security`: `HashTables`, `ConcurrentTables`).
 - **Fill a new hash table's entries through their run, then link them** (#355 step 4): a read of a new `HashSet` or
   `Dictionary` that `HashTables.CanInsert` accepts reads its values into the entries with `NinoEntries` (each entry
