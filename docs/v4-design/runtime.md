@@ -27,6 +27,13 @@ and owned by a `NinoArrayBufferWriter`.
   overload's. The array grows by doubling as bytes arrive, and a seekable stream's `Length` sizes the first one only
   up to 1 MiB, so a stream makes Nino hold at most about twice what it delivered. The async forms return `ValueTask`
   in every build. All of this is `NinoStreams`.
+* A UTF-8 string of at most 32 chars (`[NinoUtf8]`, .NET 8+) is narrowed or widened by Nino's own word-at-a-time
+  ASCII loop when every char is ASCII, and only otherwise by the runtime's `Utf8` transcoder; the reader checks each
+  byte below 0x80 and rejects the rest as the transcoder does. The bytes are the same. The runtime's ReadyToRun
+  CoreLib transcoder uses SSE encodings, and after Nino's own 256-bit code (an inlined UTF-16 string kernel) each
+  call paid an AVX-SSE transition until the method tiered up: a class of a UTF-16 and a UTF-8 string took 177 ns to
+  write at TC=0 against 25 ns with the members swapped, and a class of seven members with both 179 ns, 26 ns with the
+  ASCII loop.
 
 ## Reader
 
@@ -189,6 +196,30 @@ their formatter's `WriteStrings`/`ReadStrings`, the pairs of a sorted or concurr
 checks of the per-value loops: a null or repeated key, hash flooding through `HashTables`. A dictionary read again
 merges in its own layer, each key read before its value's place is known (`NinoCursor.ReadAt`, which reads it through
 the same items: one cursor read per item, #347).
+
+Classes whose body is flat take a third kind of their own (`NinoFlatRuns`, #355). The generator marks a body flat
+(`FlatRules`) when it is a positional, non-generic class without reference tracking, pooling, callbacks or a factory,
+made by a constructor without arguments, with at least one string and at most twelve items (each is a level of
+inlining, and the JIT inlines at most 20 deep), and every member a field generated code reads and assigns directly, of
+a raw type, a bool or a string. Such a formatter writes no member-by-member body: it names its members once, as a
+chain of items nested in type arguments (`NinoFlat<TLayout, TBody>` in `Nino.Core.CompilerServices`: `NinoFlatBlock`,
+`NinoFlatValue`, `NinoFlatStruct`, `NinoFlatBool`, `NinoFlatString`, `NinoFlatUtf8`, ended by `NinoFlatEnd`), each
+item reaching its field through a one-line accessor struct (`INinoFlatMember.Ref(object)`, a constant offset into the
+object once inlined, and a literal `Size`) and the layout struct (`INinoFlatLayout`: create, exact type, type id).
+`HasFlat` (read once per formatter into `NinoKind<TFormatter>.Flat`) sends a run of at least 16 such elements
+(`NinoFlatRuns.MinRun`: below it the run's fixed cost, about 30 ns, outweighs what it saves) to
+`WriteFlat`/`ReadFlat`, which run the string kernels' write loop and a read loop over the chain: one check of an
+element's longest form against the bytes left, then every member straight into the buffer; a read goes into the object
+an element holds (of exactly the type, its strings kept where unchanged) or a new one. A subtype, another type id, or
+a run nested past `NinoDepth.Inline` goes through the formatter, out of line (an element holding an object once left
+the run too, and a million shuffled items read into their objects took twice as long). Consecutive raw members the
+class lays out next to each other in wire order are one block, copied at once, and a struct member is copied whole;
+both hold only where `__Check`, a startup check on an uninitialized instance (`NinoFieldBlock.IsAt`, `ReadsAsIs` for
+Untrusted mode's checks), proves the object's memory is the wire's, read once per call and never per element; where it
+fails, a second chain with one item per member (`__Fields`) runs instead, which also writes one body. The bytes are
+the member-by-member body's. A run of accessor structs, not a delegate or an offset table, keeps each member a
+constant offset the JIT folds: a first form that read members through generic static fields spilled the loop to 165
+stack operands (3,708 bytes of code for one write loop; 31 operands and 1,056 bytes now).
 
 A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members
 too (generated formatters of fixed-size and block structs, of class bodies and of polymorphic bases, the tuple and
