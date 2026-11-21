@@ -39,8 +39,9 @@ where that is so, and its x64 sizes are listings, not throughput.
   suite gave up, at Tier1, `too many locals` 44 times (distinct root and inlinee), `inline exceeds budget` 18 and `too
   deep` 25; at FullOpts 64, 0 and 24 (`too many basic blocks` 19). A deep tree of `AggressiveInlining` helpers
   stopped at `too many locals`, and padding the root with folded dead IL to raise its budget inlined nothing more.
-  `PolymorphicClassFormatter.ReadBody` (6.6 KB) is at the local limit (FooD's 20-subtype read switch inlined, then
-  `FooZFormatter.ReadBody`, `Create` and even `get_BodyTraits` left calls), `CustomerEventFormatter.Serialize` is a
+  `PolymorphicClassFormatter.ReadBody` (6.6 KB) was at the local limit (FooD's 20-subtype read switch inlined, then
+  `FooZFormatter.ReadBody`, `Create` and even `get_BodyTraits` left calls; fixed by cases holding only the body,
+  dispatch.md), `CustomerEventFormatter.Serialize` is a
   budget case (the last subtype's `WriteExactShallow` a shared `__Canon` call), and `NinoUnsafe.Is64Bit` through
   `IntPtr.Size` was `too deep` in top-level writes and left `call IntPtr.get_Size` before 4-byte stores: one level
   fewer through `Unsafe.SizeOf<IntPtr>()` (same IL size) removed it, no other method changed at FullOpts. The

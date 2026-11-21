@@ -227,6 +227,43 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   44255510084 against main c2c6920b, 3 rounds, EPYC 7763 and Neoverse-N2): GenericSealedClassTupleBase read
   0.68–0.81x, GenericOpenClassTupleBase 0.73–0.80x, WorkloadTest CardBattleLog 0.74–0.79x, PolymorphicFooArray and
   PolymorphicClass on par (0.96–1.06x); not landed.
+  Give each case the subtype's body and nothing else (`NinoObject.ReadExactShallow` in `__ReadExactN`, each case a
+  tail call), the depth checked once before the switch (`NinoObject.IsDeep(ref Reader)`), and leave a body too deep,
+  null and an unknown id (after the switch) and a slot holding another subtype (from the case) to the registry
+  (`NinoSubtypes<T>.DeserializeOther`, by reference, out of line). Why: each case reading its own replacement, deep
+  path and deferral inlined their calls, allocations and temporaries 20 times into whatever inlined the switch.
+  Evidence (#355 switch step, `claude/storage-switch`, local x64, asm.py against `feat/storage-layer` 76612719):
+  `PolymorphicClassFormatter.ReadBody` lost its "too many locals" failures (Tier1 9 to 0, FullOpts 8 to 0; 6,654 to
+  5,181 bytes), `NinoRuns.ReadEach` of PolymorphicFooBase 5,438 to 3,789 bytes and 265 to 148 stack accesses,
+  CardAction's 836 to 681, ProbeBase's 2,098 to 1,447; `NinoGen.Dispatch.g.cs` 196.9 to 169.2 KB with the write side's
+  deep chain gone (next bullet). Time on par (local probe, 1,000 values, base and head alternated, Tier1 and TC=0,
+  fixed, grouped and random order: 0.94-1.04 everywhere, `FooArray`/`FooList` reads 0.94-0.95 at TC=0 in fixed
+  order). Two forms measured worse: cases returning whether they read, with the registry once after the switch, lost
+  the out-of-line cases' tail call (`__NinoDispatch0.__ReadSubtype` 207 to 331 bytes against 241 now); and the ids
+  never need an explicit if-tree: they are 32-bit hashes (the closest two of the benchmark's 22 switches 37.9 million
+  apart), so Roslyn finds no dense range to give an IL `switch`, and the JIT, IL2CPP's C++ and Mono get a binary
+  search of compares (no indirect jump in any read loop's Tier1 listing). Random order costs that search little:
+  FooArray read 18.8 us in a fixed cycle, 19.2 random, 17.3 grouped (Tier1), so no dispatch shape can win more than
+  a few percent there.
+- Write the deep path of a generated write dispatch through the registry (`NinoSubtypes<T>.SerializeDeep`, the
+  writer by value, `NoInlining`), never as a second generated chain (`__WriteSubtypeDeep`): it is cold, and the second
+  chain was a copy of every subtype per base. Evidence (#355 switch step): same Tier1 code for every hot method
+  (PolymorphicFooBase `WriteRun` 5,021 against 5,017 bytes), time on par. Keep the chain written twice, in
+  `__WriteSubtype` and in the run loop: one shared `AggressiveInlining` chain (returning whether it wrote, or ending in
+  the registry) stayed a call per element in PolymorphicFooBase's run loop at Tier1 ("too many locals"; `WriteRun`
+  2,620 to 1,391 bytes plus the call) and was a root of its own at FullOpts; serialize 1.06-1.15x as long (FooList
+  random 1.12-1.15x, PolymorphicClass grouped 1.13-1.17x; local, three rounds). Never mark `WriteRun` `NoInlining` to
+  silence the "too many locals" a body holding the collection reports: callers inline it for small hierarchies
+  (ProbeBase, CardAction, Shape, AoiEvent), which then became calls. Nor loop over a run of one subtype inside its
+  case (`while (next.GetType() == typeof(Sub))`, arrays and lists only): grouped order wrote no faster (FooArray
+  1.015x, FooList 0.99x, PolymorphicClass 1.03x), random order up to 1.06x, PolymorphicFooBase's `WriteRun` 2,620 to
+  6,679 bytes and 126 to 466 stack accesses: the chain's position costs nothing (#305), so the run saves nothing; a
+  read-side run (peek the next id) would save only the switch's predicted compares, which grouped order already
+  predicts. What still fails is the FullOpts code of the run loop: PolymorphicFooBase's `WriteRun` runs out of
+  locals (57 inlines given up, `Reserve`, `WriteRawBody`, `SameType` left calls for FooL to FooZ; 2x Tier1's time at
+  TC=0) because each raw subtype's `WriteRawBody` keeps both sides of its `__FieldBlock` test and its layout's
+  padding checks when the classes were not initialized at JIT time: the fix is in the raw body (#436, #355's seam),
+  not in the chain.
 
 - Let a step never carry a large dispatch into a Nino.Core loop: Nino.Core owns the skeleton of a loop over a run
   (the cursor `NinoRun`, its steps, the in-use test, the key's write, the count, the depth checked once, the deep path
@@ -281,8 +318,8 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   (`PolymorphicClass`, `PolymorphicClassArray` 0.99-1.05x, TC=0 0.95-1.03x; `EventStream`, `RpcCall`,
   `CardBattleLog` 0.90-1.09x). With the halving rule the file is 197 KB, `FooA` to `FooH` (12 to 19 of 20) forward
   to the root, and the generator benchmark writes 49,147 lines (IL 1.17 against 1.10 MB) with generate 181-189
-  against 175-185 ms and analysis 694-702 against 655-730 ms, on par; `PolymorphicClassFormatter.ReadBody` keeps inlining `FooD`'s 20-case switch and running out
-  of locals ("too many locals"), which measured nothing.
+  against 175-185 ms and analysis 694-702 against 655-730 ms, on par; `PolymorphicClassFormatter.ReadBody` kept inlining `FooD`'s 20-case switch and running out
+  of locals ("too many locals"), which measured nothing; cases that hold only the body fixed it (below).
 - Write an array or a list of a polymorphic base through the base's generated loop (since #355 PR 3 the run loop
   above; before it `INinoFormatter<T>.WriteElements`, `DispatchEmitter.EmitWriteElements`): the chain of type checks
   inline in the loop, the writer in a local, the depth checked once before it. Why: written one element at a time through
