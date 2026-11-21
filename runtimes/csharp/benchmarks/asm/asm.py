@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """The machine code of the Nino benchmark cases, and what changed in it between two commits.
 
-usage: asm.py dump [--ref REF] [--filter TEXT] [--runs N] [--asm FILE] OUT.json
+usage: asm.py dump [--ref REF] [--filter TEXT] [--runs N] [--asm FILE] [--inline] OUT.json
        asm.py diff BASE.json HEAD.json
-       asm.py compare [--filter TEXT] REF          (dump REF and the working tree, then diff them)
+       asm.py compare [--filter TEXT] [--inline] REF    (dump REF and the working tree, then diff them)
 
 `dump` builds runtimes/csharp/benchmarks/Nino.Benchmark (of the working tree, or of REF in a temporary git worktree) and runs it with the
 startup hook in jitwarm/: every Nino case (or those whose name contains TEXT) is called until it is compiled at Tier1,
@@ -21,6 +21,13 @@ the methods each calls that it did not call before (one the JIT no longer inline
 purpose). Dump both sides on the same machine (DOTNET_EnableAVX512=0 gives the code of a machine without AVX-512;
 .NET 10 ignores DOTNET_EnableAVX512F); a method listed alone, in code the change does not reach, is usually the
 variation above: dump again to tell.
+
+`--inline` also writes OUT.inline.json: per root (the method being compiled, Nino's only), the inlines the JIT gave
+up with its reason ({root: {"inlinee | reason": count}}), from the runtime's MethodJitInliningFailed events (jitwarm's
+NINO_JIT_INLINE), kept when every run reported them (the fewest times of any run). `diff` then lists the failures
+head has and base has not, as it lists new calls (when both OUT.inline.json files exist). The reason says which fix
+applies: `optimize`, references/jit.md, "Inlining budget". With DOTNET_TieredCompilation=0 in the environment both
+the listings and the failures are FullOpts (what NativeAOT and the first calls compile), one round per case.
 """
 import argparse
 import glob
@@ -84,7 +91,24 @@ def hook():
     return os.path.join(project, "bin", "Release", "net11.0", "JitWarm.dll")
 
 
-def dump(ref, text, keep, runs=3):
+def inline_path(out):
+    """-> where the inline failures of the dump OUT.json go: OUT.inline.json."""
+    return (out[:-5] if out.endswith(".json") else out) + ".inline.json"
+
+
+def parse_inline(table):
+    """-> {root: {"inlinee | reason": count}} from jitwarm's lines "root\tinlinee\treason\tcount"."""
+    failures = {}
+    for line in table.splitlines():
+        root, inlinee, reason, count = line.split("\t")
+        key = f"{HASH.sub('', inlinee)} | {reason}"
+        root = failures.setdefault(HASH.sub("", root), {})
+        root[key] = root.get(key, 0) + int(count)
+    return failures
+
+
+def dump(ref, text, keep, runs=3, inline=False):
+    """-> ({method: code}, {root: {failure: count}} or None)."""
     dotnet_env = dict(os.environ, NINO_BENCH_QUICK="1")
     tree, worktree = REPO, None
     if ref:
@@ -101,16 +125,26 @@ def dump(ref, text, keep, runs=3):
         if build.returncode != 0:
             sys.exit(f"build of {ref or 'the working tree'} failed:\n{build.stdout[-4000:]}")
         startup_hook = hook()
-        methods = {}
+        methods, failures = {}, None
         for run in range(runs):
             with tempfile.TemporaryDirectory() as tmp:
                 out = os.path.join(tmp, "jit.asm")
                 env = dict(dotnet_env, DOTNET_JitStdOutFile=out, DOTNET_JitDisasm=METHODS,
                            DOTNET_STARTUP_HOOKS=startup_hook, NINO_JIT_FILTER=text or "")
+                if inline:
+                    env["NINO_JIT_INLINE"] = os.path.join(tmp, "inline.tsv")
                 subprocess.run(["dotnet", newest_build(project, "Nino.Benchmark.dll")],
                                env=env, cwd=project, check=True)
                 with open(out, encoding="utf-8") as f:
                     listing = f.read()
+                if inline:
+                    with open(env["NINO_JIT_INLINE"], encoding="utf-8") as f:
+                        found = parse_inline(f.read())
+                    # Kept when every run reported it: the fewest times of any run.
+                    failures = found if failures is None else {
+                        root: kept for root in failures.keys() & found.keys()
+                        if (kept := {k: min(n, found[root][k]) for k, n in failures[root].items()
+                                     if k in found[root]})}
             if keep and run == 0:
                 with open(keep, "w", encoding="utf-8") as f:
                     f.write(listing)
@@ -119,7 +153,7 @@ def dump(ref, text, keep, runs=3):
             for name, code in parse(listing).items():
                 if name not in methods or (code["stack"], code["size"]) < (methods[name]["stack"], methods[name]["size"]):
                     methods[name] = code
-        return methods
+        return methods, failures
     finally:
         if worktree:
             subprocess.run(["git", "-C", ROOT, "worktree", "remove", "--force", worktree], check=False)
@@ -152,6 +186,33 @@ def diff(base, head):
     return worse
 
 
+def diff_inline(base, head):
+    """Prints the inlines head gave up and base did not (root, inlinee, reason), sorted by root. Leaves out the
+    callees marked NoInlining, and those an earlier verdict marked so ("noinline per IL/cached result"): a call
+    that was not one before is in the calls diff above."""
+    new = [(root, failure) for root in sorted(head) for failure in sorted(head[root])
+           if failure not in base.get(root, {}) and not failure.endswith("| noinline per IL/cached result")]
+    if not new:
+        print("no new inline failures")
+        return
+    print(f"{len(new)} new inline failures (inlinee | reason):")
+    for root in sorted({root for root, _ in new}):
+        print(f"{root}\n    " + "\n    ".join(f for r, f in new if r == root))
+
+
+def write(out, methods, failures):
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(methods, f, indent=1, sort_keys=True)
+    if failures is not None:
+        with open(inline_path(out), "w", encoding="utf-8") as f:
+            json.dump(failures, f, indent=1, sort_keys=True)
+
+
+def load(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -160,27 +221,31 @@ def main():
     p.add_argument("--runs", type=int, default=3)
     p.add_argument("--filter")
     p.add_argument("--asm")
+    p.add_argument("--inline", action="store_true")
     p.add_argument("out")
     p = commands.add_parser("diff")
     p.add_argument("base")
     p.add_argument("head")
     p = commands.add_parser("compare")
     p.add_argument("--filter")
+    p.add_argument("--inline", action="store_true")
     p.add_argument("ref")
     args = parser.parse_args()
 
     if args.command == "dump":
-        with open(args.out, "w", encoding="utf-8") as f:
-            json.dump(dump(args.ref, args.filter, args.asm, args.runs), f, indent=1, sort_keys=True)
+        write(args.out, *dump(args.ref, args.filter, args.asm, args.runs, args.inline))
     elif args.command == "diff":
-        with open(args.base, encoding="utf-8") as f:
-            base = json.load(f)
-        with open(args.head, encoding="utf-8") as f:
-            head = json.load(f)
-        sys.exit(1 if diff(base, head) else 0)
+        worse = diff(load(args.base), load(args.head))
+        if os.path.exists(inline_path(args.base)) and os.path.exists(inline_path(args.head)):
+            diff_inline(load(inline_path(args.base)), load(inline_path(args.head)))
+        sys.exit(1 if worse else 0)
     else:
-        base = dump(args.ref, args.filter, None)
-        sys.exit(1 if diff(base, dump(None, args.filter, None)) else 0)
+        base, base_failures = dump(args.ref, args.filter, None, inline=args.inline)
+        head, head_failures = dump(None, args.filter, None, inline=args.inline)
+        worse = diff(base, head)
+        if args.inline:
+            diff_inline(base_failures, head_failures)
+        sys.exit(1 if worse else 0)
 
 
 if __name__ == "__main__":

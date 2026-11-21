@@ -307,6 +307,14 @@ objects by pointer; a bad header or back reference fails with `CodeInvalidData`.
 generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen's output for the corpus's types (and
 `internal/generated/shapes` for `runtimes/csharp/tests/Nino.Codegen.Tests`' shapes), run against the corpus like the sample.
 
+### Generated union pointer cases
+
+Regenerate Go bindings and use pointers for union cases whose values would require heap boxing. For example,
+construct `&ChoiceInt32{Value: 42}` and use `case *ChoiceInt32:` in type switches. Generated classes also use
+pointers. Cases such as strings and bytes keep their value wrapper because storing it in the interface requires
+no per-case allocation. A nil case pointer writes the empty union. Existing Nino bytes decode with the new
+bindings. Collections allocate fresh typed blocks for pointer cases, and retaining a pointer keeps its block alive.
+
 ## Strings
 
 How strings read into Go (WTF-8, null as `""` unless read into a `*string`, the reader's blocks of short strings) is

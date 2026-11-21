@@ -511,7 +511,7 @@ namespace Nino.Codegen.Tests
         }
 
         /// <summary>
-        /// A union is each language's sum type: a TypeScript class naming its case, a Go interface with a struct per
+        /// A union is each language's sum type: a TypeScript union with tagged alternatives where needed, a Go interface with a struct per
         /// case, a Rust enum with a variant per case (a case named Empty after the empty union's own variant).
         /// </summary>
         [TestMethod]
@@ -519,13 +519,16 @@ namespace Nino.Codegen.Tests
         {
             var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts");
             // Every case told apart by its value: a plain union, written by testing the value.
-            StringAssert.Contains(ts, "export type Pick = Empty | PickPair | number;");
+            StringAssert.Contains(ts, "export type Pick = Empty | TrackedPick | number | PickPair;");
             StringAssert.Contains(ts, "  if (v instanceof Empty) {");
             StringAssert.Contains(ts, "  else if (typeof v === \"number\") {");
-            // An int and a double, two lists: a union tagged with each case's name, and its constructors.
-            StringAssert.Contains(ts, "export type Measure =\n  | { readonly case: \"Int32\"; readonly value: number }\n" +
-                                      "  | { readonly case: \"Double\"; readonly value: number }");
-            StringAssert.Contains(ts, "  Int32: (value: number): Measure => ({ case: \"Int32\", value }),");
+            // The first number and array are direct. Their overlapping alternatives still carry a tag.
+            StringAssert.Contains(ts, "export type Measure =\n  | number\n" +
+                                      "  | { readonly case: \"Double\"; readonly value: number }\n" +
+                                      "  | number[]\n" +
+                                      "  | { readonly case: \"ListString\"; readonly value: (string | null)[] };");
+            StringAssert.Contains(ts, "  Int32: (value: number): Measure => value,");
+            StringAssert.Contains(ts, "  Double: (value: number): Measure => ({ case: \"Double\", value }),");
             StringAssert.Contains(ts, "  switch (v.case) {");
             Assert.IsFalse(ts.Contains("PickObject", StringComparison.Ordinal), "no object member: no class for one");
             var (go, _) = Run("go", "nino_types.go");
@@ -533,6 +536,11 @@ namespace Nino.Codegen.Tests
             // A generated class is the case itself; a byte and a raw struct are held by a struct of their own.
             StringAssert.Contains(go, "func (*Empty) isPick() {");
             StringAssert.Contains(go, "type PickByte struct {\n\tValue uint8");
+            StringAssert.Contains(go, "func (PickByte) isPick() {");
+            StringAssert.Contains(go, "func (*PickPickPair) isPick() {");
+            StringAssert.Contains(go, "func (*MeasureInt32) isMeasure() {");
+            StringAssert.Contains(go, "Value: readPickSlab(r, &valueSlabs)");
+            StringAssert.Contains(go, "g.Items[i] = readPickSlab(r, &slabs)");
             StringAssert.Contains(go, "func ReadPick(r *nino.Reader) Pick {");
             var (rust, _) = Run("rust", "nino_types.rs");
             StringAssert.Contains(rust, "pub enum Pick {\n    /// The empty union.\n    #[default]\n    Empty,");
