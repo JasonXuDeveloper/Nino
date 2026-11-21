@@ -97,11 +97,12 @@ internal static class FlatEmitter
 
     /// <summary>
     /// <c>WriteBody</c> and <c>ReadBody</c> (and a base's <c>WriteMembers</c> / <c>ReadMembers</c>): one body through
-    /// the chain of fields, which needs no check (a block's copy pays off in runs, not in one body). The bodies are out
+    /// the chain of fields, which needs no check (a block's copy pays off in runs, not in one body). The writes are out
     /// of line on a local copy of the writer or reader whatever their size: the chain inlined into its callers (a
     /// polymorphic base's dispatch, a union's cases) took their inlining budgets, which then left the accessors
     /// themselves as calls (PolymorphicTest's UnionArray, 1.08 times the base's time to write), and its own JIT budget
-    /// inlines the whole chain. A new object's strings are stored without a look at the field (<c>ReadNew</c>).
+    /// inlines the whole chain. A small body's read stays inline; a large one's reads a new object's strings without a
+    /// look at the field (<c>ReadNew</c>).
     /// </summary>
     private static void EmitBodies(CodeWriter w, TypeModel m, FormatterNames names)
     {
@@ -113,6 +114,18 @@ internal static class FlatEmitter
         w.Line(names.Inline);
         w.Open(Signature.ReadBody(t));
         w.Line("var __v = value;");
+        if (m.InlineBody)
+        {
+            // A small body's read stays inline (its reads are no more IL than the member-by-member body's, an
+            // existing string compared out of line): out of line, UnionArray read in 1.13 times the base's time.
+            w.Line("if (__v == null)");
+            w.IndentedLine($"value = __v = {BodyEmitter.Create(m, names.CompactSyntax)};");
+            w.Line($"{body}.ReadInline(__v, ref reader);");
+            w.Close();
+            EmitMembers(w, m, names, body);
+            return;
+        }
+
         w.Open("if (__v == null)");
         w.Line($"value = __v = {BodyEmitter.Create(m, names.CompactSyntax)};");
         w.Line($"{body}.ReadNew(__v, ref reader);");
@@ -121,8 +134,15 @@ internal static class FlatEmitter
         w.Line();
         w.Line($"{body}.ReadBody(__v, ref reader);");
         w.Close();
+        EmitMembers(w, m, names, body);
+    }
+
+    /// <summary>A base's <c>WriteMembers</c> / <c>ReadMembers</c>, inline in its subtypes' bodies.</summary>
+    private static void EmitMembers(CodeWriter w, TypeModel m, FormatterNames names, string body)
+    {
         if (!m.Inheritance.EmitMembers)
             return;
+        string t = m.TypeName;
         w.Line();
         w.Line(names.Inline);
         w.Line($"{Signature.WriteMembers(t)} => {body}.WriteInline(value, ref writer);");
