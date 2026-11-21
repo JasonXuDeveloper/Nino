@@ -273,6 +273,18 @@ namespace Nino.Core.CompilerServices
         public static void Serialize(TBase value, ref Writer writer) => FindForWrite(value).Serialize(value, ref writer);
 
         /// <summary>
+        /// <see cref="Serialize"/> out of line with the writer by value, for the generated subtype dispatch when a body
+        /// opened now is too deep to write in place: the writer's address reaches no call, so the dispatch keeps it in
+        /// registers, and the dispatch holds its chain of subtypes once.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static Writer SerializeDeep(TBase value, Writer writer)
+        {
+            Serialize(value, ref writer);
+            return writer;
+        }
+
+        /// <summary>
         /// Writes a non-null value whose reference header has been written (by the formatter of a tracked
         /// <typeparamref name="TBase"/>): type id, then body.
         /// </summary>

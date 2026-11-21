@@ -146,16 +146,16 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <summary>
-        /// Generated subtype dispatch: reads the body of <typeparamref name="TSub"/> (its type id consumed) into a
-        /// slot declared as <typeparamref name="TBase"/>, reusing the instance only if it is exactly
-        /// <typeparamref name="TSub"/>. Inlined into a method of the dispatching formatter (one per subtype), which
-        /// the dispatch's switch calls as a tail call: there it is not shared code, which it would be called from the
-        /// switch (<typeparamref name="TSub"/> is a class), taking a generic context in a register and a frame slot.
-        /// The body is not inlined into the switch either, since a dispatch method holding every subtype's body reads
-        /// slower.
+        /// Generated subtype dispatch, one case of its switch on the type id, where the caller checked that a body opened
+        /// now is not too deep (<see cref="IsDeep(ref Reader)"/>): reads the body of <typeparamref name="TSub"/> (its
+        /// type id consumed) into a slot declared as <typeparamref name="TBase"/> that holds null or exactly a
+        /// <typeparamref name="TSub"/>; a slot holding another type goes to the registry
+        /// (<see cref="NinoSubtypes{TBase}.DeserializeOther"/>, which recycles that instance and reads a new one), as
+        /// the switch leaves it the deep and unknown cases. The body's read is all a case holds inline: no deferral, no
+        /// allocation of its own.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ReadExact<TBase, TSub, TFormatter>(ref Reader reader, ref TBase value)
+        public static void ReadExactShallow<TBase, TSub, TFormatter>(ref Reader reader, ref TBase value)
             where TBase : class
             where TSub : class, TBase
             where TFormatter : struct, INinoBodyFormatter<TSub>
@@ -163,25 +163,31 @@ namespace Nino.Core.CompilerServices
             var old = value;
             if (old != null && old.GetType() != typeof(TSub))
             {
-                ReadReplacing<TBase, TSub, TFormatter>(ref reader, ref value);
+                NinoSubtypes<TBase>.DeserializeOther(default(TFormatter).TypeId, ref reader, ref value);
                 return;
             }
 
-            // The slot itself, seen as a TSub slot (it now holds null or a TSub): a local copy would reach the body
-            // by address, an untracked GC slot zeroed in the prolog (and stored back through a second write barrier).
-            ReadExactBody<TSub, TFormatter>(ref reader, ref Unsafe.As<TBase, TSub>(ref value));
+            // The slot itself, seen as a TSub slot (it holds null or a TSub): a local copy would reach the body by
+            // address, an untracked GC slot zeroed in the prolog (and stored back through a second write barrier).
+            ref TSub slot = ref Unsafe.As<TBase, TSub>(ref value);
+            if ((default(TFormatter).BodyTraits & NinoBodyTraits.Nests) == 0)
+            {
+                default(TFormatter).ReadBody(ref reader, ref slot);
+                return;
+            }
+
+            int depth = reader.Depth;
+            reader.Depth = depth + 1;
+            default(TFormatter).ReadBody(ref reader, ref slot);
+            reader.ExitBody(depth);
         }
 
-        /// <summary><see cref="ReadExact{TBase,TSub,TFormatter}"/> into a slot holding an instance of another type.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadReplacing<TBase, TSub, TFormatter>(ref Reader reader, ref TBase value)
-            where TBase : class
-            where TSub : class, TBase
-            where TFormatter : struct, INinoBodyFormatter<TSub>
-        {
-            NinoRecycler.Discard(ref value);
-            ReadExactBody<TSub, TFormatter>(ref reader, ref Unsafe.As<TBase, TSub>(ref value));
-        }
+        /// <summary>
+        /// Generated subtype dispatch: whether a body opened now is too deep to read in place
+        /// (<see cref="NinoDepth.Inline"/> bodies are open); the dispatch then leaves it to the registry.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsDeep(ref Reader reader) => reader.Depth >= NinoDepth.Inline;
 
         /// <summary>
         /// Generated subtype dispatch: a slot of a derived type seen as a slot of its base, whose dispatch reads it
@@ -228,42 +234,6 @@ namespace Nino.Core.CompilerServices
         {
             if (value == null)
                 NinoThrow.NullElements(typeof(T));
-        }
-
-        /// <summary>
-        /// <see cref="ReadBody{T,TFormatter}"/>, spelled out for <see cref="ReadExact{TBase,TSub,TFormatter}"/>: where
-        /// it is shared code (<see cref="ReadReplacing{TBase,TSub,TFormatter}"/>) an inlined ReadBody (a generic
-        /// method) would look up its generic context on every call, though only its deep path needs it, and the
-        /// reader is a <c>ref</c> parameter, in memory anyway (ReadBody's copy of it for a deep body would be zeroed
-        /// in the prolog).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void ReadExactBody<T, TFormatter>(ref Reader reader, ref T value)
-            where T : class
-            where TFormatter : struct, INinoBodyFormatter<T>
-        {
-            int depth = reader.Depth;
-            if (depth >= NinoDepth.Inline)
-            {
-                if ((default(TFormatter).BodyTraits & NinoBodyTraits.Deferrable) != 0)
-                {
-                    value ??= default(TFormatter).Create();
-                    reader.DeferBody<T, TFormatter>(value);
-                }
-                else
-                    ReadTooDeep<T, TFormatter>(ref reader, ref value);
-                return;
-            }
-
-            if ((default(TFormatter).BodyTraits & NinoBodyTraits.Nests) == 0)
-            {
-                default(TFormatter).ReadBody(ref reader, ref value);
-                return;
-            }
-
-            reader.Depth = depth + 1;
-            default(TFormatter).ReadBody(ref reader, ref value);
-            reader.ExitBody(depth);
         }
 
         /// <summary>
