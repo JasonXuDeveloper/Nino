@@ -358,15 +358,24 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
   methods of its own; any other calls that base's (#355).
   * Serialize: a chain of `value.GetType() == typeof(Sub)` checks, each one method table compare, writing the
     subtype's id and body directly (up to 64 subtypes; beyond, the registry). With 20 subtypes this writes 1.3x
-    as fast as the registry when the subtypes repeat in a fixed order, and 3x when they come in random order.
-  * Deserialize: `switch (id)` over the subtype ids, each case a tail call to a one-line method of the root's
-    formatter (`__ReadExact{n}`, not inlined, so the switch stays small) that checks the instance in the slot and
-    reads the subtype's body. In that non-generic method `NinoObject.ReadExact` is not shared code; called from the
+    as fast as the registry when the subtypes repeat in a fixed order, and 3x when they come in random order. The
+    depth is checked once before the chain; a body too deep goes to the registry out of line with the writer by
+    value (`NinoSubtypes<TBase>.SerializeDeep`), so the dispatch holds no second chain for it.
+  * Deserialize: the depth checked once (`NinoObject.IsDeep`), then `switch (id)` over the subtype ids, each case a
+    call to a one-line method of the root's formatter (`__ReadExact{n}`, inlined for a flat body, not inlined for
+    one holding a class body, each case a tail call) that reads the subtype's body into a slot holding null or that
+    subtype (`NinoObject.ReadExactShallow`). In that non-generic method it is not shared code; called from the
     switch it would be (the subtype is a class), taking a generic context in a register and a frame slot on every
-    call. The ids are hashes, so the switch is a binary search of conditional branches. In random
-    order this reads 1.5x as fast as the registry, whose indirect call mispredicts; a perfect hash with a dense
-    switch (an indirect jump) was measured too and mispredicts the same way. When the subtypes repeat in a fixed
-    cycle the registry's indirect call is perfectly predicted and the switch is about 10% slower.
+    call. The rest goes to the registry (`NinoSubtypes<TBase>.DeserializeOther`), which reuses or recycles the
+    instance and defers a deep body: a body too deep, null or an id the switch lacks after the switch, a slot
+    holding another subtype from the case. The ids are hashes spread over 32 bits (the closest two of the
+    benchmark's 22 switches 37.9 million apart), so Roslyn never finds a dense range to give a jump table: the IL is
+    a binary search of compares, which the JIT, IL2CPP's C++ compiler and Mono keep as branches. Each case reading
+    its own deep path, replacement and deferral, as before (#355's switch step), inlined 41 allocations and 20
+    deferrals into `PolymorphicClassFormatter.ReadBody`, which then ran out of locals; the cases now hold only the
+    body. In random order this reads 1.5x as fast as the registry, whose indirect call mispredicts; a perfect hash
+    with a dense switch (an indirect jump) was measured too and mispredicts the same way. When the subtypes repeat
+    in a fixed cycle the registry's indirect call is perfectly predicted and the switch is about 10% slower.
   * A generic base (a generic abstract class or interface, a generic class, or an abstract class nested in a
     generic type) is a root of its own. For each closed instance of it that subtypes in the same assembly derive
     from (`Box<int>` for `IntBox : Box<int>`), a static class `__NinoDispatch{n}` holds the same two methods as a
@@ -374,7 +383,7 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
     the value or slot on as that type (`NinoObject.SameType`, `NinoObject.SameTypeSlot`, which reinterpret without a
     check). The JIT folds the type compare where the type arguments are value types; where they are reference types
     (shared code) it is one lookup in the generic context. The methods live in a non-generic class so that
-    `ReadExact` there is not shared code either. Other closed instances, and generic subtypes, go through the
+    `ReadExactShallow` there is not shared code either. Other closed instances, and generic subtypes, go through the
     registry. Before, a generic base had no generated dispatch and went through the registry, which wrote and read an
     array of subtypes in random order several times slower than a non-generic base; now both take the same time
     (`GenericPolymorphicTest`).
