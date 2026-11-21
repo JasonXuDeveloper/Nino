@@ -322,6 +322,46 @@ says which CPUs and cases moved.
   writer (through `NinoGather.Write`'s call, the writer's copies made 1,000 pairs 1.1 to 1.15 times as long to write),
   as four lines of its own: that step as a helper inlined into `NinoGather.Write` too kept every enumerated gather's
   source in memory (asm.py: 57 to 65 stack accesses by value, 60 to 65 by reference).
+- **Reach a generated class's members from a kernel through one accessor struct per member, never through a static
+  field or table** (#355, the generator seam; `FlatEmitter`, `NinoFlat<TLayout, TBody>`). A flat class (raw members,
+  bools, strings) is one chain of items nested in type arguments, each item's member a `readonly struct` whose
+  `ref byte Ref(object v)` returns the field (`NinoFlatAccess.Bytes(ref NinoFlatAccess.As<T>(v).Field)`) and whose
+  `Size` is a literal, so the field is a constant offset once inlined. The prototype's v1 read each member's offset
+  and size from generic statics (`static readonly`, #436): B's write loop was 3,708 bytes with 165 stack operands and
+  wrote in 1.08 times the base's time; v2's accessor structs made it 1,056 bytes and 31 operands, writes 0.85-0.90
+  (local, alternated). Read the run's startup check (`__Check`, block placement and Untrusted's `ReadsAsIs`) once per
+  call in the hook and pick a chain there, never per element. Keep runs under `NinoFlatRuns.MinRun` (16) element by
+  element: a run's fixed cost (about 30 ns: entry, the check, the loop's setup) made a 2-element array 2.2 times as
+  long to write and WorkloadTest's `MediaContent` 1.64. One body never takes the block chain (a block's copy pays off
+  in runs) and keeps the sealed class's `__WriteTop`/`__ReadTop` twin, with a `ReadNew` that stores strings without
+  a look at the field: without them one value wrote in 1.11 and read in 1.07-1.10 times the base's time, with them
+  0.88 and 1.01. What did not move: reads of long runs stay on par (0.99-1.00 at 1,000 elements; the read is bound by
+  the string allocations, which the member-by-member body pays too), while writes of 1,000 elements took 0.46
+  (array) and 0.68 (list) for a class of four primitives and two strings. Six traps `asm.py compare` found in the
+  full suite, each fixed: (1) an element that already held an object left the run, two out-of-line calls each:
+  ScatteredTest's read into a million items 2.3x; read into it instead. (2) Reading new and existing elements with
+  `fresh` a constant on each path inlined the body twice: 1,736 bytes, 87 stack accesses, still 1.6x; pass `fresh`
+  as a value, one copy. (3) The string item compared an existing string inline (`NinoStrings.Read` with a current
+  string): one body inlined into a polymorphic dispatch went 14 to 61 stack accesses; compare out of line
+  (`Reader.ReadStringAt`, as `ReadString(current)` does). (4) Passing the reader by value, then by reference, to the
+  run hook from `NinoRuns.Read`, inlined into every collection, kept it in memory even for short runs (8 to 27);
+  put the branch in `ReadEach`, the out-of-line call those runs already make. (5) The chain inlined as one body into
+  a union's or a base's dispatch took the caller's budget and left the accessors as calls (UnionArray write 1.08x);
+  one body's write is always out of line, a small one's read inline (out of line it read 1.13x). (6) A string item
+  kept the field's address and old value live across the string's allocation (UnionItem's inline read 7 to 29 stack
+  accesses, UnionArray read 1.1-1.15x): store a string read into an empty field as read and take the field's
+  address again after it (12). And the cursor write of a UTF-8 string (`Writer.WriteUtf8At`) counted a long
+  string's bytes again after the item's `MaxSize` had (1.35x for 100,000 chars): pass the bound where both ends of
+  the count take one header size.
+- **Never call the runtime's `Utf8` transcoder for a short ASCII string right after Nino's own 256-bit code.** The
+  ReadyToRun CoreLib's `Utf8.FromUtf16`/`ToUtf16` are SSE-encoded, and an inlined AVX2 string kernel before them
+  leaves the upper vector state dirty, so each call paid an AVX-SSE transition until the caller tiered up (TC=0, and
+  every first call): a class `{ string Name; [NinoUtf8] string Tag; }` wrote in 177 ns, with the members swapped
+  25 ns, with `DOTNET_ReadyToRun=0` 28 ns. Strings of at most 32 chars take Nino's own ASCII path
+  (`NinoStrings.NarrowShortAscii`: overlapping 128-bit loads narrowed; `IsShortAscii` then the Latin-1 widen), the
+  rest the transcoder: a seven-member flat class 179 to 26 ns to write and 223 to 73 ns to read at TC=0. A
+  word-at-a-time scalar loop there was slower than the transcoder at Tier1 (a 32-char read 1.36x, a write 1.21x). Suspect this whenever a TC=0 case is several times its Tier1
+  time and the order of members changes it.
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks
