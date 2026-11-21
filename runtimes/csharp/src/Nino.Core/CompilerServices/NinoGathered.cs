@@ -334,6 +334,11 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Marked to inline: with the class branch the JIT judged it an unprofitable inline into the gather's write
+        /// (a call per fill, the caller's registers spent around it), where without it the walk was inlined.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Fill(Span<T> chunk)
         {
             if (!typeof(T).IsValueType)
