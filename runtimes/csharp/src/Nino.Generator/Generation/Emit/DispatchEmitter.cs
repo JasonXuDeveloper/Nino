@@ -55,15 +55,60 @@ internal static class DispatchEmitter
         string genericServices = services == CompactServices ? GeneratedCode.CompilerServicesAlias + "::" : services;
         var w = new CodeWriter(4096);
         int closedCount = 0;
+        Dictionary<string, DispatchEntry>? dispatchers = null;
+        Dictionary<string, bool>? ownDispatch = null;
         foreach (var e in entries)
         {
-            // A class below a root dispatches its own subtypes only, without the run loop: its collections go value
-            // by value, which measured faster than a loop per such class (see EmitWriteRun).
+            if (e.Middle || (e.IsBase && e.TypeParameterList.Length == 0))
+                (dispatchers ??= new Dictionary<string, DispatchEntry>(StringComparer.Ordinal))[e.TypeName] = e;
+        }
+
+        // The nearest base of a class below a root that has a dispatch of its own, when the class forwards to it:
+        // its own subtypes are more than half of that base's. A dispatch per (base, subtype) pair would grow with the
+        // square of the depth of a chain of classes (PolymorphicFooBase's FooA to FooH, 16 to 19 of 20 subtypes each,
+        // 1.8x the generated dispatch of the benchmark project and its generator benchmark 1.5x as long to analyze,
+        // for no measured gain: PolymorphicClass 0.99-1.05x); halving at each level keeps it to n log n. A class with
+        // few of the root's subtypes (CustomerEvent, 2 of DomainEvent's 8) tests only those: the root's whole chain
+        // took the inlining budget of every caller (MethodJitInliningFailed "inline exceeds budget").
+        DispatchEntry? ForwardTarget(DispatchEntry e, int count)
+        {
+            foreach (var ancestor in e.BaseClasses.Concat(e.Interfaces))
+            {
+                if (dispatchers == null || !dispatchers.TryGetValue(ancestor, out var a) || !OwnDispatchOf(a))
+                    continue;
+                int baseCount = Subtypes(subtypesOf, a.TypeName, a.TypeId)?.Count ?? 0;
+                return count * 2 > baseCount ? a : null;
+            }
+
+            return null;
+        }
+
+        bool OwnDispatchOf(DispatchEntry e)
+        {
+            if (!e.Middle)
+                return true;
+            ownDispatch ??= new Dictionary<string, bool>(StringComparer.Ordinal);
+            if (!ownDispatch.TryGetValue(e.TypeName, out bool own))
+                ownDispatch[e.TypeName] = own =
+                    ForwardTarget(e, Subtypes(subtypesOf, e.TypeName, e.TypeId)?.Count ?? 0) == null;
+            return own;
+        }
+
+        foreach (var e in entries)
+        {
+            // A class below a root dispatches its own subtypes only where they are at most half of the subtypes of the
+            // nearest base with a dispatch of its own, without the run loop: its collections go value by value, which
+            // measured faster than a loop per such class (see EmitWriteRun). Any other class below a root forwards to
+            // that base's dispatch (OwnDispatchOf).
             if (e.Middle)
             {
+                var own = Subtypes(subtypesOf, e.TypeName, e.TypeId);
+                var via = ForwardTarget(e, own?.Count ?? 0);
                 w.Open($"partial struct {e.Self}");
-                EmitBase(w, e.TypeName, Subtypes(subtypesOf, e.TypeName, e.TypeId), services, closedForm: false, e,
-                    runLoop: false);
+                if (via == null)
+                    EmitBase(w, e.TypeName, own, services, closedForm: false, e, runLoop: false);
+                else
+                    EmitForward(w, e.TypeName, via, services);
                 w.Close();
                 w.Line();
                 continue;
@@ -214,6 +259,21 @@ internal static class DispatchEmitter
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// The dispatch of a class below a root through the dispatch of <paramref name="via"/>, a base of it: writing
+    /// needs nothing more (its checks are exact); reading checks that the type the data named is one of this class.
+    /// </summary>
+    private static void EmitForward(CodeWriter w, string t, DispatchEntry via, string services)
+    {
+        w.Line($"{WriteSubtype(t)} => {via.Self}.__WriteSubtype(value, ref writer);");
+        w.Line();
+        w.Line(GeneratedCode.Inline);
+        w.Open(ReadSubtype(t));
+        w.Line($"{via.Self}.__ReadSubtype(id, ref reader, ref {services}NinoObject.AsBaseSlot<{t}, {via.TypeName}>(ref value));");
+        w.Line($"{services}NinoObject.EnsureSubtype<{t}>(value);");
+        w.Close();
     }
 
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>

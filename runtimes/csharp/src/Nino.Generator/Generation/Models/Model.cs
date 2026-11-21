@@ -169,7 +169,7 @@ internal sealed record InheritanceModel(
     // Whether the first members are a shared generic base's, written here instead of through its WriteMembers.
     bool SharedBase,
     // The topmost base class of this assembly that dispatches subtypes, or "": a dispatching type below it is not a
-    // root, and dispatches only its own subtypes (DispatchEntry.Middle).
+    // root (DispatchEntry.Middle).
     string DispatchRoot,
     // The [NinoType] base classes (nearest first) and interfaces (global names), for the subtype dispatch.
     EquatableArray<string> NinoBaseClasses,

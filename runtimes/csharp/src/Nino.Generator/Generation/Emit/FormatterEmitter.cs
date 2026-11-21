@@ -476,10 +476,10 @@ internal static class FormatterEmitter
     {
         string t = m.TypeName;
         string self = m.Self;
-        // Every class that dispatches its subtypes has a dispatch of its own (DispatchEmitter): a root's covers its
-        // hierarchy, a class below it only its own subtypes, so neither its writes nor its reads test a type that
-        // cannot be one of its values, and a type the data names that is not one of them reaches its registry, which
-        // rejects it. A generic type is its own root: its dispatch selects one of its closed instances.
+        // Every class that dispatches its subtypes has dispatch methods (DispatchEmitter): a root's cover its
+        // hierarchy; a class below it tests its own subtypes, or forwards to a base's and checks that the type read is
+        // one of its own (DispatchEmitter.ForwardTarget). A generic type is its own root: its dispatch selects one of
+        // its closed instances.
         const string write = "__WriteSubtype(value, ref writer);";
         const string read = "__ReadSubtype(id, ref reader, ref value);";
         w.Line(names.Inline);
