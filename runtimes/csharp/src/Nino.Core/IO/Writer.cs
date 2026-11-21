@@ -264,5 +264,45 @@ namespace Nino.Core
         /// <summary>Advances past <paramref name="count"/> bytes written into <see cref="FreeSpace"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void Commit(int count) => Skip(count);
+
+        /// <summary>
+        /// Generated run loops: the next byte and the free bytes from it (<paramref name="available"/>), which the loop
+        /// keeps in locals, writes through and advances itself, and gives back with <see cref="UnsafeSetCursor"/>
+        /// before anything else writes to this writer. Why: a writer copied into a loop's local stays in memory once
+        /// its address reaches a call (the registry's fallback), and every element then stored the cursor and the free
+        /// bytes and loaded them back; two locals whose address never escapes stay in registers.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public ref byte UnsafeCursor(out int available) => ref FreeSpace(out available);
+
+        /// <summary>
+        /// Generated run loops: moves this writer to <paramref name="cursor"/>, a reference <see cref="UnsafeCursor"/>
+        /// gave moved past what the loop wrote, with <paramref name="available"/> bytes free from it.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public void UnsafeSetCursor(ref byte cursor, int available)
+        {
+#if NET8_0_OR_GREATER
+            // From the field, not the parameter, which may not escape into a field: the same reference.
+            _cur = ref Unsafe.Add(ref _cur, Unsafe.ByteOffset(ref _cur, ref cursor));
+            _avail = available;
+#else
+            _pos = _buffer.Length - available;
+#endif
+        }
+
+        /// <summary>
+        /// Generated run loops: <see cref="UnsafeSetCursor"/>, then room for <paramref name="size"/> bytes (growing the
+        /// buffer); the loop takes the cursor again with <see cref="UnsafeCursor"/>. Out of line: rare.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public void UnsafeGrowAt(ref byte cursor, int available, int size)
+        {
+            UnsafeSetCursor(ref cursor, available);
+            Ensure(size);
+        }
     }
 }
