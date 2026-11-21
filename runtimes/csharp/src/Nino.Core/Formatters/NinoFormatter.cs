@@ -57,23 +57,16 @@ namespace Nino.Core
 
         /// <summary>
         /// Writes the values of <paramref name="run"/> (not empty, every one in use; the count is the caller's) through
-        /// the flat kernels, the writer by value and returned. Called only where <see cref="HasFlat"/> is true.
+        /// the flat kernels. Called only where <see cref="HasFlat"/> is true. By reference, as <see cref="WriteRun"/>:
+        /// the kernels copy the writer out of line, so the collection that calls this keeps its own in registers.
         /// </summary>
-        Writer WriteFlat(NinoRun run, Writer writer)
-        {
-            NinoThrow.MissingCapability(GetType(), nameof(WriteFlat));
-            return writer;
-        }
+        void WriteFlat(NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(GetType(), nameof(WriteFlat));
 
         /// <summary>
         /// Reads the values of <paramref name="run"/> (not empty, values in a row) in place through the flat kernels,
-        /// the reader by value and returned. Called only where <see cref="HasFlat"/> is true.
+        /// as <see cref="WriteFlat"/>. Called only where <see cref="HasFlat"/> is true.
         /// </summary>
-        Reader ReadFlat(NinoRun run, Reader reader)
-        {
-            NinoThrow.MissingCapability(GetType(), nameof(ReadFlat));
-            return reader;
-        }
+        void ReadFlat(NinoRun run, ref Reader reader) => NinoThrow.MissingCapability(GetType(), nameof(ReadFlat));
 
         /// <summary>
         /// The bytes an element of a long array or list brings into the cache (a constant: its object, and a line of

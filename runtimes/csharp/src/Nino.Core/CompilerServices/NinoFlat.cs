@@ -314,33 +314,37 @@ namespace Nino.Core.CompilerServices
         /// sealed class: each its presence byte, then its body; an element the items do not take goes through
         /// <typeparamref name="TFormatter"/>.
         /// </summary>
-        public static Writer WriteSealed<T, TFormatter>(NinoRun run, Writer writer)
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void WriteSealed<T, TFormatter>(NinoRun run, ref Writer writer)
             where T : class
             where TFormatter : struct, INinoFormatter<T> =>
-            NinoFlatRuns.WriteRun<T, TFormatter, NinoFlatSealedItem<TLayout, TBody>>(run, writer);
+            writer = NinoFlatRuns.WriteRun<T, TFormatter, NinoFlatSealedItem<TLayout, TBody>>(run, writer);
 
         /// <summary>As <see cref="WriteSealed{T,TFormatter}"/>, a class that is not sealed: each its type id, then its
         /// body; a subtype through <typeparamref name="TFormatter"/>.</summary>
-        public static Writer WriteTyped<T, TFormatter>(NinoRun run, Writer writer)
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void WriteTyped<T, TFormatter>(NinoRun run, ref Writer writer)
             where T : class
             where TFormatter : struct, INinoFormatter<T> =>
-            NinoFlatRuns.WriteRun<T, TFormatter, NinoFlatTypedItem<TLayout, TBody>>(run, writer);
+            writer = NinoFlatRuns.WriteRun<T, TFormatter, NinoFlatTypedItem<TLayout, TBody>>(run, writer);
 
         /// <summary>
         /// Reads the values of <paramref name="run"/> (not empty, values in a row) of a sealed class in place: an
         /// element that holds an object (a read into existing elements) goes through <typeparamref name="TFormatter"/>.
         /// </summary>
-        public static Reader ReadSealed<T, TFormatter>(NinoRun run, Reader reader)
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ReadSealed<T, TFormatter>(NinoRun run, ref Reader reader)
             where T : class
             where TFormatter : struct, INinoFormatter<T> =>
-            NinoFlatRuns.ReadRun<T, TFormatter, NinoFlatSealedItem<TLayout, TBody>>(run, reader);
+            reader = NinoFlatRuns.ReadRun<T, TFormatter, NinoFlatSealedItem<TLayout, TBody>>(run, reader);
 
         /// <summary>As <see cref="ReadSealed{T,TFormatter}"/>, a class that is not sealed: another type id through
         /// <typeparamref name="TFormatter"/>.</summary>
-        public static Reader ReadTyped<T, TFormatter>(NinoRun run, Reader reader)
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ReadTyped<T, TFormatter>(NinoRun run, ref Reader reader)
             where T : class
             where TFormatter : struct, INinoFormatter<T> =>
-            NinoFlatRuns.ReadRun<T, TFormatter, NinoFlatTypedItem<TLayout, TBody>>(run, reader);
+            reader = NinoFlatRuns.ReadRun<T, TFormatter, NinoFlatTypedItem<TLayout, TBody>>(run, reader);
 
         /// <summary>
         /// Writes the body of <paramref name="value"/> (not null), out of line on a local copy of the writer's cursor

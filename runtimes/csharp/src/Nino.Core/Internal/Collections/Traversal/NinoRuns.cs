@@ -165,7 +165,7 @@ namespace Nino.Core.Internal
                 if (counted)
                     writer.WriteLength(length);
                 if (!row || count != 0)
-                    writer = WriteFlat<T, TFormatter>(run, writer);
+                    default(TFormatter).WriteFlat(run, ref writer);
                 return;
             }
 
@@ -394,7 +394,7 @@ namespace Nino.Core.Internal
             // A class whose generated body is flat (#355): the flat kernels, from NinoFlatRuns.MinRun elements on.
             if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun)
             {
-                reader = ReadFlat<T, TFormatter>(NinoRun.Unscoped(run), reader);
+                default(TFormatter).ReadFlat(NinoRun.Unscoped(run), ref reader);
                 return;
             }
 
@@ -421,19 +421,6 @@ namespace Nino.Core.Internal
             typeof(T).IsValueType
                 ? default(TFormatter).WriteStrings(run, writer)
                 : NinoStringRuns.Write<TFormatter>(run, writer);
-
-        /// <summary>The flat kernels' write of a run of a class (#355), out of line: one call in the loops inlined
-        /// into every collection.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteFlat<T, TFormatter>(NinoRun run, Writer writer)
-            where TFormatter : struct, INinoFormatter<T> =>
-            default(TFormatter).WriteFlat(run, writer);
-
-        /// <summary>The flat kernels' read of a run of a class (#355), out of line.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadFlat<T, TFormatter>(NinoRun run, Reader reader)
-            where TFormatter : struct, INinoFormatter<T> =>
-            default(TFormatter).ReadFlat(run, reader);
 
         /// <summary>
         /// As <see cref="WriteStrings{T,TFormatter}"/>, the read in place. The data and the bytes left go to the call,

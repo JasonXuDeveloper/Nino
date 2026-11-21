@@ -71,10 +71,10 @@ internal static class FlatEmitter
         string t = m.TypeName;
         string kind = m.Kind == FormatterKind.SealedClass ? "Sealed" : "Typed";
         w.Line("public bool HasFlat => true;");
-        Hook(w, names, flat.Checks, $"public {Core}Writer WriteFlat({Services}NinoRun run, {Core}Writer writer)",
-            "__Check.Write", $"Write{kind}<{t}, {formatter}>(run, writer)");
-        Hook(w, names, flat.Checks, $"public {Core}Reader ReadFlat({Services}NinoRun run, {Core}Reader reader)",
-            "__Check.Read", $"Read{kind}<{t}, {formatter}>(run, reader)");
+        Hook(w, names, flat.Checks, $"public void WriteFlat({Services}NinoRun run, ref {Core}Writer writer)",
+            "__Check.Write", $"Write{kind}<{t}, {formatter}>(run, ref writer)");
+        Hook(w, names, flat.Checks, $"public void ReadFlat({Services}NinoRun run, ref {Core}Reader reader)",
+            "__Check.Read", $"Read{kind}<{t}, {formatter}>(run, ref reader)");
     }
 
     private static void Hook(CodeWriter w, FormatterNames names, bool checks, string signature, string check,
@@ -89,8 +89,9 @@ internal static class FlatEmitter
 
         w.Open(signature);
         w.Line($"if ({check})");
-        w.IndentedLine($"return __Flat.{call};");
-        w.Line($"return __Fields.{call};");
+        w.IndentedLine($"__Flat.{call};");
+        w.Line("else");
+        w.IndentedLine($"__Fields.{call};");
         w.Close();
     }
 
