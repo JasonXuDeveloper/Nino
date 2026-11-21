@@ -58,6 +58,16 @@ namespace Nino.Core.CompilerServices
             InUse = inUse;
         }
 
+        /// <summary>
+        /// <paramref name="run"/> as a run the compiler lets escape: for a call through a formatter's public member
+        /// (<see cref="INinoFormatter.ReadFlat"/>), which generated code implements without <c>scoped</c>, a keyword
+        /// Unity's C# 9 lacks. The caller keeps the run's storage alive across the call, as every run's caller does.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static NinoRun Unscoped(scoped NinoRun run) =>
+            new(ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref run.First, 0)), run.Count, run.Stride,
+                run.Key, run.InUse);
+
         /// <summary>The value of the first entry.</summary>
         public ref byte First
         {

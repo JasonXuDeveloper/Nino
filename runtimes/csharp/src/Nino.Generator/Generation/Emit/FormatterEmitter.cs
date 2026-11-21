@@ -154,7 +154,11 @@ internal static class FormatterEmitter
         }
 
         w.Line();
-        if (m.RawStruct)
+        if (m.Flat != null)
+        {
+            FlatEmitter.Emit(w, m, names);
+        }
+        else if (m.RawStruct)
         {
             body.EmitRawStruct();
         }
@@ -305,6 +309,8 @@ internal static class FormatterEmitter
         }
         ForwardWriteBody(w, m, names, m.TopInline ? "__WriteBodyInline" : null);
         ForwardReadBody(w, m, names, m.TopInline ? "__ReadBodyInline" : null);
+        if (m.Flat != null)
+            FlatEmitter.EmitHooks(w, m, names, top);
         EmitPrefetch(w, m, names, twin: true);
         w.Close();
     }
