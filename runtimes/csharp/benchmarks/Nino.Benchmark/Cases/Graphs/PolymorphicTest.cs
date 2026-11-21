@@ -1,4 +1,7 @@
 using System;
+#if !NINO_BENCH_V3
+using System.Collections.Immutable;
+#endif
 using System.Linq;
 using BenchmarkDotNet.Configs;
 #if !NINO_BENCH_V3
@@ -14,8 +17,11 @@ namespace Nino.Benchmark;
 /// <c>[ProtoInclude]</c> (a nested message per level of the hierarchy), Google.Protobuf's messages of the same schema
 /// (a <c>oneof</c> per level, cases.proto) and System.Text.Json's <c>[JsonDerivedType]</c> (a <c>"$type"</c> property):
 /// one class holding 1,000 elements of 20 subtypes (one to nine levels below their base), an array of 1,000 such
-/// elements, an array of 100 classes holding 50 each, and two arrays of 1,000 C# union values, one
-/// TypeScript writes as a plain union and one it tags (Nino only: no other library writes C# unions). The timed methods are PolymorphicTest.Cases.g.cs, generated
+/// elements, an array of 100 classes holding 50 each, two arrays of 1,000 C# union values, one
+/// TypeScript writes as a plain union and one it tags (Nino only: no other library writes C# unions), and the 1,000
+/// elements of the array in an <c>ImmutableList</c> (a tree) and an <c>ImmutableStack</c> (linked nodes), which Nino
+/// gathers a chunk at a time into the base's run loop (Nino v4 only: the cases time the gather of class elements,
+/// #355, and v3 3.3.13 writes neither collection). The timed methods are PolymorphicTest.Cases.g.cs, generated
 /// from the cases below and the adapters (Adapters/, runtimes/csharp/tools/BenchGen); the v3 build times Nino 3.3.13
 /// and MemoryPack on the same values.
 /// </summary>
@@ -25,6 +31,8 @@ namespace Nino.Benchmark;
 [BenchCase("PolymorphicClassArray", Quick = true, Proto = "PolymorphicClassList", Json = "PolymorphicClassBaseArray")]
 [BenchCase("UnionArray", Libraries = "Nino", Builds = "v4")]
 [BenchCase("TaggedUnionArray", Libraries = "Nino", Builds = "v4")]
+[BenchCase("PolymorphicFooImmutableList", Libraries = "Nino", Builds = "v4", Returns = "object")]
+[BenchCase("PolymorphicFooImmutableStack", Libraries = "Nino", Builds = "v4", Returns = "object")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
 [MinColumn, MaxColumn]
@@ -45,6 +53,10 @@ public partial class PolymorphicTest
 #if !NINO_BENCH_V3
     private static readonly UnionValue[] UnionArray = CreateUnionArray();
     private static readonly UnionTagged[] TaggedUnionArray = CreateTaggedUnionArray();
+    private static readonly ImmutableList<PolymorphicFooBase> PolymorphicFooImmutableList =
+        ImmutableList.CreateRange(PolymorphicFooArray);
+    private static readonly ImmutableStack<PolymorphicFooBase> PolymorphicFooImmutableStack =
+        ImmutableStack.CreateRange(PolymorphicFooArray);
 #endif
 
     /// <summary>One polymorphic class holding 1,000 polymorphic elements.</summary>
