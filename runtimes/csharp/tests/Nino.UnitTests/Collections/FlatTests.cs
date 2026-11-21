@@ -235,6 +235,31 @@ namespace Nino.UnitTests
                     Assert.AreSame(kept[i], existing[i], $"element {i} kept");
             }
 
+            // Existing elements that differ from the data: nulls, subtypes and other values in other places. An element
+            // of the data's exact type keeps its instance; the rest are what the data says.
+            var others = Ones(100, true, 7).Select(v => v ?? new FlatOneDerived()).ToArray();
+            others[3] = null;
+            var before = (FlatOne[])others.Clone();
+            NinoDeserializer.Deserialize(data, ref others);
+            for (int i = 0; i < values.Length; i++)
+            {
+                Assert.IsTrue(Same(values[i], others[i]), $"other element {i}");
+                if (values[i] != null && before[i] != null && values[i].GetType() == typeof(FlatOne) &&
+                    before[i].GetType() == typeof(FlatOne))
+                    Assert.AreSame(before[i], others[i], $"other element {i} kept");
+            }
+
+            var manys = Manys(40, true);
+            var intoManys = Manys(40, false, 9).ToList();
+            var keptManys = intoManys.ToArray();
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(manys), ref intoManys);
+            for (int i = 0; i < manys.Length; i++)
+            {
+                Assert.IsTrue(Same(manys[i], intoManys[i]), $"many {i}");
+                if (manys[i] != null)
+                    Assert.AreSame(keptManys[i], intoManys[i], $"many {i} kept");
+            }
+
             // An existing object whose strings equal the data's keeps them (no store).
             var many = Manys(1, false)[0];
             var target = NinoDeserializer.Deserialize<FlatMany>(NinoSerializer.Serialize(many));
