@@ -19,7 +19,8 @@ namespace Nino.UnitTests
     /// class), the format,
     /// reference tracking, a non-generic abstract type between the base and the subtypes, and whether the subtypes are in
     /// the base's assembly or in another one; with every kind of
-    /// subtype (plain, generic, with a private member, built by a constructor, [NinoPooled], a struct and a record struct
+    /// subtype (plain, generic, with a private member, built by a constructor, [NinoPooled], flat ones sealed and not
+    /// whose bodies the flat kernels write where the shape is positional and untracked, a struct and a record struct
     /// for interfaces, and for interfaces a struct of fixed size that is not raw, whose collections are blocks), each read
     /// through the base, the type between, itself and object, by the boxed API, alone and as a list element, plus null and data of another
     /// type. The shapes with a type between declare a serialization callback too ([NinoOnDeserialized], on the base, or
@@ -380,6 +381,10 @@ namespace Other
                 string parent = near + (_middle ? N("Mid") : closedBase);
                 string cb = LeafCallback;
                 leaves.Append($"{Attribute()} public sealed {Keyword} {N("PLeaf")} : {parent} {{ public int W;{cb} }}\n");
+                // Flat (#355: fields of primitives, a bool and a string; the flat kernels' bodies where the shape is
+                // positional and untracked, the generated body otherwise), sealed and not.
+                leaves.Append($"{Attribute()} public sealed {Keyword} {N("FLeaf")} : {parent} {{ public int W; public string S; public bool B;{cb} }}\n");
+                leaves.Append($"{Attribute()} public {Keyword} {N("FOpen")} : {parent} {{ public long W; public int X; public string S;{cb} }}\n");
                 if (!_middle && _arity > 0)
                     leaves.Append($"{Attribute()} public sealed {Keyword} {N("GLeaf")}{Parameters(_arity)} : {near}{N("Base")}{Parameters(_arity)} {{ public int W; }}\n");
                 else
@@ -431,6 +436,10 @@ namespace Other
                     (gleaf, $"new {leafPrefix}{gleaf} {{ {Join(inits, "W = 7")} }}", $"q.W == 7{checks}"),
                     (N("QLeaf"), $"P.Init(new {leafPrefix}{N("QLeaf")} {{ {inits} }}, q => q.SetW(7))", $"q.GetW() == 7{checks}"),
                     (N("PoolLeaf"), $"new {leafPrefix}{N("PoolLeaf")} {{ {Join(inits, "W = 7")} }}", $"q.W == 7{checks}"),
+                    (N("FLeaf"), $"new {leafPrefix}{N("FLeaf")} {{ {Join(inits, "W = 7, S = \"flat\", B = true")} }}",
+                        $"q.W == 7 && q.S == \"flat\" && q.B{checks}"),
+                    (N("FOpen"), $"new {leafPrefix}{N("FOpen")} {{ {Join(inits, "W = 7, X = 8, S = \"open\"")} }}",
+                        $"q.W == 7 && q.X == 8 && q.S == \"open\"{checks}"),
                 };
                 if (!_track)
                 {
