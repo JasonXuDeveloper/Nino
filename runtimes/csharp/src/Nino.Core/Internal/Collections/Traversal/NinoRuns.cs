@@ -156,19 +156,6 @@ namespace Nino.Core.Internal
             // formatter on every target; a pair of them, its value's loop (KeyValuePairFormatter). The intrinsic
             // itself, not NinoUnsafe's: one inlinee more in this method, inlined into every collection's write, left
             // the writer of block arrays' top-level writes in memory (asm.py: ByteIntPairs32 10 to 38 stack accesses).
-            // A class whose generated body is flat (#355): the flat kernels, ahead of a base's own run loop (its
-            // subtypes leave the run element by element), from NinoFlatRuns.MinRun elements on. Runs with free
-            // entries (a set's) and short ones go the ways below.
-            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun &&
-                (row || run.InUse == NinoRun.AllInUse))
-            {
-                if (counted)
-                    writer.WriteLength(length);
-                if (!row || count != 0)
-                    default(TFormatter).WriteFlat(run, ref writer);
-                return;
-            }
-
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoKind<TFormatter>.Runs)
             {
                 if (counted)
@@ -203,6 +190,19 @@ namespace Nino.Core.Internal
                     writer = WriteEach<T, TFormatter>(ref run.First, count, length, writer);
                 else
                     writer = WriteEach<T, TFormatter>(run, length, writer);
+                return;
+            }
+
+            // A class whose generated body is flat (#355): the flat kernels, from NinoFlatRuns.MinRun elements on; runs
+            // with free entries (a set's) and short ones take the loop below. After the kinds above: a static readonly
+            // of NinoKind<TFormatter> read in code shared over classes is no constant, and read first it turned a
+            // string array's and a polymorphic base's writes from 4 to 29 and 86 to 234 stack accesses (asm.py).
+            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun &&
+                (row || run.InUse == NinoRun.AllInUse))
+            {
+                if (counted)
+                    writer.WriteLength(length);
+                default(TFormatter).WriteFlat(run, ref writer);
                 return;
             }
 
