@@ -83,7 +83,8 @@ FORM_NOTE_ZH = ("可空值：MemoryPack 写的是模型里已备好的 SafeNulla
 
 # The libraries whose missing cases are n/a (a bar labelled n/a, a "n/a" cell) rather than left out, once a report
 # has any row of theirs: LuminPack runs every case MemoryPack runs in the classes that declare their cases, and a case
-# it leaves out is one its 1.1.9 cannot run (runtimes/csharp/benchmarks/README.md, LuminPack; #356). MessagePack,
+# it leaves out is one it breaks on (bench-cases.json) or, in an older release, one its 1.1.9 could not run
+# (runtimes/csharp/benchmarks/README.md, LuminPack; #356). MessagePack,
 # protobuf and JSON leave out a case they cannot express: no bar.
 NA = ("LuminPack",)
 NA_NOTE = ("LuminPack n/a: a scenario the suite times through each library's own API, which has no LuminPack form "
@@ -530,7 +531,7 @@ def tables(v4, v3, v3_runs, env, tag):
         return time(mean(method)) if method in v4 else "—"
 
     out = {}
-    # Every library the report ran; one of NA without a workload shows n/a there (LuminPack's 1.1.9 runs MediaContent).
+    # Every library the report ran; one of NA without a workload shows n/a there (LuminPack runs MediaContent).
     libraries = [("Nino", "Nino")] + [(o, name) for o, _, name in OTHERS if o not in NA or ran(v4, o)]
     names = [o for o, _ in libraries]
     head = [name for _, name in libraries]
