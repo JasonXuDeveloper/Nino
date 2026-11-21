@@ -9,8 +9,9 @@ using Nino.UnitTests.GenericPolymorphism;
 
 namespace Nino.UnitTests
 {
-    // Bases dispatch the subtypes of their assembly through generated code (the hierarchy's root holds the dispatch;
-    // classes below it use the root's).
+    // Bases dispatch the subtypes of their assembly through generated code: the hierarchy's root over all of them, a
+    // class below it over its own where they are at most half of the root's (DispatchMid, one of four), else through
+    // the root's (ForwardMid, three of five).
 
     [NinoType(format: NinoFormat.VersionTolerant)]
     public abstract class DispatchRoot
@@ -41,6 +42,42 @@ namespace Nino.UnitTests
     public sealed class DispatchHolder : DispatchRoot
     {
         public List<DispatchRoot> Kids;
+    }
+
+    [NinoType]
+    public abstract class ForwardRoot
+    {
+        public int A;
+    }
+
+    [NinoType]
+    public class ForwardMid : ForwardRoot
+    {
+        public int B;
+    }
+
+    [NinoType]
+    public sealed class ForwardA : ForwardMid
+    {
+        public int C;
+    }
+
+    [NinoType]
+    public sealed class ForwardB : ForwardMid
+    {
+        public string D;
+    }
+
+    [NinoType]
+    public sealed class ForwardC : ForwardMid
+    {
+        public long E;
+    }
+
+    [NinoType]
+    public sealed class ForwardOther : ForwardRoot
+    {
+        public double F;
     }
 
     [TestClass]
@@ -369,6 +406,26 @@ namespace Nino.UnitTests
         {
             var bytes = NinoSerializer.Serialize<DispatchRoot>(new DispatchSibling { D = 1 });
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<DispatchMid>(bytes));
+        }
+
+        [TestMethod]
+        public void MiddleClassThroughTheRootsDispatchRoundTripsAndRejectsASibling()
+        {
+            ForwardMid[] values =
+            {
+                new ForwardA { A = 1, B = 2, C = 3 }, null, new ForwardB { D = "b" }, new ForwardC { E = 4 },
+                new ForwardMid { B = 5 },
+            };
+            ElementsMatch(values);
+            var back = NinoDeserializer.Deserialize<ForwardMid[]>(NinoSerializer.Serialize(values));
+            Assert.AreEqual(3, ((ForwardA)back[0]).C);
+            Assert.IsNull(back[1]);
+            Assert.AreEqual("b", ((ForwardB)back[2]).D);
+            Assert.AreEqual(4, ((ForwardC)back[3]).E);
+            Assert.AreEqual(typeof(ForwardMid), back[4].GetType());
+
+            var sibling = NinoSerializer.Serialize<ForwardRoot>(new ForwardOther { F = 1 });
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ForwardMid>(sibling));
         }
 
         [TestMethod]
