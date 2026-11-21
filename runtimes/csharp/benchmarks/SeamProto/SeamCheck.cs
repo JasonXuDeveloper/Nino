@@ -73,6 +73,15 @@ namespace Nino.SeamProto
         /// <summary>The failures (none: the flat kernels write and read every run as the generated body does).</summary>
         public static List<string> Run(bool fallbackAllowed = false)
         {
+            // The closed types the generic check below uses, named once (NativeAOT registers only what it sees).
+            _ = NinoSerializer.Serialize(Array.Empty<SeamOne>());
+            _ = NinoSerializer.Serialize(new List<SeamOne>());
+            _ = NinoSerializer.Serialize(Array.Empty<SeamMany>());
+            _ = NinoSerializer.Serialize(new List<SeamMany>());
+            _ = NinoDeserializer.Deserialize<SeamOne[]>(new byte[] { 0, 0, 0, 0 });
+            _ = NinoDeserializer.Deserialize<List<SeamOne>>(new byte[] { 0, 0, 0, 0 });
+            _ = NinoDeserializer.Deserialize<SeamMany[]>(new byte[] { 0, 0, 0, 0 });
+            _ = NinoDeserializer.Deserialize<List<SeamMany>>(new byte[] { 0, 0, 0, 0 });
             var failures = new List<string>();
             _fallbackAllowed = fallbackAllowed;
             foreach (int count in new[] { 1, 2, 7, 100, 1000 })
@@ -82,6 +91,29 @@ namespace Nino.SeamProto
                     failures);
                 Check<SeamMany, Nino_SeamProto_SeamManyFormatter>("SeamMany", SeamData.Manys(count, mixed), Same,
                     failures);
+            }
+
+            // One body through the items against the generated body.
+            foreach (var value in SeamData.Manys(200, true))
+            {
+                if (value == null)
+                    continue;
+                var a = new NinoArrayBufferWriter();
+                var wa = new Writer(a);
+                default(Nino_SeamProto_SeamManyFormatter).WriteBody(value, ref wa);
+                wa.Flush();
+                var b = new NinoArrayBufferWriter();
+                var wb = new Writer(b);
+                Nino_SeamProto_SeamManyFormatter.FlatWriteBody(value, ref wb);
+                wb.Flush();
+                var read = new SeamMany();
+                var reader = new Reader(a.WrittenSpan);
+                Nino_SeamProto_SeamManyFormatter.FlatReadBody(read, ref reader);
+                if (!a.WrittenSpan.SequenceEqual(b.WrittenSpan) || !Same(value, read) || reader.Remaining != 0)
+                {
+                    failures.Add("SeamMany body: the items differ from the generated body");
+                    break;
+                }
             }
 
             return failures;
