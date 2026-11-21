@@ -80,7 +80,12 @@ none is free), slots through the slot kernels, strings and pairs holding them th
 others value by value through the one loop of values (`NinoRuns.WriteLoop`: the step, the in-use test, the key and the
 value, each tested against the constants its caller passes, so a run in a row compiles as a span's); a polymorphic
 base's values through its generated `WriteRun`, the compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep
-path are Nino.Core's. A ring that wraps (a `Queue<T>`'s) is the same write in two segments, one reservation for both
+path are Nino.Core's. A root that is a class of its own tests its own type first in that chain, so its own values never
+reach the registry. A class below the root has no loop of its own: its collections go value by value, its own type
+tested inline and the root's dispatch after it, which measured faster than a loop per class (#355). A collection that is not one run is gathered a
+chunk at a time into the same loops; a tree of class elements is walked over a struct holding one reference
+(`NinoTreeWalk.Reference`), so the walk is not code shared over every class, which would take each element through a
+lookup and an indirect call. A ring that wraps (a `Queue<T>`'s) is the same write in two segments, one reservation for both
 where the elements have a fixed size; the run itself stays one segment, since every loop over it would read a second
 segment's fields. A pair (a `KeyValuePair`, a value tuple, a generic struct) is one element whose formatter composes
 its items (block, string items, dispatch bit), never a loop of its own. What a composite of any number of items does on
