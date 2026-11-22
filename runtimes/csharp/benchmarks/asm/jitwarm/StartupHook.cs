@@ -53,7 +53,28 @@ internal static class StartupHook
         }
 
         failures?.Write(inlineFile);
+        WaitForJit();
         Environment.Exit(0);
+    }
+
+    /// <summary>
+    /// Waits until the JIT has finished no method for half a second (30 s at most), so that no compilation is still
+    /// printing its listing when the process exits: the background tier-up of the last calls goes on after them (902
+    /// methods in 1.7 s), and the runtime's shutdown closes DOTNET_JitStdOutFile under a thread still writing it, which
+    /// aborted the process with glibc's "free(): invalid pointer" or "printf_buffer_to_file.c:86 ... assertion failed"
+    /// (#413: 27 of 1,081 runs of a program without Nino that exits while the JIT prints, none of 400 with this wait).
+    /// </summary>
+    private static void WaitForJit()
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        long compiled = System.Runtime.JitInfo.GetCompiledMethodCount();
+        for (int quiet = 0; quiet < 5 && DateTime.UtcNow < deadline;)
+        {
+            Thread.Sleep(100);
+            long now = System.Runtime.JitInfo.GetCompiledMethodCount();
+            quiet = now == compiled ? quiet + 1 : 0;
+            compiled = now;
+        }
     }
 
     private static bool Has(MethodInfo method, string attribute) =>
