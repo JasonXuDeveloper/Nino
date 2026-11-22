@@ -51,6 +51,7 @@ partial class AppDataTest
     private static readonly byte[] MemoryPackMeshesBytes;
     private static readonly byte[] MessagePackMeshesBytes;
     private static readonly byte[] ProtobufMeshesBytes;
+    private static readonly byte[] LuminPackMeshesBytes;
     private static readonly byte[] NinoSampleSetsBytes;
     private static readonly byte[] MemoryPackSampleSetsBytes;
     private static readonly byte[] MessagePackSampleSetsBytes;
@@ -97,6 +98,7 @@ partial class AppDataTest
         MemoryPackMeshesBytes = MemoryPackSerializer.Serialize(Meshes);
         MessagePackMeshesBytes = MessagePackSerializer.Serialize(Meshes);
         ProtobufMeshesBytes = ProtobufModel.Serialize(Meshes);
+        LuminPackMeshesBytes = LuminPackBuffers.Bytes(Meshes, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoSampleSetsBytes = NinoSerializer.Serialize(SampleSets);
         MemoryPackSampleSetsBytes = MemoryPackSerializer.Serialize(SampleSets);
@@ -156,6 +158,7 @@ partial class AppDataTest
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeZoos), LuminPackZoosBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeOrderBooks), LuminPackOrderBooksBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeArticles), LuminPackArticlesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeMeshes), LuminPackMeshesBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSampleSets), LuminPackSampleSetsBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeLookups), LuminPackLookupsBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeEvents), LuminPackEventsBytes);
@@ -210,7 +213,7 @@ partial class AppDataTest
     [Benchmark, BenchmarkCategory("PlayersSerialize")]
     public int LuminPackSerializePlayers()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Players, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -282,7 +285,7 @@ partial class AppDataTest
     [Benchmark, BenchmarkCategory("ZoosSerialize")]
     public int LuminPackSerializeZoos()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Zoos, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -354,7 +357,7 @@ partial class AppDataTest
     [Benchmark, BenchmarkCategory("OrderBooksSerialize")]
     public int LuminPackSerializeOrderBooks()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(OrderBooks, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -426,7 +429,7 @@ partial class AppDataTest
     [Benchmark, BenchmarkCategory("ArticlesSerialize")]
     public int LuminPackSerializeArticles()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Articles, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -495,6 +498,14 @@ partial class AppDataTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("MeshesSerialize")]
+    public int LuminPackSerializeMeshes()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(Meshes, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("MeshesDeserialize")]
     public Mesh[] NinoDeserializeMeshes()
     {
@@ -517,6 +528,14 @@ partial class AppDataTest
     public Mesh[] ProtobufDeserializeMeshes()
     {
         return Serializer.Deserialize<Mesh[]>(new ReadOnlySpan<byte>(ProtobufMeshesBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("MeshesDeserialize")]
+    public Mesh[] LuminPackDeserializeMeshes()
+    {
+        Mesh[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackMeshesBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SampleSetsSerialize")]
@@ -554,7 +573,7 @@ partial class AppDataTest
     [Benchmark, BenchmarkCategory("SampleSetsSerialize")]
     public int LuminPackSerializeSampleSets()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(SampleSets, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -626,7 +645,7 @@ partial class AppDataTest
     [Benchmark, BenchmarkCategory("LookupsSerialize")]
     public int LuminPackSerializeLookups()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Lookups, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -698,7 +717,7 @@ partial class AppDataTest
     [Benchmark, BenchmarkCategory("EventsSerialize")]
     public int LuminPackSerializeEvents()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Events, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -18,8 +19,8 @@ namespace Nino.Benchmark.Workloads
     // The client deserializes it into the snapshot it already holds (Nino in place, MemoryPack overwrite; the others
     // read a new one).
 
-    [NinoType, MemoryPackable, MemoryPackUnion(0, typeof(TransformComponent)), MemoryPackUnion(1, typeof(VelocityComponent)),
-     MemoryPackUnion(2, typeof(HealthComponent)), MemoryPackUnion(3, typeof(BuffsComponent)), MemoryPackUnion(4, typeof(AnimationComponent))]
+    [NinoType, MemoryPackable, LuminPackable, MemoryPackUnion(0, typeof(TransformComponent)), LuminPackUnion(0, typeof(TransformComponent)), MemoryPackUnion(1, typeof(VelocityComponent)), LuminPackUnion(1, typeof(VelocityComponent)),
+     MemoryPackUnion(2, typeof(HealthComponent)), LuminPackUnion(2, typeof(HealthComponent)), MemoryPackUnion(3, typeof(BuffsComponent)), LuminPackUnion(3, typeof(BuffsComponent)), MemoryPackUnion(4, typeof(AnimationComponent)), LuminPackUnion(4, typeof(AnimationComponent))]
     [Union(0, typeof(TransformComponent)), Union(1, typeof(VelocityComponent)), Union(2, typeof(HealthComponent)),
      Union(3, typeof(BuffsComponent)), Union(4, typeof(AnimationComponent))]
     [ProtoContract, ProtoInclude(1, typeof(TransformComponent)), ProtoInclude(2, typeof(VelocityComponent)),
@@ -29,21 +30,21 @@ namespace Nino.Benchmark.Workloads
      JsonDerivedType(typeof(AnimationComponent), "animation")]
     public partial interface IComponent { }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class TransformComponent : IComponent
     {
         [Key(0)] [ProtoMember(1)] public Vec3 Position;
         [Key(1)] [ProtoMember(2)] public Quat Rotation;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class VelocityComponent : IComponent
     {
         [Key(0)] [ProtoMember(1)] public Vec3 Linear;
         [Key(1)] [ProtoMember(2)] public float Angular;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class HealthComponent : IComponent
     {
         [Key(0)] [ProtoMember(1)] public int Hp;
@@ -51,7 +52,7 @@ namespace Nino.Benchmark.Workloads
         [Key(2)] [ProtoMember(3)] public int Shield;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public partial struct Buff
     {
         [Key(0)] [ProtoMember(1)] public short Id;
@@ -59,13 +60,13 @@ namespace Nino.Benchmark.Workloads
         [Key(2)] [ProtoMember(3)] public float Remaining;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class BuffsComponent : IComponent
     {
         [Key(0)] [ProtoMember(1)] public List<Buff> Buffs;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class AnimationComponent : IComponent
     {
         [Key(0)] [ProtoMember(1)] public short Clip;
@@ -73,7 +74,7 @@ namespace Nino.Benchmark.Workloads
         [Key(2)] [ProtoMember(3)] public byte Layer;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class NetEntity
     {
         [Key(0)] [ProtoMember(1)] public int Id;
@@ -83,7 +84,7 @@ namespace Nino.Benchmark.Workloads
         [Key(4)] [ProtoMember(5)] public List<IComponent> Components;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class StateSnapshot
     {
         [Key(0)] [ProtoMember(1)] public long Tick;
@@ -118,8 +119,8 @@ namespace Nino.Benchmark.Workloads
     // ---------------------------------------------------------------- Lockstep: what a frame-sync server broadcasts,
     // 10 frames of 8 players' input commands (an interface), the last frames repeated for loss.
 
-    [NinoType, MemoryPackable, MemoryPackUnion(0, typeof(MoveCommand)), MemoryPackUnion(1, typeof(CastCommand)),
-     MemoryPackUnion(2, typeof(UseItemCommand)), MemoryPackUnion(3, typeof(StopCommand))]
+    [NinoType, MemoryPackable, LuminPackable, MemoryPackUnion(0, typeof(MoveCommand)), LuminPackUnion(0, typeof(MoveCommand)), MemoryPackUnion(1, typeof(CastCommand)), LuminPackUnion(1, typeof(CastCommand)),
+     MemoryPackUnion(2, typeof(UseItemCommand)), LuminPackUnion(2, typeof(UseItemCommand)), MemoryPackUnion(3, typeof(StopCommand)), LuminPackUnion(3, typeof(StopCommand))]
     [Union(0, typeof(MoveCommand)), Union(1, typeof(CastCommand)), Union(2, typeof(UseItemCommand)), Union(3, typeof(StopCommand))]
     [ProtoContract, ProtoInclude(1, typeof(MoveCommand)), ProtoInclude(2, typeof(CastCommand)),
      ProtoInclude(3, typeof(UseItemCommand)), ProtoInclude(4, typeof(StopCommand))]
@@ -127,14 +128,14 @@ namespace Nino.Benchmark.Workloads
      JsonDerivedType(typeof(UseItemCommand), "item"), JsonDerivedType(typeof(StopCommand), "stop")]
     public partial interface ICommand { }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class MoveCommand : ICommand
     {
         [Key(0)] [ProtoMember(1)] public short DirX;
         [Key(1)] [ProtoMember(2)] public short DirY;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class CastCommand : ICommand
     {
         [Key(0)] [ProtoMember(1)] public short SkillId;
@@ -143,33 +144,33 @@ namespace Nino.Benchmark.Workloads
         [Key(3)] [ProtoMember(4)] public short Y;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class UseItemCommand : ICommand
     {
         [Key(0)] [ProtoMember(1)] public int ItemId;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class StopCommand : ICommand
     {
         [Key(0)] [ProtoMember(1)] public byte Reason;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class PlayerInput
     {
         [Key(0)] [ProtoMember(1)] public byte Slot;
         [Key(1)] [ProtoMember(2)] public List<ICommand> Commands;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class LockstepFrame
     {
         [Key(0)] [ProtoMember(1)] public int Frame;
         [Key(1)] [ProtoMember(2)] public List<PlayerInput> Inputs;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class LockstepFrames
     {
         [Key(0)] [ProtoMember(1)] public int FirstFrame;
@@ -200,9 +201,9 @@ namespace Nino.Benchmark.Workloads
     // ---------------------------------------------------------------- MMO: one AOI update to one client, about 200
     // entity events through an abstract base, and the chat lines of that tick.
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
-    [MemoryPackUnion(0, typeof(EntityEnter)), MemoryPackUnion(1, typeof(EntityLeave)), MemoryPackUnion(2, typeof(EntityMove)),
-     MemoryPackUnion(3, typeof(SkillCast)), MemoryPackUnion(4, typeof(BuffChanged))]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
+    [MemoryPackUnion(0, typeof(EntityEnter)), LuminPackUnion(0, typeof(EntityEnter)), MemoryPackUnion(1, typeof(EntityLeave)), LuminPackUnion(1, typeof(EntityLeave)), MemoryPackUnion(2, typeof(EntityMove)), LuminPackUnion(2, typeof(EntityMove)),
+     MemoryPackUnion(3, typeof(SkillCast)), LuminPackUnion(3, typeof(SkillCast)), MemoryPackUnion(4, typeof(BuffChanged)), LuminPackUnion(4, typeof(BuffChanged))]
     [Union(0, typeof(EntityEnter)), Union(1, typeof(EntityLeave)), Union(2, typeof(EntityMove)), Union(3, typeof(SkillCast)),
      Union(4, typeof(BuffChanged))]
     [ProtoInclude(1, typeof(EntityEnter)), ProtoInclude(2, typeof(EntityLeave)), ProtoInclude(3, typeof(EntityMove)),
@@ -214,7 +215,7 @@ namespace Nino.Benchmark.Workloads
         [Key(0)] [ProtoMember(20)] public int EntityId;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class EntityEnter : AoiEvent
     {
         [Key(1)] [ProtoMember(1)] public short Type;
@@ -225,13 +226,13 @@ namespace Nino.Benchmark.Workloads
         [Key(6)] [ProtoMember(6)] public List<int> Equipment;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class EntityLeave : AoiEvent
     {
         [Key(1)] [ProtoMember(1)] public byte Reason;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class EntityMove : AoiEvent
     {
         [Key(1)] [ProtoMember(1)] public Vec3 Position;
@@ -239,7 +240,7 @@ namespace Nino.Benchmark.Workloads
         [Key(3)] [ProtoMember(3)] public float Speed;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public partial struct DamageHit
     {
         [Key(0)] [ProtoMember(1)] public int TargetId;
@@ -247,7 +248,7 @@ namespace Nino.Benchmark.Workloads
         [Key(2)] [ProtoMember(3)] public bool Critical;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class SkillCast : AoiEvent
     {
         [Key(1)] [ProtoMember(1)] public short SkillId;
@@ -255,7 +256,7 @@ namespace Nino.Benchmark.Workloads
         [Key(3)] [ProtoMember(3)] public List<DamageHit> Hits;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class BuffChanged : AoiEvent
     {
         [Key(1)] [ProtoMember(1)] public short BuffId;
@@ -263,7 +264,7 @@ namespace Nino.Benchmark.Workloads
         [Key(3)] [ProtoMember(3)] public float Duration;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class ChatMessage
     {
         [Key(0)] [ProtoMember(1)] public byte Channel;
@@ -273,7 +274,7 @@ namespace Nino.Benchmark.Workloads
         [Key(4)] [ProtoMember(5)] public DateTime SentAt;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class AoiUpdate
     {
         [Key(0)] [ProtoMember(1)] public long ServerTick;
@@ -312,7 +313,7 @@ namespace Nino.Benchmark.Workloads
     // many (Nino tracks references, MemoryPack's CircularReference, System.Text.Json's Preserve; MessagePack and
     // protobuf write a copy per reference).
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public partial struct Tile
     {
         [Key(0)] [ProtoMember(1)] public byte Terrain;
@@ -325,17 +326,17 @@ namespace Nino.Benchmark.Workloads
 #else
     [NinoType(trackReferences: true)]
 #endif
-    [MemoryPackable(GenerateType.CircularReference), MessagePackObject, ProtoContract]
+    [MemoryPackable(GenerateType.CircularReference), LuminPackable(GeneratorType.VersionTolerant), LuminPackOption(TrackReferences = true), MessagePackObject, ProtoContract]
     public sealed partial class Alliance
     {
-        [MemoryPackOrder(0)] [Key(0)] [ProtoMember(1)] public int Id;
-        [MemoryPackOrder(1)] [Key(1)] [ProtoMember(2)] public string Name;
-        [MemoryPackOrder(2)] [Key(2)] [ProtoMember(3)] public string Tag;
-        [MemoryPackOrder(3)] [Key(3)] [ProtoMember(4)] public int Members;
-        [MemoryPackOrder(4)] [Key(4)] [ProtoMember(5)] public long Power;
+        [MemoryPackOrder(0)] [LuminPackOrder(0)] [Key(0)] [ProtoMember(1)] public int Id;
+        [MemoryPackOrder(1)] [LuminPackOrder(1)] [Key(1)] [ProtoMember(2)] public string Name;
+        [MemoryPackOrder(2)] [LuminPackOrder(2)] [Key(2)] [ProtoMember(3)] public string Tag;
+        [MemoryPackOrder(3)] [LuminPackOrder(3)] [Key(3)] [ProtoMember(4)] public int Members;
+        [MemoryPackOrder(4)] [LuminPackOrder(4)] [Key(4)] [ProtoMember(5)] public long Power;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public partial struct MapPoint
     {
         [Key(0)] [ProtoMember(1)] public short X;
@@ -344,7 +345,7 @@ namespace Nino.Benchmark.Workloads
 
     public enum MarchKind { Attack, Gather, Reinforce, Scout }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class March
     {
         [Key(0)] [ProtoMember(1)] public MarchKind Kind;
@@ -353,7 +354,7 @@ namespace Nino.Benchmark.Workloads
         [Key(3)] [ProtoMember(4)] public List<MapPoint> Path;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class City
     {
         [Key(0)] [ProtoMember(1)] public int Id;
@@ -365,7 +366,7 @@ namespace Nino.Benchmark.Workloads
         [Key(6)] [ProtoMember(7)] public Alliance Alliance;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class Army
     {
         [Key(0)] [ProtoMember(1)] public long Id;
@@ -375,7 +376,7 @@ namespace Nino.Benchmark.Workloads
         [Key(4)] [ProtoMember(5)] public March March;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class WorldRegion
     {
         [Key(0)] [ProtoMember(1)] public short RegionX;
@@ -426,21 +427,21 @@ namespace Nino.Benchmark.Workloads
 #else
     [NinoType(trackReferences: true)]
 #endif
-    [MemoryPackable(GenerateType.CircularReference), MessagePackObject, ProtoContract]
+    [MemoryPackable(GenerateType.CircularReference), LuminPackable(GeneratorType.VersionTolerant), LuminPackOption(TrackReferences = true), MessagePackObject, ProtoContract]
     public sealed partial class CardDef
     {
-        [MemoryPackOrder(0)] [Key(0)] [ProtoMember(1)] public int Id;
-        [MemoryPackOrder(1)] [Key(1)] [ProtoMember(2)] public string Name;
-        [MemoryPackOrder(2)] [Key(2)] [ProtoMember(3)] public byte Cost;
-        [MemoryPackOrder(3)] [Key(3)] [ProtoMember(4)] public CardType Type;
-        [MemoryPackOrder(4)] [Key(4)] [ProtoMember(5)] public short Attack;
-        [MemoryPackOrder(5)] [Key(5)] [ProtoMember(6)] public short Health;
-        [MemoryPackOrder(6)] [Key(6)] [ProtoMember(7)] public string Text;
+        [MemoryPackOrder(0)] [LuminPackOrder(0)] [Key(0)] [ProtoMember(1)] public int Id;
+        [MemoryPackOrder(1)] [LuminPackOrder(1)] [Key(1)] [ProtoMember(2)] public string Name;
+        [MemoryPackOrder(2)] [LuminPackOrder(2)] [Key(2)] [ProtoMember(3)] public byte Cost;
+        [MemoryPackOrder(3)] [LuminPackOrder(3)] [Key(3)] [ProtoMember(4)] public CardType Type;
+        [MemoryPackOrder(4)] [LuminPackOrder(4)] [Key(4)] [ProtoMember(5)] public short Attack;
+        [MemoryPackOrder(5)] [LuminPackOrder(5)] [Key(5)] [ProtoMember(6)] public short Health;
+        [MemoryPackOrder(6)] [LuminPackOrder(6)] [Key(6)] [ProtoMember(7)] public string Text;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
-    [MemoryPackUnion(0, typeof(PlayCard)), MemoryPackUnion(1, typeof(AttackAction)), MemoryPackUnion(2, typeof(DealDamage)),
-     MemoryPackUnion(3, typeof(Heal)), MemoryPackUnion(4, typeof(Summon)), MemoryPackUnion(5, typeof(DrawCard)), MemoryPackUnion(6, typeof(EndTurn))]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
+    [MemoryPackUnion(0, typeof(PlayCard)), LuminPackUnion(0, typeof(PlayCard)), MemoryPackUnion(1, typeof(AttackAction)), LuminPackUnion(1, typeof(AttackAction)), MemoryPackUnion(2, typeof(DealDamage)), LuminPackUnion(2, typeof(DealDamage)),
+     MemoryPackUnion(3, typeof(Heal)), LuminPackUnion(3, typeof(Heal)), MemoryPackUnion(4, typeof(Summon)), LuminPackUnion(4, typeof(Summon)), MemoryPackUnion(5, typeof(DrawCard)), LuminPackUnion(5, typeof(DrawCard)), MemoryPackUnion(6, typeof(EndTurn)), LuminPackUnion(6, typeof(EndTurn))]
     [Union(0, typeof(PlayCard)), Union(1, typeof(AttackAction)), Union(2, typeof(DealDamage)), Union(3, typeof(Heal)),
      Union(4, typeof(Summon)), Union(5, typeof(DrawCard)), Union(6, typeof(EndTurn))]
     [ProtoInclude(1, typeof(PlayCard)), ProtoInclude(2, typeof(AttackAction)), ProtoInclude(3, typeof(SpellEffect)),
@@ -454,14 +455,14 @@ namespace Nino.Benchmark.Workloads
         [Key(1)] [ProtoMember(21)] public byte Actor;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class PlayCard : CardAction
     {
         [Key(2)] [ProtoMember(1)] public CardDef Card;
         [Key(3)] [ProtoMember(2)] public byte Slot;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class AttackAction : CardAction
     {
         [Key(2)] [ProtoMember(1)] public int AttackerUid;
@@ -477,40 +478,40 @@ namespace Nino.Benchmark.Workloads
         [Key(2)] [ProtoMember(20)] public CardDef Source;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class DealDamage : SpellEffect
     {
         [Key(3)] [ProtoMember(1)] public List<int> Targets;
         [Key(4)] [ProtoMember(2)] public short Amount;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class Heal : SpellEffect
     {
         [Key(3)] [ProtoMember(1)] public int Target;
         [Key(4)] [ProtoMember(2)] public short Amount;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class Summon : SpellEffect
     {
         [Key(3)] [ProtoMember(1)] public CardDef Minion;
         [Key(4)] [ProtoMember(2)] public byte Slot;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class DrawCard : CardAction
     {
         [Key(2)] [ProtoMember(1)] public CardDef Card;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class EndTurn : CardAction
     {
         [Key(2)] [ProtoMember(1)] public int Elapsed;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class BattlePlayer
     {
         [Key(0)] [ProtoMember(1)] public long PlayerId;
@@ -520,7 +521,7 @@ namespace Nino.Benchmark.Workloads
         [Key(4)] [ProtoMember(5)] public List<CardDef> Hand;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public sealed partial class CardBattleLog
     {
         [Key(0)] [ProtoMember(1)] public long BattleId;

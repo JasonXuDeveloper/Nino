@@ -57,6 +57,7 @@ partial class BclTypesTest
     private static readonly byte[] NinoBitArrayBytes;
     private static readonly byte[] MemoryPackBitArrayBytes;
     private static readonly byte[] MessagePackBitArrayBytes;
+    private static readonly byte[] LuminPackBitArrayBytes;
     private static readonly byte[] NinoCultureInfoBytes;
     private static readonly byte[] MemoryPackCultureInfoBytes;
     private static readonly byte[] LuminPackCultureInfoBytes;
@@ -146,6 +147,7 @@ partial class BclTypesTest
         NinoBitArrayBytes = NinoSerializer.Serialize(BitArrayValue);
         MemoryPackBitArrayBytes = MemoryPackSerializer.Serialize(BitArrayValue);
         MessagePackBitArrayBytes = MessagePackSerializer.Serialize(BitArrayValue);
+        LuminPackBitArrayBytes = LuminPackBuffers.Bytes(BitArrayValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoCultureInfoBytes = NinoSerializer.Serialize(CultureInfoValue);
         MemoryPackCultureInfoBytes = MemoryPackSerializer.Serialize(CultureInfoValue);
@@ -297,6 +299,7 @@ partial class BclTypesTest
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeUri), LuminPackUriBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeVersion), LuminPackVersionBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeStringBuilder), LuminPackStringBuilderBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeBitArray), LuminPackBitArrayBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeCultureInfo), LuminPackCultureInfoBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTimeZoneInfo), LuminPackTimeZoneInfoBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeLazy), LuminPackLazyBytes);
@@ -347,7 +350,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("BigIntegerSerialize")]
     public int LuminPackSerializeBigInteger()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(BigIntegerValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -407,7 +410,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("UriSerialize")]
     public int LuminPackSerializeUri()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(UriValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -471,7 +474,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("VersionSerialize")]
     public int LuminPackSerializeVersion()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(VersionValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -529,7 +532,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("StringBuilderSerialize")]
     public int LuminPackSerializeStringBuilder()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(StringBuilderValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -584,6 +587,14 @@ partial class BclTypesTest
         return _messagePackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("BitArraySerialize")]
+    public int LuminPackSerializeBitArray()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(BitArrayValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("BitArrayDeserialize")]
     public object NinoDeserializeBitArray()
     {
@@ -600,6 +611,14 @@ partial class BclTypesTest
     public object MessagePackDeserializeBitArray()
     {
         return MessagePackSerializer.Deserialize<BitArray>(MessagePackBitArrayBytes);
+    }
+
+    [Benchmark, BenchmarkCategory("BitArrayDeserialize")]
+    public object LuminPackDeserializeBitArray()
+    {
+        BitArray result = default;
+        LuminPackSerializer.Deserialize(LuminPackBitArrayBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("CultureInfoSerialize")]
@@ -621,7 +640,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("CultureInfoSerialize")]
     public int LuminPackSerializeCultureInfo()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(CultureInfoValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -665,7 +684,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("TimeZoneInfoSerialize")]
     public int LuminPackSerializeTimeZoneInfo()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(TimeZoneInfoValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -717,7 +736,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("LazySerialize")]
     public int LuminPackSerializeLazy()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(LazyValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -775,7 +794,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("MemorySerialize")]
     public int LuminPackSerializeMemory()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(MemoryValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -833,7 +852,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("ReadOnlySequenceSerialize")]
     public int LuminPackSerializeReadOnlySequence()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ReadOnlySequenceValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -891,7 +910,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("ReadOnlyCollectionSerialize")]
     public int LuminPackSerializeReadOnlyCollection()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ReadOnlyCollectionValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -949,7 +968,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("InterfaceStringsSerialize")]
     public int LuminPackSerializeInterfaceStrings()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(InterfaceStringsValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1007,7 +1026,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("LookupSerialize")]
     public int LuminPackSerializeLookup()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(LookupValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1057,7 +1076,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("BlockingCollectionSerialize")]
     public int LuminPackSerializeBlockingCollection()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(BlockingCollectionValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1117,7 +1136,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("ImmutableHashSetSerialize")]
     public int LuminPackSerializeImmutableHashSet()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ImmutableHashSetValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1189,7 +1208,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("ImmutableSortedSetSerialize")]
     public int LuminPackSerializeImmutableSortedSet()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ImmutableSortedSetValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1261,7 +1280,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("ImmutableQueueSerialize")]
     public int LuminPackSerializeImmutableQueue()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ImmutableQueueValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1333,7 +1352,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("ImmutableStackSerialize")]
     public int LuminPackSerializeImmutableStack()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ImmutableStackValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1405,7 +1424,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("ImmutableDictionarySerialize")]
     public int LuminPackSerializeImmutableDictionary()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ImmutableDictionaryValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1477,7 +1496,7 @@ partial class BclTypesTest
     [Benchmark, BenchmarkCategory("ImmutableSortedDictionarySerialize")]
     public int LuminPackSerializeImmutableSortedDictionary()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(ImmutableSortedDictionaryValue, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }

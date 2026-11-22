@@ -17,7 +17,7 @@ namespace Nino.Benchmark.AppData;
 [BenchCase("Zoos")]
 [BenchCase("OrderBooks")]
 [BenchCase("Articles", Quick = true)]
-[BenchCase("Meshes", Broken = "LuminPack wrong-read: reads 20 meshes back other than it wrote")]
+[BenchCase("Meshes")]
 [BenchCase("SampleSets")]
 [BenchCase("Lookups")]
 [BenchCase("Events")]

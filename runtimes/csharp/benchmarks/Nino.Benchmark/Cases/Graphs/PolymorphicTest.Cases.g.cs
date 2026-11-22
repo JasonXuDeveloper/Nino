@@ -194,7 +194,7 @@ partial class PolymorphicTest
     [Benchmark, BenchmarkCategory("PolymorphicClassSerialize")]
     public int LuminPackSerializePolymorphicClass()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(PolymorphicInstance, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -251,7 +251,7 @@ partial class PolymorphicTest
     [Benchmark, BenchmarkCategory("PolymorphicFooArraySerialize")]
     public int LuminPackSerializePolymorphicFooArray()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(PolymorphicFooArray, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -308,7 +308,7 @@ partial class PolymorphicTest
     [Benchmark, BenchmarkCategory("PolymorphicClassArraySerialize")]
     public int LuminPackSerializePolymorphicClassArray()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(PolymorphicClassArray, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }

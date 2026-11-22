@@ -5,9 +5,13 @@ namespace Nino.Benchmark;
 
 /// <summary>
 /// LuminPack's reusable writers, sized up front as the other libraries' writers are (1 MiB), and the bytes its cases
-/// read, written through one. Why sized: LuminPack 1.1.9 writes a list of polymorphic elements past the end of a writer
-/// that has to grow (its pooled writers start at 32 KiB): PolymorphicTest's class of 1,000 elements corrupted the
-/// native heap through <c>LuminPackSerializer.Serialize(value)</c> from about 400 elements on.
+/// read, written through one. Why sized: the other libraries' writers are, and LuminPack 1.1.9 wrote a list of polymorphic
+/// elements past the end of a writer that had to grow (its pooled writers start at 32 KiB): PolymorphicTest's class of
+/// 1,000 elements corrupted the native heap through <c>LuminPackSerializer.Serialize(value)</c> from about 400 elements on.
+/// Each write starts an independent session (<c>ResetForReuse</c>): from 2.0 a writer keeps its reference and
+/// version-tolerant schema tables across <c>ResetCore</c>, and a record written after another then refers to entries of
+/// the earlier one and does not read back alone ("Unknown version-tolerant schema ordinal", "Object is not found in this
+/// reference id").
 /// </summary>
 public static class LuminPackBuffers
 {
@@ -19,11 +23,10 @@ public static class LuminPackBuffers
     public static LuminBufferWriter Rent()
     {
         var writer = LuminBufferWriterPool.Rent();
-        // 1.1.9's writer has no size hint (no IBufferWriter<byte>): loading that many bytes grows it, and ResetCore
-        // keeps the storage.
+        // Its writer takes no size hint: loading that many bytes grows it, and ResetForReuse keeps the storage.
         var room = new ReadOnlySequence<byte>(new byte[Capacity]);
         writer.LoadSequence(in room);
-        writer.ResetCore();
+        writer.ResetForReuse();
         return writer;
     }
 

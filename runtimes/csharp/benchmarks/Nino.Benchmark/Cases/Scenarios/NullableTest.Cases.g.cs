@@ -54,6 +54,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufNullableFieldsArrayBytes;
     private static readonly byte[] GoogleProtobufNullableFieldsArrayBytes;
     private static readonly byte[] JsonNullableFieldsArrayBytes;
+    private static readonly byte[] LuminPackNullableFieldsArrayBytes;
     private static readonly P.OptionalSimpleStruct NullableStructProto;
     private static readonly byte[] NinoNullableStructBytes;
     private static readonly byte[] NinoNullableNullableStructBytes;
@@ -173,6 +174,7 @@ partial class NullableTest
         ProtobufNullableFieldsArrayBytes = ProtobufModel.Serialize(FieldsArray);
         GoogleProtobufNullableFieldsArrayBytes = NullableFieldsArrayProto.ToByteArray();
         JsonNullableFieldsArrayBytes = JsonSerializer.SerializeToUtf8Bytes(FieldsArray, CaseJson.Default.NullableFieldsArray);
+        LuminPackNullableFieldsArrayBytes = LuminPackBuffers.Bytes(FieldsArray, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableStructProto = P.OptionalSimpleStruct.Parser.ParseFrom(ProtobufModel.Serialize(StructProtobuf));
         NinoNullableStructBytes = NinoSerializer.Serialize(Struct);
@@ -387,6 +389,7 @@ partial class NullableTest
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeRawNullables), JsonRawNullablesBytes);
 
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableFields), LuminPackNullableFieldsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableFieldsArray), LuminPackNullableFieldsArrayBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableStruct), LuminPackNullableStructBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableStructs), LuminPackNullableStructsBytes);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableObject), LuminPackNullableObjectBytes);
@@ -486,7 +489,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("NullableFieldsSerialize")]
     public int LuminPackSerializeNullableFields()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Fields, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -620,6 +623,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableFieldsArraySerialize")]
+    public int LuminPackSerializeNullableFieldsArray()
+    {
+        _luminPackBuffer.ResetForReuse();
+        LuminPackSerializer.Serialize(FieldsArray, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableFieldsArrayDeserialize")]
     public NullableFields[] NinoDeserializeNullableFieldsArray()
     {
@@ -666,6 +677,14 @@ partial class NullableTest
     public NullableFields[] JsonDeserializeNullableFieldsArray()
     {
         return JsonSerializer.Deserialize(JsonNullableFieldsArrayBytes, CaseJson.Default.NullableFieldsArray);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableFieldsArrayDeserialize")]
+    public NullableFields[] LuminPackDeserializeNullableFieldsArray()
+    {
+        NullableFields[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableFieldsArrayBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableStructSerialize")]
@@ -736,7 +755,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("NullableStructSerialize")]
     public int LuminPackSerializeNullableStruct()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Struct, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -867,7 +886,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("NullableStructsSerialize")]
     public int LuminPackSerializeNullableStructs()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Structs, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -980,7 +999,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("NullableObjectSerialize")]
     public int LuminPackSerializeNullableObject()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(NullObject, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1076,7 +1095,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("NullableObjectsSerialize")]
     public int LuminPackSerializeNullableObjects()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Objects, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1171,7 +1190,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("ManagedStructSerialize")]
     public int LuminPackSerializeManagedStruct()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Managed, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1272,7 +1291,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("ManagedStructsSerialize")]
     public int LuminPackSerializeManagedStructs()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Manageds, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1373,7 +1392,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("NullableManagedStructSerialize")]
     public int LuminPackSerializeNullableManagedStruct()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(NullableManaged, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1468,7 +1487,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("NullableManagedStructsSerialize")]
     public int LuminPackSerializeNullableManagedStructs()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(NullableManageds, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1563,7 +1582,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("NullableStringsSerialize")]
     public int LuminPackSerializeNullableStrings()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Strings, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1674,7 +1693,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("RawNullableSerialize")]
     public int LuminPackSerializeRawNullable()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Raw, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -1811,7 +1830,7 @@ partial class NullableTest
     [Benchmark, BenchmarkCategory("RawNullablesSerialize")]
     public int LuminPackSerializeRawNullables()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Raws, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }

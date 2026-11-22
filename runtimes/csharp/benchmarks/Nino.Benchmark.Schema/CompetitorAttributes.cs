@@ -52,11 +52,13 @@ namespace ProtoBuf
 
 namespace LuminPack.Attribute
 {
-    public enum GeneratorType { Object, VersionTolerant, CircularReference }
+    public enum GeneratorType { Object, VersionTolerant }
     public sealed class LuminPackableAttribute : System.Attribute { public LuminPackableAttribute(GeneratorType type = GeneratorType.Object) { } }
     [AttributeUsage(AttributeTargets.All, AllowMultiple = true)]
     public sealed class LuminPackUnionAttribute : System.Attribute { public LuminPackUnionAttribute(ushort tag, Type type) { } }
     public sealed class LuminPackOrderAttribute : System.Attribute { public LuminPackOrderAttribute(int order) { } }
+    public sealed class LuminPackIgnoreAttribute : System.Attribute { }
+    public sealed class LuminPackOptionAttribute : System.Attribute { public bool TrackReferences { get; set; } }
 }
 
 namespace MemoryPack
