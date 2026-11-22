@@ -100,6 +100,57 @@ namespace Nino.UnitTests
         }
 
         /// <summary>
+        /// The run loop keeps the writer's cursor in locals: a buffer that starts at one byte grows in the middle of the
+        /// run, at a null, at a raw body and at a body written through the writer (a string), and the bytes match.
+        /// </summary>
+        [TestMethod]
+        public void ElementLoopGrowsTheBufferInTheRun()
+        {
+            var values = new ForwardRoot[1000];
+            for (int i = 0; i < values.Length; i++)
+            {
+                values[i] = (i % 5) switch
+                {
+                    0 => null,
+                    1 => new ForwardA { A = i, B = -i, C = i * 3 },
+                    2 => new ForwardB { A = i, B = i + 1, D = "s" + i },
+                    3 => new ForwardC { A = i, B = 7, E = long.MaxValue - i },
+                    _ => new ForwardOther { A = i, F = i / 3.0 },
+                };
+            }
+
+            var expected = new List<byte>(BitConverter.GetBytes(values.Length));
+            foreach (var value in values)
+                expected.AddRange(NinoSerializer.Serialize(value));
+            foreach (var collection in new object[] { values, values.ToList() })
+            {
+                using var buffer = new NinoArrayBufferWriter(1);
+                if (collection is ForwardRoot[] array)
+                    NinoSerializer.Serialize(array, buffer);
+                else
+                    NinoSerializer.Serialize((List<ForwardRoot>)collection, buffer);
+                CollectionAssert.AreEqual(expected.ToArray(), buffer.WrittenSpan.ToArray());
+                CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<ForwardRoot[]>(buffer.WrittenSpan),
+                    ForwardComparer.Instance);
+            }
+        }
+
+        private sealed class ForwardComparer : System.Collections.IComparer
+        {
+            public static readonly ForwardComparer Instance = new();
+
+            public int Compare(object x, object y) => (x, y) switch
+            {
+                (null, null) => 0,
+                (ForwardA a, ForwardA b) when a.A == b.A && a.B == b.B && a.C == b.C => 0,
+                (ForwardB a, ForwardB b) when a.A == b.A && a.B == b.B && a.D == b.D => 0,
+                (ForwardC a, ForwardC b) when a.A == b.A && a.B == b.B && a.E == b.E => 0,
+                (ForwardOther a, ForwardOther b) when a.A == b.A && a.F == b.F => 0,
+                _ => 1,
+            };
+        }
+
+        /// <summary>
         /// Arrays, lists and dictionary values of <typeparamref name="T"/> write each element as it writes alone (the
         /// element loops go through the generated WriteRun, the dispatch inline), and so does every other collection
         /// that holds them (#349): a set's entries, a ring, an <c>ImmutableArray</c>, a linked list's nodes, and the

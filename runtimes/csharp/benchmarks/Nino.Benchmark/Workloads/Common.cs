@@ -32,7 +32,7 @@ namespace Nino.Benchmark.Workloads
         [Key(2)] [ProtoMember(3)] public float Z;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
     public partial struct Quat
     {
         [Key(0)] [ProtoMember(1)] public float X;

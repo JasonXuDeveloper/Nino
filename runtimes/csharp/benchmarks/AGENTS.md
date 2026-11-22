@@ -8,7 +8,7 @@ benchmarks in `runtimes/*/bench`. `audit-code` audits the scripts, `benchmark` r
 
 ```
 README.md                    options of run.sh, the classes, MessagePack / protobuf-net / Google.Protobuf / JSON /
-                             LuminPack (the cases its 1.1.9 cannot run), member by member, machine code
+                             LuminPack (how it is called and built), member by member, machine code
                              (asm/asm.py, cross JIT), the runtimes' benchmarks
 run.sh                       the published runtime benchmark: v3 3.3.13 then the full v4 suite on one machine (QUICK=1,
                              FILTER=...); writes runtimes/csharp/benchmarks/results/ (ignored)
@@ -16,7 +16,7 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              against MemoryPack, MessagePack and protobuf-net per class (SimpleTest, PolymorphicTest,
                              NullableTest and CollectionsTest's nullable collections against Google.Protobuf, through
                              Fixtures/cases.proto, and System.Text.Json too; LuminPack in every class that declares
-                             its cases, where its 1.1.9 can)
+                             its cases)
                              (SimpleTest, PolymorphicTest, NullableTest, GenericPolymorphicTest, PooledTest,
                              PooledGraphTest, ReferenceTest, VersionTolerantTest, FixedSizeTest, CommonTypesTest,
                              CollectionsTest, BclTypesTest, ScatteredTest, UntrustedTest, ExternalBufferTest,

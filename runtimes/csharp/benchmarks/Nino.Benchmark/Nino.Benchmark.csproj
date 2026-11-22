@@ -14,14 +14,6 @@
         <!-- The v3 build (NINO_BENCH_V3=true): Program.cs without the proto writer, the shared models without their v4-only
              attributes. -->
         <DefineConstants Condition="'$(NinoBenchV3)' == 'true'">$(DefineConstants);NINO_BENCH_V3</DefineConstants>
-        <!-- LuminPack's generator writes the types reachable from [LuminPackable] types and its serializer's calls, and
-             the public types (its default writes every type of the project); the code for a type is the same in every
-             mode. Light, the narrower mode, writes no top-level arrays (SimpleClass[]: no overload, no dispatch). -->
-        <LuminPackGenerationMode>Medium</LuminPackGenerationMode>
-        <!-- The code LuminPack 1.1.9's generator writes declares #nullable enable without keeping to it, has unused
-             locals and fields and always-true null checks; the compiler applies no .editorconfig section to generated
-             files, so these are off project-wide in the v4 build. -->
-        <NoWarn Condition="'$(NinoBenchV3)' != 'true'">$(NoWarn);CS0219;CS0472;CS0649;CS8600;CS8601;CS8602;CS8604;CS8619;CS8620;CS8624;CS8625</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="BenchmarkDotNet" />
@@ -85,9 +77,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <CompilerVisibleProperty Include="LuminPackGenerationMode"/>
-        <!-- LuminPack 1.1.9 writes ImmutableQueue<T>.CreateRange(segment.AsEnumerable()) without System.Linq's using. -->
-        <Using Include="System.Linq" Condition="'$(NinoBenchV3)' != 'true'"/>
         <Using Include="BenchmarkDotNet.Attributes"/>
     </ItemGroup>
     <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props" Condition="'$(NinoBenchV3)' != 'true'"/>

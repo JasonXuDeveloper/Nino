@@ -69,7 +69,7 @@ namespace Nino.Benchmark.Workloads
 
     public enum UserType { Unregistered, Registered, Moderator, DoesNotExist }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class BadgeCount
     {
         [Key(0)] [ProtoMember(1)] public int Gold;
@@ -78,7 +78,7 @@ namespace Nino.Benchmark.Workloads
     }
 
     /// <summary>The Stack Exchange API's shallow_user, as Jil's benchmark models (and MessagePack-CSharp's) carry it.</summary>
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class ShallowUser
     {
         [Key(0)] [ProtoMember(1)] public int? UserId;
@@ -103,7 +103,7 @@ namespace Nino.Benchmark.Workloads
         }
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class Comment
     {
         [Key(0)] [ProtoMember(1)] public int CommentId;
@@ -117,7 +117,7 @@ namespace Nino.Benchmark.Workloads
         [Key(8)] [ProtoMember(9)] public string Link;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class Answer
     {
         [Key(0)] [ProtoMember(1)] public int AnswerId;
@@ -136,7 +136,7 @@ namespace Nino.Benchmark.Workloads
     }
 
     /// <summary>The Stack Exchange API's question, the fields Jil's benchmark model has that a page of questions fills.</summary>
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class Question
     {
         [Key(0)] [ProtoMember(1)] public int QuestionId;
@@ -169,7 +169,7 @@ namespace Nino.Benchmark.Workloads
     /// A page of 20 questions with their answers and comments in the Stack Exchange API's wrapper, the models Jil's
     /// benchmark suite brought to .NET and MessagePack-CSharp's and MemoryPack's benchmarks reuse.
     /// </summary>
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public partial class StackOverflowPage
     {
         [Key(0)] [ProtoMember(1)] public List<Question> Items;

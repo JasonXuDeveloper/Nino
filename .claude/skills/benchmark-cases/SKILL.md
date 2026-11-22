@@ -152,7 +152,12 @@ each harness                          -->  reads cases.json, looks the codec up 
   leave it out with `Without` (which means the library has no form of the case) or silently. Why: BenchGen lists it in
   `bench-cases.json`, and the charts, tables and the docs site draw it as error with the reason, while a missing row
   reads as n/a (#368). On a LuminPack upgrade, drop each LuminPack `Broken` (`bench-cases.json` lists them; #356),
-  run BenchGen, the build and `--verify`, and keep only the ones that still fail.
+  give every model a case reaches its attributes (a model of a compile-broken case may have none: the workloads had
+  no `[LuminPackable]` until 2.0.0-rc.2), run BenchGen, the build and `--verify`, and keep only the ones that still
+  fail. Read the new version's API for a reset or session change before trusting a reused writer: from 2.0 a
+  `LuminBufferWriter` keeps its reference and version-tolerant schema tables across `ResetCore`, so each operation
+  starts with `ResetForReuse`; with `ResetCore`, `--verify` showed five cases writing fewer bytes than their payload,
+  bytes that did not read back alone (#379).
 - Add a competitor as LuminPack was (#304): one adapter in `Nino.Benchmark/Adapters/` with a method prefix no other
   library's starts with, its fastest documented calls into a reused writer sized like the others', its attributes on
   the models (never on MemoryPack's own copies, `SafeNullable<T>`), BenchGen, then the build and `--verify`, and a
@@ -165,9 +170,12 @@ each harness                          -->  reads cases.json, looks the codec up 
   tuples, and its byte[] `Serialize` of a 1,000-element polymorphic list wrote past its growing 32 KiB writer and
   corrupted the native heap (`malloc(): corrupted top size`; `Harness/LuminPackBuffers.cs` sizes its writers up front).
   A process that dies in `--verify` names no case: print each method before calling it (a local edit of
-  `Harness/Verify.cs`) to find it. Keep a competitor's source generator out of the v3 build and in the narrowest
-  mode that still writes every type a case needs (LuminPack's `Medium`: `Full` wrote 8.6 MB and failed on
-  `BclTypesTest`'s types, `Light` wrote no top-level arrays).
+  `Harness/Verify.cs`) to find it; a class whose static constructor throws in a competitor's setup stops `--verify`
+  at that class (catch and print in `LuminPackBuffers.Bytes` locally to see every case at once). Keep a competitor's
+  source generator, interceptors and IL rewriting out of the v3 build (`Directory.Build.props`) and its generator in
+  the narrowest mode that still writes every type a case needs (LuminPack 1.1.9's `Medium`: `Full` wrote 8.6 MB and
+  failed on `BclTypesTest`'s types, `Light` wrote no top-level arrays; 2.0 ignores the mode and generates from the
+  calls).
 - Add a competitor outside .NET as one adapter in that language's bench, its column after Nino's in the report's
   order: Go, a type implementing `Adapter` (`Name`, `Prepare`) in `bench/adapter_<name>.go` and an entry in
   `adapters` (`bench/adapter.go`), its `Prepare` returning the codec through `checked`, or nil and the reason; Rust,

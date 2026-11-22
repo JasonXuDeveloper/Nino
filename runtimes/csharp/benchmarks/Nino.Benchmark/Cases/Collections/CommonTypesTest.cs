@@ -16,7 +16,7 @@ namespace Nino.Benchmark;
 /// </summary>
 [BenchCase("Tree", Quick = true, Without = "Protobuf")]
 [BenchCase("Inventory", Quick = true)]
-[BenchCase("Waypoints", Broken = "LuminPack compile: its generator writes ReadValue and WriteValue of Waypoint (a value tuple member) twice (CS0111)")]
+[BenchCase("Waypoints")]
 [BenchCase("StringDictionary", Value = "Strings")]
 [BenchClass(Buffer = "1 << 20", Bytes = "{Library}{Case}Bytes", Order = "case")]
 [PayloadColumn]

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -27,25 +28,25 @@ namespace Nino.Benchmark.Workloads
 #else
     [NinoType(format: NinoFormat.Keyed)]
 #endif
-    [MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, ProtoContract,
+    [MemoryPackable(GenerateType.VersionTolerant), LuminPackable(GeneratorType.VersionTolerant), MessagePackObject, ProtoContract,
      CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class ProfileV1
     {
-        [MemoryPackOrder(0)] [Key(0)] [ProtoMember(1)] public long Id;
-        [MemoryPackOrder(1)] [Key(1)] [ProtoMember(2)] public string UserName;
-        [MemoryPackOrder(2)] [Key(2)] [ProtoMember(3)] public string Email;
-        [MemoryPackOrder(3)] [Key(3)] [ProtoMember(4)] public string DisplayName;
-        [MemoryPackOrder(4)] [Key(4)] [ProtoMember(5)] public string AvatarUrl;
-        [MemoryPackOrder(5)] [Key(5)] [ProtoMember(6)] public string Bio;
-        [MemoryPackOrder(6)] [Key(6)] [ProtoMember(7)] public DateTime CreatedAt;
-        [MemoryPackOrder(7)] [Key(7)] [ProtoMember(8)] public DateTime? LastLoginAt;
-        [MemoryPackOrder(8)] [Key(8)] [ProtoMember(9)] public bool EmailVerified;
-        [MemoryPackOrder(9)] [Key(9)] [ProtoMember(10)] public int? BirthYear;
-        [MemoryPackOrder(10)] [Key(10)] [ProtoMember(11)] public string Country;
-        [MemoryPackOrder(11)] [Key(11)] [ProtoMember(12)] public string TimeZone;
-        [MemoryPackOrder(12)] [Key(12)] [ProtoMember(13)] public int Followers;
-        [MemoryPackOrder(13)] [Key(13)] [ProtoMember(14)] public List<string> Roles;
-        [MemoryPackOrder(14)] [Key(14)] [ProtoMember(15)] public Dictionary<string, string> Preferences;
+        [MemoryPackOrder(0)] [LuminPackOrder(0)] [Key(0)] [ProtoMember(1)] public long Id;
+        [MemoryPackOrder(1)] [LuminPackOrder(1)] [Key(1)] [ProtoMember(2)] public string UserName;
+        [MemoryPackOrder(2)] [LuminPackOrder(2)] [Key(2)] [ProtoMember(3)] public string Email;
+        [MemoryPackOrder(3)] [LuminPackOrder(3)] [Key(3)] [ProtoMember(4)] public string DisplayName;
+        [MemoryPackOrder(4)] [LuminPackOrder(4)] [Key(4)] [ProtoMember(5)] public string AvatarUrl;
+        [MemoryPackOrder(5)] [LuminPackOrder(5)] [Key(5)] [ProtoMember(6)] public string Bio;
+        [MemoryPackOrder(6)] [LuminPackOrder(6)] [Key(6)] [ProtoMember(7)] public DateTime CreatedAt;
+        [MemoryPackOrder(7)] [LuminPackOrder(7)] [Key(7)] [ProtoMember(8)] public DateTime? LastLoginAt;
+        [MemoryPackOrder(8)] [LuminPackOrder(8)] [Key(8)] [ProtoMember(9)] public bool EmailVerified;
+        [MemoryPackOrder(9)] [LuminPackOrder(9)] [Key(9)] [ProtoMember(10)] public int? BirthYear;
+        [MemoryPackOrder(10)] [LuminPackOrder(10)] [Key(10)] [ProtoMember(11)] public string Country;
+        [MemoryPackOrder(11)] [LuminPackOrder(11)] [Key(11)] [ProtoMember(12)] public string TimeZone;
+        [MemoryPackOrder(12)] [LuminPackOrder(12)] [Key(12)] [ProtoMember(13)] public int Followers;
+        [MemoryPackOrder(13)] [LuminPackOrder(13)] [Key(13)] [ProtoMember(14)] public List<string> Roles;
+        [MemoryPackOrder(14)] [LuminPackOrder(14)] [Key(14)] [ProtoMember(15)] public Dictionary<string, string> Preferences;
 
         public static ProfileV1 Create(Random r) => new()
         {
@@ -70,33 +71,33 @@ namespace Nino.Benchmark.Workloads
 #else
     [NinoType(format: NinoFormat.Keyed)]
 #endif
-    [MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, ProtoContract,
+    [MemoryPackable(GenerateType.VersionTolerant), LuminPackable(GeneratorType.VersionTolerant), MessagePackObject, ProtoContract,
      CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class ProfileV2
     {
-        [MemoryPackOrder(0)] [Key(0)] [ProtoMember(1)] public long Id;
-        [MemoryPackOrder(1)] [Key(1)] [ProtoMember(2)] public string UserName;
-        [MemoryPackOrder(2)] [Key(2)] [ProtoMember(3)] public string Email;
-        [MemoryPackOrder(3)] [Key(3)] [ProtoMember(4)] public string DisplayName;
+        [MemoryPackOrder(0)] [LuminPackOrder(0)] [Key(0)] [ProtoMember(1)] public long Id;
+        [MemoryPackOrder(1)] [LuminPackOrder(1)] [Key(1)] [ProtoMember(2)] public string UserName;
+        [MemoryPackOrder(2)] [LuminPackOrder(2)] [Key(2)] [ProtoMember(3)] public string Email;
+        [MemoryPackOrder(3)] [LuminPackOrder(3)] [Key(3)] [ProtoMember(4)] public string DisplayName;
         // 4: AvatarUrl, removed.
 #if NINO_BENCH_V3
         // v3 3.3.13 cannot delete a member (its docs, Version Compatibility: "Delete a serialized field or property: No"),
         // since it reads members by position: the removed member's slot stays, read and dropped. The other libraries
         // skip it (no key of theirs).
-        [IgnoreMember, MemoryPackIgnore] public string AvatarUrl { get => null; set { } }
+        [IgnoreMember, MemoryPackIgnore, LuminPackIgnore] public string AvatarUrl { get => null; set { } }
 #endif
-        [MemoryPackOrder(5)] [Key(5)] [ProtoMember(6)] public string Bio;
-        [MemoryPackOrder(6)] [Key(6)] [ProtoMember(7)] public DateTime CreatedAt;
-        [MemoryPackOrder(7)] [Key(7)] [ProtoMember(8)] public DateTime? LastLoginAt;
-        [MemoryPackOrder(8)] [Key(8)] [ProtoMember(9)] public bool EmailVerified;
-        [MemoryPackOrder(9)] [Key(9)] [ProtoMember(10)] public int? BirthYear;
-        [MemoryPackOrder(10)] [Key(10)] [ProtoMember(11)] public string Country;
-        [MemoryPackOrder(11)] [Key(11)] [ProtoMember(12)] public string TimeZone;
-        [MemoryPackOrder(12)] [Key(12)] [ProtoMember(13)] public int Followers;
-        [MemoryPackOrder(13)] [Key(13)] [ProtoMember(14)] public List<string> Roles;
-        [MemoryPackOrder(14)] [Key(14)] [ProtoMember(15)] public Dictionary<string, string> Preferences;
-        [MemoryPackOrder(15)] [Key(15)] [ProtoMember(16)] public string Pronouns;
-        [MemoryPackOrder(16)] [Key(16)] [ProtoMember(17)] public List<string> Badges;
+        [MemoryPackOrder(5)] [LuminPackOrder(5)] [Key(5)] [ProtoMember(6)] public string Bio;
+        [MemoryPackOrder(6)] [LuminPackOrder(6)] [Key(6)] [ProtoMember(7)] public DateTime CreatedAt;
+        [MemoryPackOrder(7)] [LuminPackOrder(7)] [Key(7)] [ProtoMember(8)] public DateTime? LastLoginAt;
+        [MemoryPackOrder(8)] [LuminPackOrder(8)] [Key(8)] [ProtoMember(9)] public bool EmailVerified;
+        [MemoryPackOrder(9)] [LuminPackOrder(9)] [Key(9)] [ProtoMember(10)] public int? BirthYear;
+        [MemoryPackOrder(10)] [LuminPackOrder(10)] [Key(10)] [ProtoMember(11)] public string Country;
+        [MemoryPackOrder(11)] [LuminPackOrder(11)] [Key(11)] [ProtoMember(12)] public string TimeZone;
+        [MemoryPackOrder(12)] [LuminPackOrder(12)] [Key(12)] [ProtoMember(13)] public int Followers;
+        [MemoryPackOrder(13)] [LuminPackOrder(13)] [Key(13)] [ProtoMember(14)] public List<string> Roles;
+        [MemoryPackOrder(14)] [LuminPackOrder(14)] [Key(14)] [ProtoMember(15)] public Dictionary<string, string> Preferences;
+        [MemoryPackOrder(15)] [LuminPackOrder(15)] [Key(15)] [ProtoMember(16)] public string Pronouns;
+        [MemoryPackOrder(16)] [LuminPackOrder(16)] [Key(16)] [ProtoMember(17)] public List<string> Badges;
 
         public static ProfileV2 From(ProfileV1 v) => new()
         {
@@ -111,7 +112,7 @@ namespace Nino.Benchmark.Workloads
     // release (IdleSaveV1) and read by this one (IdleSaveV2 appends prestige members) into the save the game already holds.
     // Nino's version-tolerant format, MemoryPack's; the others tolerate appended members as they are, and read new saves.
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class Building
     {
         [Key(0)] [ProtoMember(1)] public short Id;
@@ -120,7 +121,7 @@ namespace Nino.Benchmark.Workloads
         [Key(3)] [ProtoMember(4)] public DateTime? UpgradeEndsAt;
     }
 
-    [NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+    [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class OfflineState
     {
         [Key(0)] [ProtoMember(1)] public DateTime LastSeen;
@@ -134,21 +135,21 @@ namespace Nino.Benchmark.Workloads
 #else
     [NinoType(format: NinoFormat.VersionTolerant)]
 #endif
-    [MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, ProtoContract,
+    [MemoryPackable(GenerateType.VersionTolerant), LuminPackable(GeneratorType.VersionTolerant), MessagePackObject, ProtoContract,
      CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class IdleSaveV1
     {
-        [MemoryPackOrder(0)] [Key(0)] [ProtoMember(1)] public long PlayerId;
-        [MemoryPackOrder(1)] [Key(1)] [ProtoMember(2)] public DateTime SavedAt;
-        [MemoryPackOrder(2)] [Key(2)] [ProtoMember(3)] public double Gold;
-        [MemoryPackOrder(3)] [Key(3)] [ProtoMember(4)] public double Gems;
-        [MemoryPackOrder(4)] [Key(4)] [ProtoMember(5)] public double LifetimeEarnings;
-        [MemoryPackOrder(5)] [Key(5)] [ProtoMember(6)] public Dictionary<int, double> Resources;
-        [MemoryPackOrder(6)] [Key(6)] [ProtoMember(7)] public List<Building> Buildings;
-        [MemoryPackOrder(7)] [Key(7)] [ProtoMember(8)] public Dictionary<int, byte> Upgrades;
-        [MemoryPackOrder(8)] [Key(8)] [ProtoMember(9)] public OfflineState Offline;
-        [MemoryPackOrder(9)] [Key(9)] [ProtoMember(10)] public Dictionary<int, long> Stats;
-        [MemoryPackOrder(10)] [Key(10)] [ProtoMember(11)] public List<int> Achievements;
+        [MemoryPackOrder(0)] [LuminPackOrder(0)] [Key(0)] [ProtoMember(1)] public long PlayerId;
+        [MemoryPackOrder(1)] [LuminPackOrder(1)] [Key(1)] [ProtoMember(2)] public DateTime SavedAt;
+        [MemoryPackOrder(2)] [LuminPackOrder(2)] [Key(2)] [ProtoMember(3)] public double Gold;
+        [MemoryPackOrder(3)] [LuminPackOrder(3)] [Key(3)] [ProtoMember(4)] public double Gems;
+        [MemoryPackOrder(4)] [LuminPackOrder(4)] [Key(4)] [ProtoMember(5)] public double LifetimeEarnings;
+        [MemoryPackOrder(5)] [LuminPackOrder(5)] [Key(5)] [ProtoMember(6)] public Dictionary<int, double> Resources;
+        [MemoryPackOrder(6)] [LuminPackOrder(6)] [Key(6)] [ProtoMember(7)] public List<Building> Buildings;
+        [MemoryPackOrder(7)] [LuminPackOrder(7)] [Key(7)] [ProtoMember(8)] public Dictionary<int, byte> Upgrades;
+        [MemoryPackOrder(8)] [LuminPackOrder(8)] [Key(8)] [ProtoMember(9)] public OfflineState Offline;
+        [MemoryPackOrder(9)] [LuminPackOrder(9)] [Key(9)] [ProtoMember(10)] public Dictionary<int, long> Stats;
+        [MemoryPackOrder(10)] [LuminPackOrder(10)] [Key(10)] [ProtoMember(11)] public List<int> Achievements;
 
         public static IdleSaveV1 Create(Random r) => new()
         {
@@ -175,23 +176,23 @@ namespace Nino.Benchmark.Workloads
 #else
     [NinoType(format: NinoFormat.VersionTolerant)]
 #endif
-    [MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, ProtoContract,
+    [MemoryPackable(GenerateType.VersionTolerant), LuminPackable(GeneratorType.VersionTolerant), MessagePackObject, ProtoContract,
      CompatibilityLevel(CompatibilityLevel.Level300)]
     public sealed partial class IdleSaveV2
     {
-        [MemoryPackOrder(0)] [Key(0)] [ProtoMember(1)] public long PlayerId;
-        [MemoryPackOrder(1)] [Key(1)] [ProtoMember(2)] public DateTime SavedAt;
-        [MemoryPackOrder(2)] [Key(2)] [ProtoMember(3)] public double Gold;
-        [MemoryPackOrder(3)] [Key(3)] [ProtoMember(4)] public double Gems;
-        [MemoryPackOrder(4)] [Key(4)] [ProtoMember(5)] public double LifetimeEarnings;
-        [MemoryPackOrder(5)] [Key(5)] [ProtoMember(6)] public Dictionary<int, double> Resources;
-        [MemoryPackOrder(6)] [Key(6)] [ProtoMember(7)] public List<Building> Buildings;
-        [MemoryPackOrder(7)] [Key(7)] [ProtoMember(8)] public Dictionary<int, byte> Upgrades;
-        [MemoryPackOrder(8)] [Key(8)] [ProtoMember(9)] public OfflineState Offline;
-        [MemoryPackOrder(9)] [Key(9)] [ProtoMember(10)] public Dictionary<int, long> Stats;
-        [MemoryPackOrder(10)] [Key(10)] [ProtoMember(11)] public List<int> Achievements;
-        [MemoryPackOrder(11)] [Key(11)] [ProtoMember(12)] public int PrestigeCount;
-        [MemoryPackOrder(12)] [Key(12)] [ProtoMember(13)] public double PrestigeMultiplier;
+        [MemoryPackOrder(0)] [LuminPackOrder(0)] [Key(0)] [ProtoMember(1)] public long PlayerId;
+        [MemoryPackOrder(1)] [LuminPackOrder(1)] [Key(1)] [ProtoMember(2)] public DateTime SavedAt;
+        [MemoryPackOrder(2)] [LuminPackOrder(2)] [Key(2)] [ProtoMember(3)] public double Gold;
+        [MemoryPackOrder(3)] [LuminPackOrder(3)] [Key(3)] [ProtoMember(4)] public double Gems;
+        [MemoryPackOrder(4)] [LuminPackOrder(4)] [Key(4)] [ProtoMember(5)] public double LifetimeEarnings;
+        [MemoryPackOrder(5)] [LuminPackOrder(5)] [Key(5)] [ProtoMember(6)] public Dictionary<int, double> Resources;
+        [MemoryPackOrder(6)] [LuminPackOrder(6)] [Key(6)] [ProtoMember(7)] public List<Building> Buildings;
+        [MemoryPackOrder(7)] [LuminPackOrder(7)] [Key(7)] [ProtoMember(8)] public Dictionary<int, byte> Upgrades;
+        [MemoryPackOrder(8)] [LuminPackOrder(8)] [Key(8)] [ProtoMember(9)] public OfflineState Offline;
+        [MemoryPackOrder(9)] [LuminPackOrder(9)] [Key(9)] [ProtoMember(10)] public Dictionary<int, long> Stats;
+        [MemoryPackOrder(10)] [LuminPackOrder(10)] [Key(10)] [ProtoMember(11)] public List<int> Achievements;
+        [MemoryPackOrder(11)] [LuminPackOrder(11)] [Key(11)] [ProtoMember(12)] public int PrestigeCount;
+        [MemoryPackOrder(12)] [LuminPackOrder(12)] [Key(12)] [ProtoMember(13)] public double PrestigeMultiplier;
 
         public static IdleSaveV2 From(IdleSaveV1 v) => new()
         {

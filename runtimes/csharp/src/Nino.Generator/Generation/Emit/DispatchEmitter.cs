@@ -21,6 +21,9 @@ internal static class DispatchEmitter
     /// <summary>Above this many subtypes, writes go through the registry rather than a chain of type checks.</summary>
     internal const int MaxWriteChain = 64;
 
+    /// <summary>The most types a run loop tests that is marked to inline into the collection's write.</summary>
+    private const int MaxInlinedRunLoop = 8;
+
     /// <summary>
     /// A bucket of at most this many subtypes with distinct ids compares the ids directly, without the collision
     /// filter larger buckets need (5cf67a6d).
@@ -372,7 +375,8 @@ internal static class DispatchEmitter
     /// <summary>
     /// <c>WriteRun</c> (<c>HasRunLoop</c>): the values of a run of any collection's storage (<c>NinoRun</c>: an array's,
     /// a list's, a ring half's, a set's or a dictionary's entries, each value after its key where the run has keys) in
-    /// one loop with the chain of type checks inline and the writer in a local, which the JIT keeps in registers.
+    /// one loop with the chain of type checks inline and the writer's cursor and free bytes in two locals, which the JIT
+    /// keeps in registers.
     /// Nino.Core owns the rest (the count, the depth check once per collection, the steps over the entries, the
     /// in-use test, the key's write, the deep path); only the chain is the base's. Written one value at a time through
     /// <c>Serialize</c>, each value took a call into the dispatch (too large to inline into a Nino.Core loop) with the
@@ -390,6 +394,11 @@ internal static class DispatchEmitter
         w.Line();
         w.Line($"bool {loops}.HasRunLoop => true;");
         w.Line();
+        // A small hierarchy's loop is marked to inline into the collection's write, where the JIT inlined the loop
+        // that kept the writer in a local by itself: with the cursor's hand-offs around each body it no longer did,
+        // and a collection of one to five values (StateSnapshot's components) paid a call and the run's copy.
+        if (subtypes.Count + (root.IsTarget ? 1 : 0) <= MaxInlinedRunLoop)
+            w.Line(GeneratedCode.Inline);
         w.Open($"void {loops}.WriteRun({run} run, ref {Core}Writer target)");
         w.Line($"if ({services}NinoObject.IsDeep(ref target))");
         w.Open();
@@ -397,40 +406,85 @@ internal static class DispatchEmitter
         w.Line("return;");
         w.Close();
         w.Line();
+        EmitRunSplit(w, t, root, subtypes, services);
+    }
+
+    /// <summary>
+    /// The rest of a run loop's method after the depth check: an array's or a list's run, which has no free entries and
+    /// no keys, in this method's loop, a set's or a dictionary's entries in a loop of their own (<c>__WriteEntries</c>),
+    /// which tests both. One loop testing a local for them held the key and the in-use test in two callee-saved
+    /// registers and left the loop's count and value on the stack (x64 has six); closes the method.
+    /// </summary>
+    private static void EmitRunSplit(CodeWriter w, string t, DispatchEntry? root, List<DispatchEntry> subtypes,
+        string services)
+    {
+        string run = $"{services}NinoRun";
+        w.Line($"if ((run.Key | (run.InUse ^ {run}.AllInUse)) != 0)");
+        w.Open();
+        w.Line("__WriteEntries(run, ref target);");
+        w.Line("return;");
+        w.Close();
+        w.Line();
+        EmitRunLoop(w, t, root, subtypes, services, entries: false);
+        w.Close();
+        w.Line();
+        w.Line(GeneratedCode.NoInline);
+        w.Open($"private static void __WriteEntries({run} run, ref {Core}Writer target)");
+        EmitRunLoop(w, t, root, subtypes, services, entries: true);
+        w.Close();
+    }
+
+    /// <summary>
+    /// The loop of <c>WriteRun</c> over a run's values, with the cursor in locals; <paramref name="entries"/>: the run's
+    /// entries may be free or carry keys (a set's or a dictionary's), tested per entry.
+    /// </summary>
+    private static void EmitRunLoop(CodeWriter w, string t, DispatchEntry? root, List<DispatchEntry> subtypes,
+        string services, bool entries)
+    {
+        string run = $"{services}NinoRun";
         w.Line("ref byte entry = ref run.First;");
-        w.Line("int stride = run.Stride, key = run.Key, inUse = run.InUse;");
-        w.Line($"{Core}Writer writer = default;");
-        w.Line("target.CopyTo(ref writer);");
+        w.Line("int stride = run.Stride;");
+        // The cursor and the free bytes in two locals, which the JIT keeps in registers; the target writer takes them
+        // back around anything else that writes (a key, a body that is not one raw block, the registry).
+        w.Line("ref byte cur = ref target.UnsafeCursor(out int avail);");
         w.Line($"for (int left = run.Count; left > 0; left--, entry = ref {run}.Next(ref entry, stride))");
         w.Open();
-        w.Line($"if ({run}.Skips(ref entry, inUse))");
-        w.Line("    continue;");
-        w.Line($"{run}.WriteKey(ref entry, key, ref writer);");
+        if (entries)
+        {
+            w.Line($"if ({run}.Skips(ref entry, run.InUse))");
+            w.Line("    continue;");
+            w.Line($"if (run.Key != {run}.NoKey) {{ target.UnsafeSetCursor(ref cur, avail); {run}.WriteKey(ref entry, run.Key, ref target); cur = ref target.UnsafeCursor(out avail); }}");
+        }
         w.Line($"var value = {run}.Value<{t}>(ref entry);");
-        w.Line("if (value == null) { writer.UnsafeWrite(0); continue; }");
+        w.Line($"if (value == null) {{ if (avail < sizeof(int)) {{ target.UnsafeGrowAt(ref cur, avail, sizeof(int)); cur = ref target.UnsafeCursor(out avail); }} {services}NinoUnsafe.Write(ref cur, 0); cur = ref {services}NinoUnsafe.Add(ref cur, sizeof(int)); avail -= sizeof(int); continue; }}");
         // A root that is a class of its own (not abstract) tests its own type first, as its Serialize does. Left to the
         // registry (NinoSubtypes.Serialize: a lookup and a virtual call), 1,000 values of a root with four subtypes,
         // most of its own type, wrote in 0.76-0.80 of the time (local x64, #355). Classes below the root keep no loop of
         // their own: one per class with subtypes (its own type, then its subtypes) wrote 1,000 values 1.14-1.22x as
         // long for three subtypes and 1.04-1.06x for twelve, against the value-by-value loop with the root's dispatch.
-        if (root.IsTarget)
-            w.Line(WriteShallow(root, services, "continue;"));
+        if (root is { IsTarget: true })
+            w.Line(WriteAtCursor(root, services));
         // The chain written out here again, not shared with __WriteSubtype through one AggressiveInlining method
         // (returning whether it wrote, or ending in the registry): the run loop of PolymorphicFooBase's 20 subtypes
         // then called it per element at Tier1 ("too many locals": the inlinee's argument temporaries on top of the
         // loop's; WriteRun 2,620 to 1,391 bytes plus the call), and at FullOpts the chain was a root of its own.
         foreach (var s in subtypes)
-            w.Line(WriteShallow(s, services, "continue;"));
-        // A subtype the chain does not know: the registry, with the writer by reference. With the writer by value
-        // (writer = NinoSubtypes<T>.SerializeDeep(value, writer)), dictionaries' pair loops wrote 12-100 pairs 15-25 % faster
-        // (local x64), but arrays' element loops PolymorphicFooArray (20 subtypes) 12 % slower on Neoverse-N2 and 5 %
-        // on EPYC 9V74, and NonGenericBase 6 % slower on 9V74 (run 43849791156); one loop now serves both.
-        w.Line(WriteOther(t, services) + ";");
+            w.Line(WriteAtCursor(s, services));
+        // A subtype the chain does not know: the registry, with the target writer.
+        w.Line($"target.UnsafeSetCursor(ref cur, avail); {WriteOther(t, services, "target")}; cur = ref target.UnsafeCursor(out avail);");
         w.Close();
         w.Line();
-        w.Line("writer.CopyTo(ref target);");
-        w.Close();
+        w.Line("target.UnsafeSetCursor(ref cur, avail);");
     }
+
+    /// <summary>
+    /// The write of <paramref name="s"/> in a run loop that holds the cursor in locals (<c>cur</c>, <c>avail</c>): a
+    /// raw body's type id and block at the cursor after one check of the free bytes, any other body through the target
+    /// writer, given the cursor back around it.
+    /// </summary>
+    private static string WriteAtCursor(DispatchEntry s, string services) => s.RawBody
+        ? $$"""if (value.GetType() == typeof({{s.TypeName}})) { int __n = sizeof(int) + default({{s.FormatterName}}).BodySize; if ((uint)__n > (uint)avail) { target.UnsafeGrowAt(ref cur, avail, __n); cur = ref target.UnsafeCursor(out avail); } {{services}}NinoUnsafe.Write(ref cur, {{s.TypeId.ToString(CultureInfo.InvariantCulture)}}); default({{s.FormatterName}}).WriteRawBody({{services}}NinoObject.SameType<{{s.TypeName}}>(value), ref cur, sizeof(int)); cur = ref {{services}}NinoUnsafe.Add(ref cur, __n); avail -= __n; continue; }"""
+        : $$"""if (value.GetType() == typeof({{s.TypeName}})) { target.UnsafeSetCursor(ref cur, avail); {{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref target); cur = ref target.UnsafeCursor(out avail); continue; }""";
 
     private static string WriteSubtype(string t) => $"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)";
 
@@ -438,8 +492,8 @@ internal static class DispatchEmitter
         $"internal static void __ReadSubtype(int id, ref {Core}Reader reader, ref {t} value)";
 
     /// <summary>The write of a subtype the dispatch does not know: through the registry.</summary>
-    private static string WriteOther(string t, string services) =>
-        $"{services}NinoSubtypes<{t}>.Serialize(value, ref writer)";
+    private static string WriteOther(string t, string services, string writer = "writer") =>
+        $"{services}NinoSubtypes<{t}>.Serialize(value, ref {writer})";
 
     /// <summary>The read of a subtype the dispatch does not know: through the registry.</summary>
     private static string ReadOther(string t, string services) =>

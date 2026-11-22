@@ -16,8 +16,8 @@ namespace Nino.Benchmark
 
     // GenericPolymorphicTest's types, shared with its v3 build (the v3 part of GenericPolymorphicTest.Cases.g.cs).
 
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeSealedItem { [ProtoMember(1)] public int X; [ProtoMember(2)] public long Y; }
-    [NinoType, MemoryPackable, ProtoContract] public partial class ProbeOpenItem { [ProtoMember(1)] public int X; [ProtoMember(2)] public long Y; }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeSealedItem { [ProtoMember(1)] public int X; [ProtoMember(2)] public long Y; }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public partial class ProbeOpenItem { [ProtoMember(1)] public int X; [ProtoMember(2)] public long Y; }
 
     [NinoType, MemoryPackable, LuminPackable]
     [MemoryPackUnion(0, typeof(ProbeA)), LuminPackUnion(0, typeof(ProbeA))]
@@ -57,8 +57,7 @@ namespace Nino.Benchmark
     [NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeH : ProbeBase { }
 
     // protobuf-net: the subtypes of each closed ProbeBox<T> are added to its model at startup (RegisterUnions).
-    // LuminPack collects the subtypes of each closed base itself; its generator writes the same WriteValue twice for the
-    // tuple bases (CS0111), so only ProbeBox<int>'s subtypes are [LuminPackable].
+    // LuminPack collects the subtypes of each closed base itself.
     [NinoType, LuminPackable, ProtoContract] public abstract partial class ProbeBox<T> { [ProtoMember(1)] public T V; }
     // PBN0013 (ProbeBox<T> does not declare them): protobuf-net's reflection model takes them from RegisterUnions.
 #pragma warning disable PBN0013
@@ -70,38 +69,38 @@ namespace Nino.Benchmark
     [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxF : ProbeBox<int> { }
     [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxG : ProbeBox<int> { }
     [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxH : ProbeBox<int> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupA : ProbeBox<(int, long)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupB : ProbeBox<(int, long)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupC : ProbeBox<(int, long)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupD : ProbeBox<(int, long)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupE : ProbeBox<(int, long)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupF : ProbeBox<(int, long)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupG : ProbeBox<(int, long)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupH : ProbeBox<(int, long)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeStrA : ProbeBox<(int, string)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeStrB : ProbeBox<(int, string)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeStrC : ProbeBox<(int, string)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeStrD : ProbeBox<(int, string)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeStrE : ProbeBox<(int, string)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeStrF : ProbeBox<(int, string)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeStrG : ProbeBox<(int, string)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeStrH : ProbeBox<(int, string)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeScA : ProbeBox<(ProbeSealedItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeScB : ProbeBox<(ProbeSealedItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeScC : ProbeBox<(ProbeSealedItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeScD : ProbeBox<(ProbeSealedItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeScE : ProbeBox<(ProbeSealedItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeScF : ProbeBox<(ProbeSealedItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeScG : ProbeBox<(ProbeSealedItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeScH : ProbeBox<(ProbeSealedItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeOcA : ProbeBox<(ProbeOpenItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeOcB : ProbeBox<(ProbeOpenItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeOcC : ProbeBox<(ProbeOpenItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeOcD : ProbeBox<(ProbeOpenItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeOcE : ProbeBox<(ProbeOpenItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeOcF : ProbeBox<(ProbeOpenItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeOcG : ProbeBox<(ProbeOpenItem, int)> { }
-    [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeOcH : ProbeBox<(ProbeOpenItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeTupA : ProbeBox<(int, long)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeTupB : ProbeBox<(int, long)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeTupC : ProbeBox<(int, long)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeTupD : ProbeBox<(int, long)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeTupE : ProbeBox<(int, long)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeTupF : ProbeBox<(int, long)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeTupG : ProbeBox<(int, long)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeTupH : ProbeBox<(int, long)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeStrA : ProbeBox<(int, string)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeStrB : ProbeBox<(int, string)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeStrC : ProbeBox<(int, string)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeStrD : ProbeBox<(int, string)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeStrE : ProbeBox<(int, string)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeStrF : ProbeBox<(int, string)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeStrG : ProbeBox<(int, string)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeStrH : ProbeBox<(int, string)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeScA : ProbeBox<(ProbeSealedItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeScB : ProbeBox<(ProbeSealedItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeScC : ProbeBox<(ProbeSealedItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeScD : ProbeBox<(ProbeSealedItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeScE : ProbeBox<(ProbeSealedItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeScF : ProbeBox<(ProbeSealedItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeScG : ProbeBox<(ProbeSealedItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeScH : ProbeBox<(ProbeSealedItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeOcA : ProbeBox<(ProbeOpenItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeOcB : ProbeBox<(ProbeOpenItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeOcC : ProbeBox<(ProbeOpenItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeOcD : ProbeBox<(ProbeOpenItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeOcE : ProbeBox<(ProbeOpenItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeOcF : ProbeBox<(ProbeOpenItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeOcG : ProbeBox<(ProbeOpenItem, int)> { }
+    [NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeOcH : ProbeBox<(ProbeOpenItem, int)> { }
 #pragma warning restore PBN0013
 #endif
 }

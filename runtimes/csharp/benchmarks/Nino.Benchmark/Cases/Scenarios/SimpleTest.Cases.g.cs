@@ -212,7 +212,7 @@ partial class SimpleTest
     [Benchmark, BenchmarkCategory("SimpleClassSerialize")]
     public int LuminPackSerializeSimpleClass()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(SimpleClass, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -269,7 +269,7 @@ partial class SimpleTest
     [Benchmark, BenchmarkCategory("SimpleStructSerialize")]
     public int LuminPackSerializeSimpleStruct()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(SimpleStruct, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -326,7 +326,7 @@ partial class SimpleTest
     [Benchmark, BenchmarkCategory("SimpleClassesSerialize")]
     public int LuminPackSerializeSimpleClasses()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(SimpleClasses, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -383,7 +383,7 @@ partial class SimpleTest
     [Benchmark, BenchmarkCategory("SimpleStructsSerialize")]
     public int LuminPackSerializeSimpleStructs()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(SimpleStructs, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
@@ -440,7 +440,7 @@ partial class SimpleTest
     [Benchmark, BenchmarkCategory("VectorsSerialize")]
     public int LuminPackSerializeVectors()
     {
-        _luminPackBuffer.ResetCore();
+        _luminPackBuffer.ResetForReuse();
         LuminPackSerializer.Serialize(Vectors, _luminPackBuffer);
         return _luminPackBuffer.CurrentIndex;
     }
