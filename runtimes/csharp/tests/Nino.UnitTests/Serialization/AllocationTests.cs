@@ -164,7 +164,7 @@ public class AllocationTests
     /// nothing for a value type) and into the value read before (nothing).
     /// </summary>
     private static void Shape<T>(string name, T value, Action<T> write, Func<byte[], T> read, ReadInto<T> readInto,
-        Func<object> build = null)
+        Func<object> build = null, bool runtimeBoxesReadInto = false)
     {
         Buffer.ResetWrittenCount();
         write(value);
@@ -178,6 +178,8 @@ public class AllocationTests
         long expected = typeof(T).IsValueType ? 0 : Built(build);
         Check(name + " read", PerCall(() => Sink<T>.Value = read(bytes), expected), expected);
 
+        if (runtimeBoxesReadInto)
+            return;
         T target = read(bytes);
         Check(name + " read into", PerCall(() => readInto(bytes, ref target)), 0);
     }
@@ -265,7 +267,8 @@ public class AllocationTests
     public void CollectionsAllocateTheirStorageOnly()
     {
         Failures.Clear();
-        const int n = 100;
+        // As many as the benchmark's collections.
+        const int n = 1000;
         var nullables = Nullables(n);
         var raws = new List<SubsetRawStruct>();
         var tuples = new List<(int, long?)>();
@@ -312,6 +315,13 @@ public class AllocationTests
             b => NinoDeserializer.Deserialize<HashSet<int?>>(b),
             (byte[] b, ref HashSet<int?> v) => NinoDeserializer.Deserialize(b, ref v),
             () => new HashSet<int?>(set.Count));
+        // The benchmark's set (CollectionsTest.NullableHashSetInts): on .NET 11 its read boxed every value (#449).
+        var sevens = new HashSet<int?>();
+        for (int i = 0; i < n; i++)
+            sevens.Add(i == 0 ? null : i * 7);
+        Shape("HashSet<int?> of sevens", sevens, v => NinoSerializer.Serialize(v, Buffer),
+            b => NinoDeserializer.Deserialize<HashSet<int?>>(b),
+            (byte[] b, ref HashSet<int?> v) => NinoDeserializer.Deserialize(b, ref v), () => new HashSet<int?>(n));
         Shape("HashSet<long?>", longs, v => NinoSerializer.Serialize(v, Buffer),
             b => NinoDeserializer.Deserialize<HashSet<long?>>(b),
             (byte[] b, ref HashSet<long?> v) => NinoDeserializer.Deserialize(b, ref v),
@@ -323,7 +333,10 @@ public class AllocationTests
         Shape("Dictionary<int?, int>", keyed, v => NinoSerializer.Serialize(v, Buffer),
             b => NinoDeserializer.Deserialize<Dictionary<int?, int>>(b),
             (byte[] b, ref Dictionary<int?, int> v) => NinoDeserializer.Deserialize(b, ref v),
-            () => new Dictionary<int?, int>(n));
+            () => new Dictionary<int?, int>(n),
+            // .NET 11.0's Dictionary boxes a T? key in every lookup and insert inlined into the caller (its
+            // `key == null`): the read into an existing dictionary looks each key up, 24 bytes per key.
+            runtimeBoxesReadInto: Environment.Version.Major >= 11);
         Assert.AreEqual(0, Failures.Count, string.Join("\n", Failures));
     }
 
