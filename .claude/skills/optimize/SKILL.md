@@ -391,7 +391,7 @@ says which CPUs and cases moved.
   the count take one header size.
 - **Compose keyed, version-tolerant and nested flat bodies from leaves of the one chain, never a loop of their own**
   (#355 step C: `NinoRegionItem`, `NinoEntriesItem`, `NinoKeyItem`, `NinoTolerantItem`; a nested type's chain as one
-  item, `NinoFlat.Sealed`/`Typed`, `NinoFlatValues.Item`). Five rules, each from a measurement or a failure: (1) An item
+  item, `NinoFlat.Sealed`/`Typed`, `NinoFlatValues.Item`). Six rules, each from a measurement or a failure: (1) An item
   that may leave the element says so as a constant (`INinoItem.Leaves`), and a node tests the size before reading on
   only after such an item: without the test the next items read at `source + (uint)int.MinValue` with `available`
   wrapped negative, which passes every unsigned length check (FlatTests.Bodies' hostile twins caught it as a stray
@@ -413,7 +413,12 @@ says which CPUs and cases moved.
   whose class bodies would open past `NinoDepth.Inline` goes element by element (the depth literal the hook passes is
   the bodies one element opens). (5) Time generated types from a program the generator compiles, each call with its
   concrete type: through a generic helper (`Serialize<T>(T[])`) the formatters are resolved at run time and the
-  generic flat class wrote in 1.26 times its twin's time where the intercepted call wrote in 0.70. Local, alternated,
+  generic flat class wrote in 1.26 times its twin's time where the intercepted call wrote in 0.70. (6) A flat
+  struct's run shorter than `NinoFlatRuns.MinRun` takes the loops of values one at a time, decided at the branch in
+  `NinoRuns.Write`/`Read` (`ShortFlatValues`, the count before the static): through the kernels a run of one flat
+  struct wrote in 2.1 times main's time (a version-tolerant struct 2.8), with the gate inside the kernels' entry still
+  1.55 (1.78), with it at the branch on par (0.9-1.1 at one and three elements, against main 9540e0bb). Measure every
+  new leaf at 1, 3 and 1000 elements against main, not only against the branch it builds on. Local, alternated,
   100 elements, Xeon 2.10 GHz, flat body against the same members with a callback, Tier1 (TC=0): a version-tolerant
   class writes in 0.78-0.82 (0.82-0.86) and reads in 0.89 (1.08, the `NinoLayout` statics a raw `T?` reads when its
   classes are not initialized at compile time); a keyed class 0.80-0.84 (0.79-0.82) and 0.96-1.00 (0.99-1.01); a
