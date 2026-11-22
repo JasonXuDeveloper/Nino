@@ -248,7 +248,7 @@ namespace Nino.UnitTests
         }
 
         /// <summary>
-        /// A slot's value beside a string (<see cref="NinoSlotItem{T,TFormatter}"/>) rejects a presence byte other than
+        /// A slot's value beside a string (<see cref="NinoSlotItem{T,TFormatter,TSize}"/>) rejects a presence byte other than
         /// 0 or 1 and a present value cut short, as its single read does, in a new dictionary and in a merge.
         /// </summary>
         [TestMethod]

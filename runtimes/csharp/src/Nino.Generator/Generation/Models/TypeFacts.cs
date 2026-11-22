@@ -33,6 +33,8 @@ internal sealed class TypeFacts
     private readonly Func<ITypeSymbol, UsageRegistration?> _computeTopLevelUsage;
     private readonly Func<ISymbol, TypeShape?> _computeShape;
     [ThreadStatic] private static HashSet<ISymbol>? t_bounding;
+    private readonly ConcurrentDictionary<ISymbol, FlatModel?> _flats = new(SymbolEqualityComparer.Default);
+    [ThreadStatic] private static HashSet<ISymbol>? t_flattening;
     private readonly Func<ISymbol, bool> _computeDelegatable;
     private readonly Func<ISymbol, bool> _computeFixedSize;
     private readonly Func<ISymbol, bool> _computeBlock;
@@ -490,6 +492,38 @@ internal sealed class TypeFacts
         {
             computing.Remove(type);
         }
+    }
+
+    /// <summary>
+    /// The flat body (<see cref="FlatRules"/>) of a non-generic <c>[NinoType]</c> generated here, for a member of another
+    /// flat body that nests it; null where it has none, or where it is reached again while its own is decided (a type
+    /// holding itself, never flat). Its model is built once per compilation for this (<see cref="ModelBuilder"/>), and
+    /// every body decided is kept (<see cref="Flattened"/>).
+    /// </summary>
+    public FlatModel? Flat(INamedTypeSymbol type)
+    {
+        type = type.OriginalDefinition;
+        if (_flats.TryGetValue(type, out var flat))
+            return flat;
+        if (Shape(type) is not { GeneratedHere: true, Generic: false } || t_flattening?.Contains(type) == true)
+            return null;
+        ModelBuilder.Build(type, this, System.Threading.CancellationToken.None);
+        return _flats.TryGetValue(type, out flat) ? flat : null;
+    }
+
+    /// <summary>Marks <paramref name="type"/>'s flat body as being decided; false where it already is (it holds
+    /// itself).</summary>
+    public static bool EnterFlat(INamedTypeSymbol type) =>
+        (t_flattening ??= new HashSet<ISymbol>(SymbolEqualityComparer.Default)).Add(type.OriginalDefinition);
+
+    /// <summary>Ends <see cref="EnterFlat"/>.</summary>
+    public static void ExitFlat(INamedTypeSymbol type) => t_flattening!.Remove(type.OriginalDefinition);
+
+    /// <summary>Keeps <paramref name="flat"/>, <paramref name="type"/>'s flat body as decided, for <see cref="Flat"/>.</summary>
+    public FlatModel? Flattened(INamedTypeSymbol type, FlatModel? flat)
+    {
+        _flats.TryAdd(type.OriginalDefinition, flat);
+        return flat;
     }
 
     /// <summary><see cref="DepthBound"/> of a <c>[NinoType]</c> generated here (its body).</summary>

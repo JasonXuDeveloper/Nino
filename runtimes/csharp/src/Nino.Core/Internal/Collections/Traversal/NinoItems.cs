@@ -71,8 +71,12 @@ namespace Nino.Core.Internal
             if (typeof(TFormatterA) == typeof(Utf8StringFormatter))
                 return WriteSecond<NinoUtf8Item, TB, TFormatterB>(run, a, b, writer);
             if (NinoKind.Of<TA, TFormatterA>() == NinoElementKind.Slot)
-                return WriteSecond<NinoSlotItem<TA, TFormatterA>, TB, TFormatterB>(run, a, b, writer);
-            return WriteSecond<NinoValueItem<TA, TFormatterA>, TB, TFormatterB>(run, a, b, writer);
+                return WriteSecond<NinoSlotItem<TA, TFormatterA, NinoMemorySize<TA>>, TB, TFormatterB>(run, a, b, writer);
+            if (NinoKind.Of<TA, TFormatterA>() == NinoElementKind.Block)
+                return WriteSecond<NinoValueItem<TA, TFormatterA>, TB, TFormatterB>(run, a, b, writer);
+            if (typeof(TA) == typeof(bool))
+                return WriteSecond<NinoBoolItem, TB, TFormatterB>(run, a, b, writer);
+            return WriteSecond<NinoStructItem<TA>, TB, TFormatterB>(run, a, b, writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -85,8 +89,12 @@ namespace Nino.Core.Internal
             if (typeof(TFormatterB) == typeof(Utf8StringFormatter))
                 return NinoStringRuns.Write(run, Of<TItemA, NinoUtf8Item>(a, b), writer);
             if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Slot)
-                return NinoStringRuns.Write(run, Of<TItemA, NinoSlotItem<TB, TFormatterB>>(a, b), writer);
-            return NinoStringRuns.Write(run, Of<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), writer);
+                return NinoStringRuns.Write(run, Of<TItemA, NinoSlotItem<TB, TFormatterB, NinoMemorySize<TB>>>(a, b), writer);
+            if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Block)
+                return NinoStringRuns.Write(run, Of<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), writer);
+            if (typeof(TB) == typeof(bool))
+                return NinoStringRuns.Write(run, Of<TItemA, NinoBoolItem>(a, b), writer);
+            return NinoStringRuns.Write(run, Of<TItemA, NinoStructItem<TB>>(a, b), writer);
         }
 
         /// <summary>
@@ -106,9 +114,13 @@ namespace Nino.Core.Internal
             if (typeof(TFormatterA) == typeof(Utf8StringFormatter))
                 return ReadSecond<NinoUtf8Item, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
             if (NinoKind.Of<TA, TFormatterA>() == NinoElementKind.Slot)
-                return ReadSecond<NinoSlotItem<TA, TFormatterA>, TB, TFormatterB, TStore>(run, a, b, ref data, end,
+                return ReadSecond<NinoSlotItem<TA, TFormatterA, NinoMemorySize<TA>>, TB, TFormatterB, TStore>(run, a, b, ref data, end,
                     store);
-            return ReadSecond<NinoValueItem<TA, TFormatterA>, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
+            if (NinoKind.Of<TA, TFormatterA>() == NinoElementKind.Block)
+                return ReadSecond<NinoValueItem<TA, TFormatterA>, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
+            if (typeof(TA) == typeof(bool))
+                return ReadSecond<NinoBoolItem, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
+            return ReadSecond<NinoStructItem<TA>, TB, TFormatterB, TStore>(run, a, b, ref data, end, store);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -123,8 +135,12 @@ namespace Nino.Core.Internal
             if (typeof(TFormatterB) == typeof(Utf8StringFormatter))
                 return NinoStringRuns.Read(run, Of<TItemA, NinoUtf8Item>(a, b), ref data, end, store);
             if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Slot)
-                return NinoStringRuns.Read(run, Of<TItemA, NinoSlotItem<TB, TFormatterB>>(a, b), ref data, end, store);
-            return NinoStringRuns.Read(run, Of<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), ref data, end, store);
+                return NinoStringRuns.Read(run, Of<TItemA, NinoSlotItem<TB, TFormatterB, NinoMemorySize<TB>>>(a, b), ref data, end, store);
+            if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Block)
+                return NinoStringRuns.Read(run, Of<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), ref data, end, store);
+            if (typeof(TB) == typeof(bool))
+                return NinoStringRuns.Read(run, Of<TItemA, NinoBoolItem>(a, b), ref data, end, store);
+            return NinoStringRuns.Read(run, Of<TItemA, NinoStructItem<TB>>(a, b), ref data, end, store);
         }
 
         /// <summary>The chain of a pair: <typeparamref name="TItemA"/> at <paramref name="a"/>, then
@@ -250,9 +266,13 @@ namespace Nino.Core.Internal
             if (typeof(TFormatter) == typeof(Utf8StringFormatter))
                 return _next.Write(run, new NinoItemAt<NinoOffset, NinoUtf8Item, TTail>(at, tail), writer);
             if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter>, TTail>(at, tail),
+                return _next.Write(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter, NinoMemorySize<T>>, TTail>(at, tail),
                     writer);
-            return _next.Write(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>, TTail>(at, tail), writer);
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Block)
+                return _next.Write(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>, TTail>(at, tail), writer);
+            if (typeof(T) == typeof(bool))
+                return _next.Write(run, new NinoItemAt<NinoOffset, NinoBoolItem, TTail>(at, tail), writer);
+            return _next.Write(run, new NinoItemAt<NinoOffset, NinoStructItem<T>, TTail>(at, tail), writer);
         }
 
         /// <summary>The composite's last item (the plan's first node): the chain's last item, which has no next.</summary>
@@ -265,8 +285,12 @@ namespace Nino.Core.Internal
             if (typeof(TFormatter) == typeof(Utf8StringFormatter))
                 return _next.Write(run, new NinoItemAt<NinoOffset, NinoUtf8Item>(at), writer);
             if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter>>(at), writer);
-            return _next.Write(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>>(at), writer);
+                return _next.Write(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter, NinoMemorySize<T>>>(at), writer);
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Block)
+                return _next.Write(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>>(at), writer);
+            if (typeof(T) == typeof(bool))
+                return _next.Write(run, new NinoItemAt<NinoOffset, NinoBoolItem>(at), writer);
+            return _next.Write(run, new NinoItemAt<NinoOffset, NinoStructItem<T>>(at), writer);
         }
 
         /// <summary>As <see cref="WriteLast"/>, the read in place.</summary>
@@ -279,8 +303,12 @@ namespace Nino.Core.Internal
             if (typeof(TFormatter) == typeof(Utf8StringFormatter))
                 return _next.Read(run, new NinoItemAt<NinoOffset, NinoUtf8Item>(at), ref data, end);
             if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                return _next.Read(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter>>(at), ref data, end);
-            return _next.Read(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>>(at), ref data, end);
+                return _next.Read(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter, NinoMemorySize<T>>>(at), ref data, end);
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Block)
+                return _next.Read(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>>(at), ref data, end);
+            if (typeof(T) == typeof(bool))
+                return _next.Read(run, new NinoItemAt<NinoOffset, NinoBoolItem>(at), ref data, end);
+            return _next.Read(run, new NinoItemAt<NinoOffset, NinoStructItem<T>>(at), ref data, end);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -293,9 +321,15 @@ namespace Nino.Core.Internal
             if (typeof(TFormatter) == typeof(Utf8StringFormatter))
                 return _next.Read(run, new NinoItemAt<NinoOffset, NinoUtf8Item, TTail>(at, tail), ref data, end);
             if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                return _next.Read(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter>, TTail>(at, tail),
+                return _next.Read(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter, NinoMemorySize<T>>, TTail>(at, tail),
                     ref data, end);
-            return _next.Read(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>, TTail>(at, tail),
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Block)
+                return _next.Read(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>, TTail>(at, tail),
+                ref data, end);
+            if (typeof(T) == typeof(bool))
+                return _next.Read(run, new NinoItemAt<NinoOffset, NinoBoolItem, TTail>(at, tail),
+                ref data, end);
+            return _next.Read(run, new NinoItemAt<NinoOffset, NinoStructItem<T>, TTail>(at, tail),
                 ref data, end);
         }
     }

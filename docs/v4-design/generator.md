@@ -356,9 +356,12 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   each inherited member is compiled once per hierarchy rather than once per subtype (about a third less code for
   deep hierarchies). The bytes are unchanged. Delegation is skipped when raw members on both sides of the
   boundary would otherwise be written as one block, since splitting that block costs an extra reservation.
-* A class whose body is flat (`TypeModel.Flat`, built by `FlatRules`: positional, non-generic, untracked, raw members,
-  bools and strings only, at least one string; [runtime.md](runtime.md), the flat kernels) gets no member-by-member
-  write body (`FlatEmitter`). It emits an accessor struct per member and per block of raw members, one line each
+* A class whose body is flat (`TypeModel.Flat`, built by `FlatRules`: untracked, raw members, bools, raw `T?`s,
+  strings and other generated types whose body is flat (`TypeFacts.Flat`, memoized per compilation; a cycle is not
+  flat), at least one string, slot or nested body; [runtime.md](runtime.md), the flat kernels) gets no member-by-member
+  write body (`FlatEmitter`); a version-tolerant or keyed body, a struct, a generic type or one that nests a class body keeps
+  its member-by-member bodies and takes the chain for its runs only (`FlatModel.RunsOnly`), its members wrapped in the
+  region's leaves (keyed accessors also carry `INinoKey`'s literal key) and the run hooks passing the depth literal. It emits an accessor struct per member and per block of raw members, one line each
   (`__M_<Member>`, `__B_<First>`: `Ref(object)` returns the field, `Size` is a literal), a `__Layout` struct, the chain
   of items once as the base class of `private sealed class __Flat`, and where a block or struct member needs the
   startup check, `__Fields` (one item per member) and `__Check`. `HasFlat`, `WriteFlat` and `ReadFlat` pick one chain

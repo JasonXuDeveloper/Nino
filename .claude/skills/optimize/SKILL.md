@@ -356,7 +356,11 @@ says which CPUs and cases moved.
   `HasCursor` trio, whose `scoped` parameters generated code for Unity's C# 9 cannot implement. The prototype's v1 read each member's offset
   and size from generic statics (`static readonly`, #436): B's write loop was 3,708 bytes with 165 stack operands and
   wrote in 1.08 times the base's time; v2's accessor structs made it 1,056 bytes and 31 operands, writes 0.85-0.90
-  (local, alternated). Read the run's startup check (`__Check`, block placement and Untrusted's `ReadsAsIs`) once per
+  (local, alternated). An item's size follows the same rule: a block's is its formatter's `FixedSize` (a generated
+  literal), a raw value's `Unsafe.SizeOf`, a slot's a type argument (`INinoSize`: the accessor's literal, or
+  `NinoMemorySize<T>` in Nino.Core's composites), never `NinoKind<T, TFormatter>.Stride` read per element, which folds
+  only where Tier1 compiles the loop after the class was initialized (838cf84c: at TC=0 NullableFields' `MaxSize` became
+  the literal 74; what still calls helpers there is `UnmanagedNullableFormatter`'s reads of `NinoLayout<T>` statics). Read the run's startup check (`__Check`, block placement and Untrusted's `ReadsAsIs`) once per
   call in the hook and pick a chain there, never per element. Keep runs under `NinoFlatRuns.MinRun` (16) element by
   element: a run's fixed cost (about 30 ns: entry, the check, the loop's setup) made a 2-element array 2.2 times as
   long to write and WorkloadTest's `MediaContent` 1.64. One body's write never takes the block chain (a block's copy
@@ -385,6 +389,42 @@ says which CPUs and cases moved.
   address again after it (12). And the cursor write of a UTF-8 string (`Writer.WriteUtf8At`) counted a long
   string's bytes again after the item's `MaxSize` had (1.35x for 100,000 chars): pass the bound where both ends of
   the count take one header size.
+- **Compose keyed, version-tolerant and nested flat bodies from leaves of the one chain, never a loop of their own**
+  (#355 step C: `NinoRegionItem`, `NinoEntriesItem`, `NinoKeyItem`, `NinoTolerantItem`; a nested type's chain as one
+  item, `NinoFlat.Sealed`/`Typed`, `NinoFlatValues.Item`). Six rules, each from a measurement or a failure: (1) An item
+  that may leave the element says so as a constant (`INinoItem.Leaves`), and a node tests the size before reading on
+  only after such an item: without the test the next items read at `source + (uint)int.MinValue` with `available`
+  wrapped negative, which passes every unsigned length check (FlatTests.Bodies' hostile twins caught it as a stray
+  EndOfData after a nested subtype); with the test after every item a positional flat struct's runs read in 1.08
+  times the time (a string's size is no constant the JIT can prove positive), and with the element items testing
+  their body's size before storing a new object, AppDataTest's OrderBooks read in 1.05 (the test now only for a body
+  that may leave). (2) Never let a class reach a chain as a
+  type argument: a property of a class type keeps its local copy as `NinoReference`. With `string` as
+  `NinoPropertyAt`'s `TValue` the chain, and the kernels over it, became code shared over `__Canon`, every item a call
+  through a runtime lookup: a version-tolerant class with one string property wrote 100 elements in 6,052 ns against
+  the generated body's 1,444 (after the fix 1,151). (3) A chain no element leaves (a positional struct nesting no
+  class) reads and writes through the string kernels' loops (`NinoStringRuns.Read` with `InPlace`,
+  `NinoStringRuns.Write`), not the flat loops with their index for a stop: through those a flat struct's runs read in
+  1.04 times step B's time and ManagedStruct's wrote in 1.1, through the string loops 0.96 and 0.98. Pick the loop in
+  `NinoFlatValues`' hooks, not in `NinoFlatRuns.ReadRun`/`WriteRun`: the branch's IL there, folded away for classes,
+  still made the JIT judge the class driver "too many il bytes" to inline into `NinoFlat.ReadSealed` (asm.py, TC=0: a
+  call more per run, OrderBooks' read 1.08). (4) Nest within the JIT's inline depth: a nested
+  item counts its level, its element item for a class and its chain's levels against `FlatRules.MaxItems`, and a run
+  whose class bodies would open past `NinoDepth.Inline` goes element by element (the depth literal the hook passes is
+  the bodies one element opens). (5) Time generated types from a program the generator compiles, each call with its
+  concrete type: through a generic helper (`Serialize<T>(T[])`) the formatters are resolved at run time and the
+  generic flat class wrote in 1.26 times its twin's time where the intercepted call wrote in 0.70. (6) A flat
+  struct's run shorter than `NinoFlatRuns.MinRun` takes the loops of values one at a time, decided at the branch in
+  `NinoRuns.Write`/`Read` (`ShortFlatValues`, the count before the static): through the kernels a run of one flat
+  struct wrote in 2.1 times main's time (a version-tolerant struct 2.8), with the gate inside the kernels' entry still
+  1.55 (1.78), with it at the branch on par (0.9-1.1 at one and three elements, against main 9540e0bb). Measure every
+  new leaf at 1, 3 and 1000 elements against main, not only against the branch it builds on. Local, alternated,
+  100 elements, Xeon 2.10 GHz, flat body against the same members with a callback, Tier1 (TC=0): a version-tolerant
+  class writes in 0.78-0.82 (0.82-0.86) and reads in 0.89 (1.08, the `NinoLayout` statics a raw `T?` reads when its
+  classes are not initialized at compile time); a keyed class 0.80-0.84 (0.79-0.82) and 0.96-1.00 (0.99-1.01); a
+  version-tolerant struct 0.75 and 0.91-0.94 (1.00-1.02); a class nesting two classes and two structs 1.00-1.04
+  (0.99-1.01) and 0.91-0.92 (0.95). The node after a nested class item in that class is reported "recursive" by the
+  JIT (a call per element left in its listing): look there before nesting deeper.
 - **Never call the runtime's `Utf8` transcoder for a short ASCII string right after Nino's own 256-bit code.** The
   ReadyToRun CoreLib's `Utf8.FromUtf16`/`ToUtf16` are SSE-encoded, and an inlined AVX2 string kernel before them
   leaves the upper vector state dirty, so each call paid an AVX-SSE transition until the caller tiered up (TC=0, and
