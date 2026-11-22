@@ -336,7 +336,13 @@ says which CPUs and cases moved.
   constant offset once inlined. Hand a class's chain the object as `ref Unsafe.As<object, byte>(ref local)` (the element
   item's local, `NinoFlatSealedItem`): once inlined the JIT turns the indirections back into the local, and the flat
   kernels' listings matched `object`-based items' (asm.py, ScatteredTest: read 1,066/64 to 1,051/57 bytes/stack
-  accesses, write loop 462/12 to 443/12). The members' empty accessor structs as fields of the nodes cost nothing. The prototype's v1 read each member's offset
+  accesses, write loop 462/12 to 443/12). The members' empty accessor structs as fields of the nodes cost nothing. Give a member generated code cannot reach by reference (a property) a node of its own that runs the same bottom
+  item over a local copy (`NinoPropertyAt`, #355 step B), never a second bottom item per kind. Gate a generic flat
+  type's run hook on every type argument being a value type (`HasFlat => typeof(T).IsValueType`) and write its one value
+  member by member: over a class argument the chain is code shared over it, where each accessor is a call (the rule on
+  shared code above). Send a flat struct's runs through the public `HasFlat` hooks from the cursor branch
+  (`NinoCursor.Own`, `NinoRuns.WriteStrings`/`ReadStrings`, the reader by value out of line), not through the internal
+  `HasCursor` trio, whose `scoped` parameters generated code for Unity's C# 9 cannot implement. The prototype's v1 read each member's offset
   and size from generic statics (`static readonly`, #436): B's write loop was 3,708 bytes with 165 stack operands and
   wrote in 1.08 times the base's time; v2's accessor structs made it 1,056 bytes and 31 operands, writes 0.85-0.90
   (local, alternated). Read the run's startup check (`__Check`, block placement and Untrusted's `ReadsAsIs`) once per
