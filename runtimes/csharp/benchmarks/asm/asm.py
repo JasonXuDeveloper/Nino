@@ -195,14 +195,36 @@ def dump(ref, text, keep, runs=3, inline=False, boxes=False):
             subprocess.run(["git", "-C", ROOT, "worktree", "remove", "--force", worktree], check=False)
 
 
+# The boxes that are not Nino's to remove, each with why; every other box fails --boxes.
+BOXES_BY_DESIGN = [
+    # A C# union holds its case as `object` (the language's layout): reading a value-type case boxes it.
+    (re.compile(r"^NinoGen\.\w+:__ReadExact\d+\("), "a C# union stores its case as object"),
+    # A benchmark case that returns object (BclTypesTest) boxes its result for BenchmarkDotNet, not Nino.
+    (re.compile(r"^Nino\.Benchmark\.\w+:Nino\w+\(\):System\.Object:this$"), "the case returns object"),
+    # Once per process or per type: startup checks with object keys, reflection, the raw-array formatter object.
+    (re.compile(r"^Nino\.Core\.Internal\.(ConcurrentTables|CollectionViews|HashTables)[:+].*(Check|ReferenceKeys)"),
+     "a startup check"),
+    (re.compile(r"^Nino\.Core\.NinoPolymorphic:RegisterGeneric\("), "registration by reflection, once per type"),
+    (re.compile(r":get_RawArray\(\):Nino\.Core\.INinoRawArrayFormatter"), "the raw-array formatter, once per type"),
+    # The runtime's BlockingCollection constructor, inlined into the read that builds one.
+    (re.compile(r"^Nino\.Core\.BlockingCollectionFormatter`2\[[^:]*:ReadQueue\("), "BlockingCollection's constructor"),
+]
+
+
 def report_boxes(methods):
-    """Prints every method that boxes, with the value types; -> how many."""
+    """Prints every method that boxes, with the value types, those by design apart; -> how many are not."""
     boxing = {m: c["boxes"] for m, c in sorted(methods.items()) if c.get("boxes")}
+    designed = {m: why for m in boxing for pattern, why in BOXES_BY_DESIGN if pattern.search(m)}
     for method, types in boxing.items():
+        if method in designed:
+            continue
         counts = {t: types.count(t) for t in types}
         print(f"{method}\n    boxes " + "; ".join(f"{t} x{n}" if n > 1 else t for t, n in sorted(counts.items())))
-    print(f"{len(boxing)} of {len(methods)} methods box" if boxing else f"no method boxes ({len(methods)} listed)")
-    return len(boxing)
+    if designed:
+        print(f"{len(designed)} by design: " + "; ".join(sorted({why for why in designed.values()})))
+    worse = len(boxing) - len(designed)
+    print(f"{worse} of {len(methods)} methods box" if worse else f"no method boxes ({len(methods)} listed)")
+    return worse
 
 
 def diff(base, head):
