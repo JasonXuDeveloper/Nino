@@ -159,10 +159,183 @@ namespace Nino.UnitTests
             Assert.IsTrue(oneRead[0].Contains(typedRead), "FlatOne[] read");
             Assert.IsTrue(oneRead[1].Contains(typedRead), "List<FlatOne> read");
 
-            // The probes see a run element by element too: a class with properties is not flat.
+            // The probes see a run element by element too: a class with a callback is not flat.
             var (propWrites, propRead) = Stacks(manys.Select(Props).ToArray());
             Assert.IsFalse(propWrites[0].Contains("NinoFlat`2") || propRead[0].Contains("NinoFlat`2"));
             Assert.IsTrue(propWrites[0].Contains("Grow"), "the probe saw no growth");
+        }
+
+        private static FlatSlots[] Slots(int count, int seed = 5)
+        {
+            var random = new Random(seed);
+            var values = new FlatSlots[count];
+            for (int i = 0; i < count; i++)
+            {
+                if (i % 23 == 9)
+                    continue;
+                values[i] = new FlatSlots
+                {
+                    Id = random.Next(),
+                    Count = i % 3 == 0 ? null : random.Next(),
+                    Name = i % 7 == 2 ? null : Text(random, 0, 40, i % 5 == 1),
+                    Big = i % 4 == 1 ? null : random.Next() * 7L,
+                    When = i % 6 == 0 ? null : new DateTime(2020, 1, 1).AddMinutes(i),
+                    Flag = i % 2 == 0,
+                    Score = random.NextDouble(),
+                    Tag = i % 9 == 4 ? "" : Text(random, 1, 12, true),
+                    Price = i * 1.25m,
+                };
+            }
+
+            return values;
+        }
+
+        private static FlatSlotsTwin Twin(FlatSlots v) => v == null ? null : new FlatSlotsTwin
+        {
+            Id = v.Id, Count = v.Count, Name = v.Name, Big = v.Big, When = v.When, Flag = v.Flag, Score = v.Score,
+            Tag = v.Tag, Price = v.Price,
+        };
+
+        private static FlatBareTwin Twin(FlatBare v) => v == null ? null : new FlatBareTwin { A = v.A, B = v.B, C = v.C, D = v.D };
+
+        /// <summary>
+        /// Step B of #355: properties (through their accessors), raw T?s (slot items) and bodies without a string go
+        /// through the one item chain, with the bytes of twins written by generated bodies, read back new and into
+        /// existing elements, the runs through the kernels (their drivers on the stack), and hostile data rejected.
+        /// </summary>
+        [TestMethod]
+        public void PropertiesAndSlotsTakeTheChain()
+        {
+            Assert.IsTrue(HasFlat(Formatter<FlatSlots>()));
+            Assert.IsTrue(HasFlat(Formatter<FlatBare>()));
+            Assert.IsFalse(HasFlat(Formatter<FlatSlotsTwin>()));
+            Assert.IsFalse(HasFlat(Formatter<FlatBareTwin>()));
+
+            foreach (int count in new[] { 1, 15, 16, 17, 100, 1000 })
+            {
+                var slots = Slots(count);
+                byte[] bytes = NinoSerializer.Serialize(slots);
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(slots.Select(Twin).ToArray()), bytes, $"slots {count}");
+                CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(slots.ToList()), $"list {count}");
+                CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<FlatSlots[]>(bytes)));
+                CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<List<FlatSlots>>(bytes)));
+                // Into existing elements (other values, the same count): every member replaced.
+                var existing = Slots(count, seed: 9);
+                NinoDeserializer.Deserialize(bytes, ref existing);
+                CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(existing), $"into existing {count}");
+                for (int cut = 0; cut < bytes.Length; cut += Math.Max(1, bytes.Length / 37))
+                {
+                    var prefix = bytes.AsSpan(0, cut).ToArray();
+                    Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatSlots[]>(prefix),
+                        $"cut {cut} of {count}");
+                }
+
+                var bare = Enumerable.Range(0, count).Select(i => i % 13 == 5 ? null : new FlatBare
+                {
+                    A = i, B = i % 2 == 0 ? null : (short)-i, C = i * 3L, D = i % 3 == 0 ? null : (byte)i,
+                }).ToArray();
+                byte[] bareBytes = NinoSerializer.Serialize(bare);
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(bare.Select(Twin).ToArray()), bareBytes, $"bare {count}");
+                CollectionAssert.AreEqual(bareBytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<FlatBare[]>(bareBytes)));
+            }
+
+            // A presence byte of a T? other than 0 or 1, in a run: invalid data.
+            var one = new[] { new FlatBare { A = 1, B = 2, C = 3, D = 4 } };
+            byte[] run = NinoSerializer.Serialize(Enumerable.Repeat(one[0], 20).ToArray());
+            run[4 + 1 + 4] = 2; // count, presence, A, then B's presence
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatBare[]>(run));
+
+            var (slotWrites, slotReads) = Stacks(Slots(100).Where(static v => v != null).ToArray());
+            Assert.IsTrue(slotWrites[0].Contains("NinoFlat`2.WriteSealed"), "FlatSlots[] write");
+            Assert.IsTrue(slotReads[0].Contains("NinoFlat`2.ReadSealed"), "FlatSlots[] read");
+            var (bareWrites, bareReads) = Stacks(Enumerable.Range(0, 100).Select(static i => new FlatBare { A = i }).ToArray());
+            Assert.IsTrue(bareWrites[0].Contains("NinoFlat`2.WriteSealed"), "FlatBare[] write");
+            Assert.IsTrue(bareReads[0].Contains("NinoFlat`2.ReadSealed"), "FlatBare[] read");
+        }
+
+        /// <summary>
+        /// A struct whose body is flat (#355 step B): its runs go through the item chain in place, with the bytes of a
+        /// twin written by the generated body, read back new and into existing elements, every cut rejected.
+        /// </summary>
+        [TestMethod]
+        public void StructsTakeTheChain()
+        {
+            Assert.IsTrue(HasFlat(Formatter<FlatPoint>()));
+            Assert.IsFalse(HasFlat(Formatter<FlatPointTwin>()));
+            var random = new Random(7);
+            foreach (int count in new[] { 1, 2, 17, 300 })
+            {
+                var points = Enumerable.Range(0, count).Select(i => new FlatPoint
+                {
+                    Id = i, Name = i % 5 == 3 ? null : Text(random, 0, 30, i % 4 == 1), X = random.NextDouble(),
+                    Flag = i % 2 == 1, Count = i % 3 == 0 ? null : -i, At = new DateTime(2021, 2, 3).AddSeconds(i),
+                    Tag = i % 7 == 6 ? "" : Text(random, 1, 9, true),
+                }).ToArray();
+                var twins = points.Select(static p => new FlatPointTwin
+                {
+                    Id = p.Id, Name = p.Name, X = p.X, Flag = p.Flag, Count = p.Count, At = p.At, Tag = p.Tag,
+                }).ToArray();
+                byte[] bytes = NinoSerializer.Serialize(points);
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(twins), bytes, $"points {count}");
+                CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(points.ToList()));
+                CollectionAssert.AreEqual(points, NinoDeserializer.Deserialize<FlatPoint[]>(bytes));
+                CollectionAssert.AreEqual(points, NinoDeserializer.Deserialize<List<FlatPoint>>(bytes));
+                var existing = points.Select(static p => p with { Name = p.Name + "?", Count = 5 }).ToArray();
+                NinoDeserializer.Deserialize(bytes, ref existing);
+                CollectionAssert.AreEqual(points, existing, $"into existing {count}");
+                for (int cut = 0; cut < bytes.Length; cut += Math.Max(1, bytes.Length / 31))
+                {
+                    var prefix = bytes.AsSpan(0, cut).ToArray();
+                    Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatPoint[]>(prefix),
+                        $"cut {cut} of {count}");
+                }
+            }
+
+            var (writes, reads) = Stacks(Enumerable.Range(0, 50).Select(static i => new FlatPoint { Id = i, Name = "p" }).ToArray());
+            Assert.IsTrue(writes[0].Contains("NinoFlatValues`1.Write"), "FlatPoint[] write");
+            Assert.IsTrue(reads[0].Contains("NinoFlatValues`1.Read"), "FlatPoint[] read");
+        }
+
+        /// <summary>
+        /// Generic flat types (#355 step B): the item chain where every type argument is a value type, element by
+        /// element where one is a class, the same bytes either way as a twin written by the generated body.
+        /// </summary>
+        [TestMethod]
+        public void GenericTypesTakeTheChainOverValueTypes()
+        {
+            var ints = Enumerable.Range(0, 40).Select(static i => new FlatBox<int> { Id = i, Name = "b" + i, Big = i % 2 == 0 ? null : i }).ToArray();
+            var strings = ints.Select(static b => new FlatBox<string> { Id = b.Id, Name = b.Name, Big = b.Big }).ToArray();
+            var twins = ints.Select(static b => new FlatBoxTwin<int> { Id = b.Id, Name = b.Name, Big = b.Big }).ToArray();
+            byte[] bytes = NinoSerializer.Serialize(ints);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(twins), bytes);
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(strings));
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<FlatBox<int>[]>(bytes)));
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<FlatBox<string>[]>(bytes)));
+
+            var (intWrites, intReads) = GenericStacks<FlatBox<int>>(ints, "Nino_UnitTests_Subset_Flat_FlatBox_1Formatter", typeof(int));
+            Assert.IsTrue(intWrites.Contains("NinoFlat`2.WriteSealed") && intReads.Contains("NinoFlat`2.ReadSealed"));
+            var (stringWrites, stringReads) = GenericStacks<FlatBox<string>>(strings, "Nino_UnitTests_Subset_Flat_FlatBox_1Formatter", typeof(string));
+            Assert.IsFalse(stringWrites.Contains("NinoFlat`2") || stringReads.Contains("NinoFlat`2"));
+
+            var entries = Enumerable.Range(0, 300).Select(static i => new FlatEntry<long> { Key = "entry key " + i, Value = i }).ToArray();
+            byte[] entryBytes = NinoSerializer.Serialize(entries);
+            CollectionAssert.AreEqual(entries, NinoDeserializer.Deserialize<FlatEntry<long>[]>(entryBytes));
+            CollectionAssert.AreEqual(entryBytes, NinoSerializer.Serialize(entries.Select(static e => new FlatEntry<string> { Key = e.Key, Value = e.Value }).ToArray()));
+            var (entryWrites, entryReads) = GenericStacks<FlatEntry<long>>(entries, "Nino_UnitTests_Subset_Flat_FlatEntry_1Formatter", typeof(long));
+            Assert.IsTrue(entryWrites.Contains("NinoFlatValues`1.Write"), entryWrites);
+            Assert.IsTrue(entryReads.Contains("NinoFlatValues`1.Read"), entryReads);
+        }
+
+        /// <summary><see cref="Stacks{T}"/>' array stacks of a generic type's formatter, closed over
+        /// <paramref name="argument"/> and its formatter.</summary>
+        private static (string Writes, string Reads) GenericStacks<T>(T[] values, string formatter, Type argument)
+        {
+            var open = typeof(T).Assembly.GetType("NinoGen." + formatter + "`2", true)!;
+            var argumentFormatter = argument == typeof(string) ? typeof(StringFormatter) : typeof(UnmanagedFormatter<>).MakeGenericType(argument);
+            var closed = open.MakeGenericType(argument, argumentFormatter);
+            var (writes, reads) = ((string[], string[]))typeof(FlatTests).GetMethod(nameof(StacksWith), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(typeof(T), closed).Invoke(null, new object[] { values })!;
+            return (writes[0], reads[0]);
         }
 
         /// <summary>

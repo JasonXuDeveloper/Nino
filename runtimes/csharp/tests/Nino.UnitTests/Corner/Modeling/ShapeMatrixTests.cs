@@ -385,6 +385,8 @@ namespace Other
                 // positional and untracked, the generated body otherwise), sealed and not.
                 leaves.Append($"{Attribute()} public sealed {Keyword} {N("FLeaf")} : {parent} {{ public int W; public string S; public bool B;{cb} }}\n");
                 leaves.Append($"{Attribute()} public {Keyword} {N("FOpen")} : {parent} {{ public long W; public int X; public string S;{cb} }}\n");
+                // Flat through properties and raw T?s (#355 step B): a property item, a slot item, no string.
+                leaves.Append($"{Attribute()} public sealed {Keyword} {N("FProp")} : {parent} {{ public int W {{ get; set; }} public int? FP; public long? FQ {{ get; set; }}{cb} }}\n");
                 if (!_middle && _arity > 0)
                     leaves.Append($"{Attribute()} public sealed {Keyword} {N("GLeaf")}{Parameters(_arity)} : {near}{N("Base")}{Parameters(_arity)} {{ public int W; }}\n");
                 else
@@ -440,6 +442,8 @@ namespace Other
                         $"q.W == 7 && q.S == \"flat\" && q.B{checks}"),
                     (N("FOpen"), $"new {leafPrefix}{N("FOpen")} {{ {Join(inits, "W = 7, X = 8, S = \"open\"")} }}",
                         $"q.W == 7 && q.X == 8 && q.S == \"open\"{checks}"),
+                    (N("FProp"), $"new {leafPrefix}{N("FProp")} {{ {Join(inits, "W = 7, FP = 9, FQ = null")} }}",
+                        $"q.W == 7 && q.FP == 9 && q.FQ == null{checks}"),
                 };
                 if (!_track)
                 {

@@ -32,7 +32,8 @@ namespace Nino.Core.Internal
         public static bool Own<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             typeof(T).IsValueType
                 ? RuntimeHelpers.IsReferenceOrContainsReferences<T>() &&
-                  NinoKind.Of<T, TFormatter>() == NinoElementKind.PerValue && NinoKind<TFormatter>.Cursor
+                  NinoKind.Of<T, TFormatter>() == NinoElementKind.PerValue &&
+                  (NinoKind<TFormatter>.Cursor || NinoKind<TFormatter>.Flat)
                 : typeof(TFormatter) == typeof(StringFormatter) || typeof(TFormatter) == typeof(Utf8StringFormatter);
 
         /// <summary>

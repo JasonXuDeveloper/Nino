@@ -702,8 +702,15 @@ public class MadeList : System.Collections.Generic.List<Made> { }
             Assert.IsTrue(reason is IncrementalStepRunReason.Unchanged or IncrementalStepRunReason.Cached, reason.ToString());
         Assert.AreEqual(flat, Output(driver, "Flat"));
 
-        // A property is no field to reach: the generated body again.
+        // A property is reached through its accessors: still flat, through a property item.
         compilation = Edit(compilation, "Flat.cs", "public string S;", "public string S { get; set; }");
+        driver = driver.RunGenerators(compilation);
+        string property = Output(driver, "Flat");
+        StringAssert.Contains(property, "public bool HasFlat => true;");
+        StringAssert.Contains(property, "NinoPropertyAt<__P_S, string, ");
+
+        // A member that is none of the flat items (a collection): the generated body again.
+        compilation = Edit(compilation, "Flat.cs", "public string S { get; set; }", "public string S; public int[] Q;");
         driver = driver.RunGenerators(compilation);
         Assert.IsFalse(Output(driver, "Flat").Contains("HasFlat"));
     }

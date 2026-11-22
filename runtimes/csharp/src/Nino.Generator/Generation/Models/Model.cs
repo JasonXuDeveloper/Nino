@@ -484,21 +484,31 @@ internal enum FlatItemKind
 
     /// <summary>A <c>[NinoUtf8]</c> string (NinoUtf8Item).</summary>
     Utf8,
+
+    /// <summary>A raw <c>T?</c> (NinoSlotItem through its UnmanagedNullableFormatter: a presence byte, then the value).</summary>
+    Slot,
 }
 
-/// <summary>An item of a flat body: its kind, the index of its (first) member in TypeModel.Members, and its members
-/// (more than one only for a block).</summary>
-internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count);
+/// <summary>An item of a flat body: its kind, the index of its (first) member in TypeModel.Members, its members (more
+/// than one only for a block), and whether it is a property reached through its accessors (NinoPropertyAt: never in a
+/// block, never checked at startup).</summary>
+internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool Property = false);
 
 /// <summary>
 /// A class body that is flat (FlatRules): its items in wire order. Where an item's fast form depends on what only the
 /// running process knows (a block's layout, a struct's memory, Untrusted mode), the formatter has a second chain of
 /// one item per member and a startup check read once per call (<see cref="Checks"/>): the fallback.
 /// </summary>
-internal sealed record FlatModel(EquatableArray<FlatItem> Items)
+/// <param name="ValueType">A struct: its runs only, each element in place, through one chain of one item per member.</param>
+/// <param name="Generic">A generic type: its runs only (one value member by member: code shared over a class argument
+/// would call each accessor), and its hooks only where every type argument is a value type.</param>
+internal sealed record FlatModel(EquatableArray<FlatItem> Items, bool ValueType = false, bool Generic = false)
 {
+    /// <summary>Whether only runs take the chain, one value its member-by-member body.</summary>
+    public bool RunsOnly => ValueType || Generic;
+
     /// <summary>Whether the body has a fallback chain and a startup check: a block or a struct among its items.</summary>
-    public bool Checks => Items.Any(static i => i.Kind is FlatItemKind.Block or FlatItemKind.Struct);
+    public bool Checks => !ValueType && Items.Any(static i => i.Kind == FlatItemKind.Block || i.Kind == FlatItemKind.Struct && !i.Property);
 }
 
 /// <summary>

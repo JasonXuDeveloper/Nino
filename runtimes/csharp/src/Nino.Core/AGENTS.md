@@ -71,10 +71,12 @@ NinoItemChain.cs             the one item chain of #355, every composite's (a pa
                              class), NinoMemberAccess, the nodes NinoItemAt<TMember, TItem, TNext> and NinoBlockAt
                              (the raw item), the last item without a next (NinoItemAt<TMember, TItem>, NinoBlockAt<TMember>), and the bottom items, one per element kind
                              (NinoUtf16Item, NinoUtf8Item, NinoRawItem, NinoStructItem, NinoBoolItem, NinoValueItem,
-                             NinoSlotItem: a raw T?'s single value)
+                             NinoSlotItem: a raw T?'s single value); INinoProperty and NinoPropertyAt, a member reached
+                             through its accessors (the bottom item over a local copy)
 NinoFlat.cs                  the generator seam of #355: INinoFlatLayout (construction, exact type, type id) and
                              NinoFlat<TLayout, TBody>, which a generated flat class derives over its chain of items: runs
-                             (Write/ReadSealed, Write/ReadTyped) and one body's write (WriteBody out of line, WriteInline)
+                             (Write/ReadSealed, Write/ReadTyped) and one body's write (WriteBody out of line, WriteInline);
+                             NinoFlatValues<TBody>, a generated flat struct's runs, each element in place (Write, Read)
 NinoFieldBlock.cs            generated raw bodies of classes: whether the fields lie in the object as the body lays them
                              out (checked once on an uninitialized instance), then one block copy
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;

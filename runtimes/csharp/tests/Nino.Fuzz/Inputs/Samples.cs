@@ -171,6 +171,13 @@ namespace Nino.Fuzz
             }).ToList(),
             One = new FlatSealed { Id = 7, Name = "one", Tag = "", At = DateTime.MaxValue, Text = "x", Price = decimal.MaxValue },
             Set = new HashSet<FlatOpen>(Enumerable.Range(0, 18).Select(i => new FlatOpen { W = i, S = "s" + i })),
+            Props = Enumerable.Range(0, 20).Select(i => i == 5 ? null : new FlatProps
+            {
+                Id = i, N = i % 3 == 0 ? null : i, S = i % 4 == 0 ? null : "prop " + i, B = i % 2 == 0, L = i % 5 == 0 ? null : -i,
+            }).ToArray(),
+            Bares = Enumerable.Range(0, 18).Select(i => new FlatBareFuzz { A = i, B = i % 2 == 0 ? null : (short)i, C = (byte)i }).ToList(),
+            Structs = Enumerable.Range(0, 17).Select(i => new FlatStructFuzz { K = "k" + i, V = i, D = i % 3 == 0 ? null : i, B = i % 2 == 1 }).ToArray(),
+            Generics = Enumerable.Range(0, 16).Select(i => new FlatGeneric<int> { Id = i, S = "g" + i, L = i }).ToList(),
         };
 
         public static Holder Holder()
