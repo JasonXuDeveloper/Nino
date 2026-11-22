@@ -465,24 +465,24 @@ internal sealed record TypeModel(
 /// <summary>How an item of a flat body (<see cref="FlatItem"/>) is written and read by Nino.Core's flat items.</summary>
 internal enum FlatItemKind
 {
-    /// <summary>Consecutive primitives predicted to lie in the object as on the wire: one copy (NinoFlatBlock), only
+    /// <summary>Consecutive primitives predicted to lie in the object as on the wire: one copy (NinoBlockAt), only
     /// where the startup check proves it; else each a <see cref="Value"/>.</summary>
     Block,
 
-    /// <summary>One primitive or enum (NinoFlatValue).</summary>
+    /// <summary>One primitive or enum (NinoRawItem).</summary>
     Value,
 
-    /// <summary>A raw struct (NinoFlatStruct: padding cleared, Untrusted mode's checks); copied as its bytes (a block)
+    /// <summary>A raw struct (NinoStructItem: padding cleared, Untrusted mode's checks); copied as its bytes (a block)
     /// where the startup check proves its memory canonical without padding, and reads check nothing in it.</summary>
     Struct,
 
-    /// <summary>A bool, checked on read (NinoFlatBool).</summary>
+    /// <summary>A bool, checked on read (NinoBoolItem).</summary>
     Bool,
 
-    /// <summary>A string in the default encoding (NinoFlatString).</summary>
+    /// <summary>A string in the default encoding (NinoUtf16Item).</summary>
     String,
 
-    /// <summary>A <c>[NinoUtf8]</c> string (NinoFlatUtf8).</summary>
+    /// <summary>A <c>[NinoUtf8]</c> string (NinoUtf8Item).</summary>
     Utf8,
 }
 

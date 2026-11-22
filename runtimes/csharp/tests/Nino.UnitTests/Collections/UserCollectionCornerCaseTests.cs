@@ -1135,7 +1135,7 @@ public class Holder
     [TestMethod]
     public void RawKeyStringDictionaryChecksItsData()
     {
-        // Raw keys and string values are read by the string run kernels (NinoItems.ReadPair), new or into an
+        // Raw keys and string values are read by the string run kernels (NinoItems.Read), new or into an
         // empty dictionary: the same results and checks as the per-value read.
         var value = new Dictionary<int, string> { [1] = "a", [2] = null, [3] = "", [4] = "bc" };
         var bytes = NinoSerializer.Serialize(value);

@@ -90,10 +90,10 @@ namespace Nino.Core
         bool INinoFormatter.HasCursor => NinoItems.Cursor<TKey, TValue, TKeyFormatter, TValueFormatter>(KeyAt, ValueAt);
 
         Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoItems.WritePair<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyAt, ValueAt, writer);
+            NinoItems.Write<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyAt, ValueAt, writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
-            NinoItems.ReadPair<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyAt, ValueAt, ref data, end);
+            NinoItems.Read<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyAt, ValueAt, ref data, end);
 
         bool INinoFormatter.HasRunLoop => NinoItems.RunLoop<TKey, TValue, TKeyFormatter, TValueFormatter>(KeyAt, ValueAt);
 

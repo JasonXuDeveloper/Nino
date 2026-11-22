@@ -692,7 +692,7 @@ public class MadeList : System.Collections.Generic.List<Made> { }
         driver = driver.RunGenerators(compilation);
         string flat = Output(driver, "Flat");
         StringAssert.Contains(flat, "public bool HasFlat => true;");
-        StringAssert.Contains(flat, "NinoFlatBlock<__B_A, ");
+        StringAssert.Contains(flat, "NinoBlockAt<__B_A, ");
         StringAssert.Contains(flat, "NinoFieldBlock.IsAt(in value.A, in value.B, 8, 4)");
         Assert.IsFalse(flat.Contains("writer.Write(value.S)"), "no member-by-member body");
 

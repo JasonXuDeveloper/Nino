@@ -260,7 +260,7 @@ namespace Nino.CodeGen
 
         /// <summary>
         /// What a value tuple of three items or more does on a run (<c>NinoItems</c>): the cursor form of a run whose
-        /// items are each a string or an item the string run kernels move beside one, its items a chain.
+        /// items are each a string or an item the run kernels move beside one, its items the one chain of items.
         /// </summary>
         private static void AppendItemRuns(StringBuilder sb, Shape s, string type)
         {
@@ -268,13 +268,14 @@ namespace Nino.CodeGen
             sb.Append("        // Where each item lies in the tuple: JIT-time constants, also in code shared over a class.\n");
             foreach (int i in s.Items)
                 AppendOffset(sb, type, i);
-            string chain = "NinoItemsEnd";
-            for (int i = s.Arity; i >= 1; i--)
-                chain = $"NinoItem<{s.Type(i)}, TF{i}, {chain}>";
+            // The plan lists the items from the last to the first: each puts its item in front of the chain after it.
+            string chain = "NinoItemPlanEnd";
+            for (int i = 1; i <= s.Arity; i++)
+                chain = $"NinoItemPlan<{s.Type(i)}, TF{i}, {chain}>";
             string items = "default";
-            for (int i = s.Arity; i >= 1; i--)
+            for (int i = 1; i <= s.Arity; i++)
                 items = $"new(Offset{i}, {items})";
-            sb.Append("        // The items as a chain, for the string run kernels.\n");
+            sb.Append("        // The plan of the items' chain (last item first), for the run kernels.\n");
             sb.Append($"        private static {chain} Items\n");
             sb.Append("        {\n");
             sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
@@ -312,10 +313,10 @@ namespace Nino.CodeGen
             sb.Append($"        bool INinoFormatter.HasCursor => {pairs}.Cursor{items}(Offset1, Offset2);\n");
             sb.Append("\n");
             sb.Append("        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>\n");
-            sb.Append($"            {pairs}.WritePair{items}(run, Offset1, Offset2, writer);\n");
+            sb.Append($"            {pairs}.Write{items}(run, Offset1, Offset2, writer);\n");
             sb.Append("\n");
             sb.Append("        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>\n");
-            sb.Append($"            {pairs}.ReadPair{items}(run, Offset1, Offset2, ref data, end);\n");
+            sb.Append($"            {pairs}.Read{items}(run, Offset1, Offset2, ref data, end);\n");
             sb.Append("\n");
             sb.Append($"        bool INinoFormatter.HasRunLoop => {pairs}.RunLoop{items}(Offset1, Offset2);\n");
             sb.Append("\n");

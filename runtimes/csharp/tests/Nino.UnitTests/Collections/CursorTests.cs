@@ -196,7 +196,28 @@ namespace Nino.UnitTests
                     default(DateTimeOffsetFormatter).Serialize(t.Item3, ref w);
                     default(UnmanagedFormatter<long>).Serialize(t.Item4, ref w);
                 });
+
+                // Seven items, the longest plan: every bottom item kind, strings first and last.
+                var seven = Enumerable.Range(0, count).Select(i => (Text(i), i, i % 2 == 0 ? (long?)null : -i,
+                    Text(i + 1), (byte)i, Guid.Empty, Text(i + 2))).ToArray();
+                Tuples<(string, int, long?, string, byte, Guid, string), ValueTupleFormatter<string, int, long?, string,
+                    byte, Guid, string, StringFormatter, UnmanagedFormatter<int>, UnmanagedNullableFormatter<long>,
+                    Utf8StringFormatter, UnmanagedFormatter<byte>, UnmanagedFormatter<Guid>, StringFormatter>>(seven,
+                    (ref Writer w, (string, int, long?, string, byte, Guid, string) t) =>
+                    {
+                        default(StringFormatter).Serialize(t.Item1, ref w);
+                        default(UnmanagedFormatter<int>).Serialize(t.Item2, ref w);
+                        default(UnmanagedNullableFormatter<long>).Serialize(t.Item3, ref w);
+                        default(Utf8StringFormatter).Serialize(t.Item4, ref w);
+                        default(UnmanagedFormatter<byte>).Serialize(t.Item5, ref w);
+                        default(UnmanagedFormatter<Guid>).Serialize(t.Item6, ref w);
+                        default(StringFormatter).Serialize(t.Item7, ref w);
+                    });
             }
+
+            Assert.IsTrue(NinoKind<ValueTupleFormatter<string, int, long?, string, byte, Guid, string, StringFormatter,
+                UnmanagedFormatter<int>, UnmanagedNullableFormatter<long>, Utf8StringFormatter, UnmanagedFormatter<byte>,
+                UnmanagedFormatter<Guid>, StringFormatter>>.Cursor);
         }
 
         private delegate void ItemsWrite<T>(ref Writer writer, T value);

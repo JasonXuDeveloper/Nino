@@ -38,7 +38,7 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Reads into <paramref name="value"/> (a string, or a value read as one) the value at
         /// <paramref name="source"/> (<paramref name="available"/> bytes) through its run item, the one cursor read of
-        /// an item (<see cref="INinoRunItem.ReadAt"/>: <see cref="NinoValueItem{T,TFormatter}"/>,
+        /// an item (<see cref="INinoItem.ReadAt"/>: <see cref="NinoValueItem{T,TFormatter}"/>,
         /// <see cref="NinoSlotItem{T,TFormatter}"/>, <see cref="NinoUtf8Item"/>, <see cref="NinoUtf16Item"/>), with its checks: too few bytes and values no write
         /// makes are invalid data; an unchanged string is kept. Returns the bytes read. An item of a pair merged into an
         /// existing dictionary (NinoDictionary.Refill), read apart.

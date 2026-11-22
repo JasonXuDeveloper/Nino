@@ -104,12 +104,14 @@ item at an offset from its second (`NinoRun.Key`) and written by the loop, the o
 the other. The member is not generic, so one serves every collection and every
 key written as its bytes or a string; any other key goes value by value (#355). Beside a string, the string run kernels
 move a raw value, a block read as one, or a slot's value (a raw `T?` in its single value's bytes, a presence byte then
-the value: `Dictionary<string, int?>`), each an item of the element (`NinoCursor.Item`). Each item's run item is
-picked by JIT-time constants once per run and composed into one element (the first item at its offset, then each next
-after it: `NinoItemAt`, `NinoItemChain`), so the kernel is instantiated over the items alone, never as code shared
-over a class. A tuple of three or more walks a chain of its items (`NinoItem`, each node picking its own item: one
-call per node and run where the code is shared over a class item); a pair picks both items in static methods
-(`NinoItems.WritePair`), which shared code inlines whole, where a chain's node would be a call. Recycling a dropped
+the value: `Dictionary<string, int?>`), each an item of the element (`NinoCursor.Item`). The element is the one chain of
+items every composite is (`NinoItemAt<TMember, TItem, TNext>` in `Nino.Core.CompilerServices`, a generated flat class's
+too, below): each item's bottom item (`NinoUtf16Item`, `NinoUtf8Item`, `NinoValueItem`, `NinoSlotItem`) is picked by
+JIT-time constants once per run, outside the loop, at its offset (`NinoOffset`: the offset as data, because an accessor
+generic over the composite would make the kernel code shared over a class item, where each call of such an accessor is
+indirect). A tuple of three or more is picked through a plan of its items declared last item first (`NinoItemPlan`, each
+node putting its item in front of the chain it is given: one call per node and run where the code is shared over a class
+item); a pair picks both items in static methods (`NinoItems.Write`), which shared code inlines whole. Recycling a dropped
 composite is each item's `NinoRecycler.Recycle`.
 
 A collection's storage element is the element of its run, whatever else it holds. A `HashSet<T>`'s and a
@@ -203,9 +205,11 @@ Classes whose body is flat take a third kind of their own (`NinoFlatRuns`, #355)
 made by a constructor without arguments, with at least one string and at most twelve items (each is a level of
 inlining, and the JIT inlines at most 20 deep), and every member a field generated code reads and assigns directly, of
 a raw type, a bool or a string. Such a formatter writes no member-by-member body: it names its members once, as a
-chain of items nested in type arguments (`NinoFlat<TLayout, TBody>` in `Nino.Core.CompilerServices`: `NinoFlatBlock`,
-`NinoFlatValue`, `NinoFlatStruct`, `NinoFlatBool`, `NinoFlatString`, `NinoFlatUtf8`, ended by `NinoFlatEnd`), each
-item reaching its field through a one-line accessor struct (`INinoFlatMember.Ref(object)`, a constant offset into the
+chain of items nested in type arguments, the one chain every composite is (`NinoItemAt<TMember, TItem, TNext>` with a
+bottom item per member, `NinoRawItem`, `NinoStructItem`, `NinoBoolItem`, `NinoUtf16Item`, `NinoUtf8Item`, and
+`NinoBlockAt`, the raw item, the last item without a next; `NinoFlat<TLayout, TBody>` names it once), each item reaching its
+field through a one-line accessor struct (`INinoMember.Ref(ref byte item)`: `NinoMemberAccess.As<T>(ref item).Field`, the
+struct in place or, for a class, a reference to the object, which the element item hands the chain from a local; a constant offset into the
 object once inlined, and a literal `Size`) and the layout struct (`INinoFlatLayout`: create, exact type, type id).
 `HasFlat` (read once per formatter into `NinoKind<TFormatter>.Flat`) sends a run of at least 16 such elements
 (`NinoFlatRuns.MinRun`: below it the run's fixed cost, about 30 ns, outweighs what it saves) to

@@ -4,34 +4,6 @@ using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
-    /// <summary>
-    /// An item of a run's element, at the reference it is given, in the cursor form: the bytes it takes at most,
-    /// written at a reference, and read from the data (#355). The items of strings are not generic
-    /// (<see cref="NinoUtf16Item"/>, <see cref="NinoUtf8Item"/>), and the other item of a pair holding one is a value
-    /// without references (<see cref="NinoValueItem{T,TFormatter}"/>), so a loop over them
-    /// (<see cref="NinoStringRuns"/>) is never code shared over a class: each call is direct and inlined, and no
-    /// static is a lookup.
-    /// </summary>
-    internal interface INinoRunItem
-    {
-        /// <summary>The most bytes <see cref="WriteAt"/> writes for the item of <paramref name="element"/>
-        /// (negative: more than an <c>int</c> holds).</summary>
-        int MaxSize(ref byte element);
-
-        /// <summary>Writes the item of <paramref name="element"/> at <paramref name="destination"/> (room for
-        /// <see cref="MaxSize"/> bytes); returns the bytes written.</summary>
-        int WriteAt(ref byte destination, ref byte element);
-
-        /// <summary>
-        /// Reads the item at <paramref name="source"/> (<paramref name="available"/> bytes) into the item of
-        /// <paramref name="element"/>; returns the bytes read. Every length is checked against the bytes before
-        /// anything is allocated for it: a length out of range is invalid data (<see cref="NinoDataException"/>). An existing string is kept when the data holds the
-        /// same, unless <paramref name="fresh"/> (a constant: the one element of a store that hands each read on,
-        /// <see cref="INinoRunStore.OneSlot"/>), where the item is written without looking at it.
-        /// </summary>
-        int ReadAt(ref byte source, int available, ref byte element, bool fresh);
-    }
-
     /// <summary>What a read loop of <see cref="NinoStringRuns"/> does with each element it read.</summary>
     internal interface INinoRunStore
     {
@@ -44,111 +16,6 @@ namespace Nino.Core.Internal
 
         /// <summary>Takes the element read at <paramref name="element"/>.</summary>
         void Stored(ref byte element);
-    }
-
-    /// <summary>A string in the default encoding (<see cref="StringFormatter"/>, <see cref="NinoStrings"/>). No
-    /// field: a run of strings alone keeps no offset in a register (a pair places its items,
-    /// <see cref="NinoItemChain{THead,TItem}"/>).</summary>
-    internal readonly struct NinoUtf16Item : INinoRunItem
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ref string At(ref byte element) => ref Unsafe.As<byte, string>(ref element);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(ref byte element) => NinoStrings.MaxSize(At(ref element));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int WriteAt(ref byte destination, ref byte element) => NinoStrings.Write(ref destination, At(ref element));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int ReadAt(ref byte source, int available, ref byte element, bool fresh)
-        {
-            // An unchanged string (a read into an existing collection) is not stored again: no write barrier. A fresh
-            // one always is (null too: the one element still holds the string read before).
-            ref string slot = ref At(ref element);
-            string current = fresh ? null : slot;
-            string read = NinoStrings.Read(ref source, available, current, out int size);
-            if (fresh || !ReferenceEquals(read, current))
-                slot = read;
-            return size;
-        }
-    }
-
-    /// <summary>A UTF-8 string (<see cref="Utf8StringFormatter"/>), as <see cref="NinoUtf16Item"/>.</summary>
-    internal readonly struct NinoUtf8Item : INinoRunItem
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ref string At(ref byte element) => ref Unsafe.As<byte, string>(ref element);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(ref byte element) => Writer.Utf8MaxSize(At(ref element));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int WriteAt(ref byte destination, ref byte element) => Writer.WriteUtf8At(ref destination, At(ref element));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int ReadAt(ref byte source, int available, ref byte element, bool fresh)
-        {
-            ref string slot = ref At(ref element);
-            string current = fresh ? null : slot;
-            SizedString read = Reader.ReadUtf8At(ref source, available, current);
-            if (fresh || !ReferenceEquals(read.Value, current))
-                slot = read.Value;
-            return read.Size;
-        }
-    }
-
-    /// <summary>
-    /// A value of a fixed size: raw, or a block read as one
-    /// (<see cref="NinoRuns.ScattersItems{T,TFormatter}"/>), moved as its formatter moves it in a block. Only for
-    /// values without references, so a loop over it is not shared code.
-    /// </summary>
-    internal readonly struct NinoValueItem<T, TFormatter> : INinoRunItem where TFormatter : struct, INinoFormatter<T>
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ref T At(ref byte element) => ref Unsafe.As<byte, T>(ref element);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(ref byte element) => NinoKind.Stride<T, TFormatter>();
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int WriteAt(ref byte destination, ref byte element)
-        {
-            NinoBlocks.WriteItem<T, TFormatter>(in At(ref element), ref destination);
-            return NinoKind.Stride<T, TFormatter>();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int ReadAt(ref byte source, int available, ref byte element, bool fresh)
-        {
-            if ((uint)available < (uint)NinoKind.Stride<T, TFormatter>())
-                NinoThrow.EndOfData();
-            NinoBlocks.ReadItem<T, TFormatter>(ref At(ref element), ref source);
-            return NinoKind.Stride<T, TFormatter>();
-        }
-    }
-
-    /// <summary>
-    /// A slot's value as an item (<see cref="NinoCursor.Item{T,TFormatter}"/>: a raw <c>T?</c>,
-    /// <see cref="UnmanagedNullableFormatter{T}"/>), in a single value's bytes: a presence byte, then the value when
-    /// present (<see cref="INinoFormatter{T}.WriteAt"/>, <see cref="INinoFormatter{T}.ReadAt"/>). At most its slot's
-    /// bytes. A value without references, so a loop over it is not shared code.
-    /// </summary>
-    internal readonly struct NinoSlotItem<T, TFormatter> : INinoRunItem where TFormatter : struct, INinoFormatter<T>
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ref T At(ref byte element) => ref Unsafe.As<byte, T>(ref element);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(ref byte element) => NinoKind.Stride<T, TFormatter>();
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int WriteAt(ref byte destination, ref byte element) =>
-            default(TFormatter).WriteAt(ref destination, in At(ref element));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int ReadAt(ref byte source, int available, ref byte element, bool fresh) =>
-            default(TFormatter).ReadAt(ref source, available, ref At(ref element));
     }
 
     /// <summary>
@@ -205,7 +72,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static Writer Write<TItem>(scoped NinoRun run, TItem item, Writer writer)
-            where TItem : struct, INinoRunItem
+            where TItem : struct, INinoItem
         {
             int next = 0;
             while (true)
@@ -231,7 +98,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ulong WriteFitting<TItem>(scoped NinoRun run, TItem item, int next, ref byte destination,
             int available)
-            where TItem : struct, INinoRunItem =>
+            where TItem : struct, INinoItem =>
             // Twice from one body: runs without free entries (arrays, lists, most sets and dictionaries) with the
             // in-use test folded away, which leaves the loop's values the registers that hold them through the
             // string kernels' calls; with the test's rule too, the bytes left went to the stack (asm.py).
@@ -242,7 +109,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static ulong WriteFitting<TItem>(scoped NinoRun run, TItem item, int next, ref byte destination,
             int available, int inUse)
-            where TItem : struct, INinoRunItem
+            where TItem : struct, INinoItem
         {
             // Few values across the string kernels' calls, where x64 has five callee-saved registers for them: a
             // moving destination and the bytes left, and the element against the run's end.
@@ -256,7 +123,7 @@ namespace Nino.Core.Internal
                 if (NinoRun.Skips(ref value, inUse))
                     continue;
                 // Room for the longest form, so a pair is never split across two buffers.
-                if ((uint)item.MaxSize(ref value) > (uint)left)
+                if ((ulong)item.MaxSize(ref value) > (uint)left)
                     break;
                 int size = item.WriteAt(ref cursor, ref value);
                 cursor = ref Unsafe.Add(ref cursor, (nint)(uint)size);
@@ -273,15 +140,19 @@ namespace Nino.Core.Internal
         /// <c>int</c> holds, which the writer rejects), out of line: the write loop's rare stop.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int RoomFor<TItem>(scoped NinoRun run, TItem item, int next)
-            where TItem : struct, INinoRunItem =>
-            item.MaxSize(ref Unsafe.Add(ref run.First, (nint)next * run.Stride));
+        internal static int RoomFor<TItem>(scoped NinoRun run, TItem item, int next)
+            where TItem : struct, INinoItem
+        {
+            // The long bound narrowed here, out of line: in the driver it cost 8 stack accesses more (asm.py).
+            long room = item.MaxSize(ref Unsafe.Add(ref run.First, (nint)next * run.Stride));
+            return room < 0 ? int.MinValue : room > int.MaxValue ? -1 : (int)room;
+        }
 
         /// <summary>
         /// The read: <paramref name="run"/>'s count of elements (every one in use) from the data at
         /// <paramref name="data"/> (<paramref name="end"/> bytes), each read and handed to <paramref name="store"/>;
         /// returns the bytes read. Each item checks its lengths against the bytes left before it allocates
-        /// (<see cref="INinoRunItem.ReadAt"/>), and the caller sized the run by the data (a count of at least a byte
+        /// (<see cref="INinoItem.ReadAt"/>), and the caller sized the run by the data (a count of at least a byte
         /// each), so a rejected read has allocated in proportion to the bytes it read. A first pass that measured every
         /// length of the run before reading any took longer (a chain of dependent loads, one per string: 1,000
         /// strings read 1.1 to 1.3 times as long, local quick runs). Few values across the string kernels' and the
@@ -293,7 +164,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static int Read<TItem, TStore>(scoped NinoRun run, TItem item, ref byte data, int end, TStore store)
-            where TItem : struct, INinoRunItem
+            where TItem : struct, INinoItem
             where TStore : struct, INinoRunStore
         {
             ref byte source = ref data;
@@ -353,7 +224,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int Add<TItem>(HashSet<string> set, int length, ref byte data, int end)
-            where TItem : struct, INinoRunItem
+            where TItem : struct, INinoItem
         {
             ref byte source = ref data;
             int available = end;
