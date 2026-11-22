@@ -41,6 +41,21 @@ namespace Nino.UnitTests.Subset.Flat
         public string Name;
     }
 
+    /// <summary>
+    /// A flat class that is not sealed, nested in a generic class: its type id is computed at run time, from the closed
+    /// type, and the typed kernels write that id.
+    /// </summary>
+    public class FlatHolder<T>
+    {
+        [NinoType]
+        public class Leaf
+        {
+            public long W;
+            public int X;
+            public string S;
+        }
+    }
+
     /// <summary><see cref="FlatOne"/>'s members as auto-properties and a callback: the same body, not flat (the generated
     /// body).</summary>
     [NinoType]

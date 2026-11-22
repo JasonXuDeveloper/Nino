@@ -186,13 +186,13 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            // A class whose generated body is flat (#355): the flat kernels, from NinoFlatRuns.MinRun elements on; runs with
-            // free entries (a set's) and short ones take the loop below. After the kinds above, before the local writes, which
+            // A class whose generated body is flat (#355): the flat kernels, at every length (their entry is as cheap as
+            // the loop below at one element); runs with free entries (a set's) take that loop. After the kinds above, before the local writes, which
             // sealed flat classes take too (NinoKind.FlatClass), where the kernels went unused and ScatteredTest's write of a
             // million items took 1.33 times the base's: a static readonly of NinoKind<TFormatter> read in code shared over
             // classes is no constant, and read first it turned a string array's and a polymorphic base's writes from 4 to 29
             // and 86 to 234 stack accesses (asm.py).
-            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun &&
+            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count != 0 &&
                 (row || run.InUse == NinoRun.AllInUse))
             {
                 if (counted)
@@ -513,7 +513,7 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// <see cref="ReadEach{T,TFormatter}"/> for classes: a class whose generated body is flat (#355) through the flat
-        /// kernels, from <see cref="NinoFlatRuns.MinRun"/> elements on. Here, out of line, not in Read: the reader's
+        /// kernels, at every length. Here, out of line, not in Read: the reader's
         /// address passed there kept it in memory in every collection's read of such a class, short runs included
         /// (asm.py: 8 to 21 stack accesses, ChatMessage, ScatteredItem).
         /// </summary>
@@ -521,7 +521,7 @@ namespace Nino.Core.Internal
         private static Reader ReadClasses<T, TFormatter>(scoped ref T item, int count, Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun)
+            if (NinoKind<TFormatter>.Flat)
             {
                 default(TFormatter).ReadFlat(NinoRun.Unscoped(new NinoRun(ref Unsafe.As<T, byte>(ref item), count,
                     Unsafe.SizeOf<T>(), NinoRun.NoKey, NinoRun.AllInUse)), ref reader);

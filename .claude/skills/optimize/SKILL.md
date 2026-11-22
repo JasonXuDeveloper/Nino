@@ -339,6 +339,20 @@ says which CPUs and cases moved.
   writer (through `NinoGather.Write`'s call, the writer's copies made 1,000 pairs 1.1 to 1.15 times as long to write),
   as four lines of its own: that step as a helper inlined into `NinoGather.Write` too kept every enumerated gather's
   source in memory (asm.py: 57 to 65 stack accesses by value, 60 to 65 by reference).
+- **Pass a run by `in` and a writer or reader by `ref`; never copy a struct by value right after storing its fields.**
+  A `NinoRun` (a ref and four ints) or a `Writer` passed or returned by value is copied with 16- to 32-byte loads just
+  after the narrow stores that built it, which the CPU cannot forward: each copy waits for those stores to retire (a
+  store-forwarding stall). #423's string run and dictionary paths did that at every level (`NinoStringRuns`,
+  `NinoItems`, `NinoDictionary.WriteEntries`, the flat hooks): Players serialized in 2.03 times main's time, SimpleClass
+  1.29, MediaContent 1.48, a top-level `Dictionary<int, string>` of 1 entry 1.51; with the run by `in`, the inline
+  entry on the caller's `ref Writer` and a copy of the cursor alone (`CopyCursorTo` in and out) around the one call out
+  of line, 1.16, 1.12, 1.05 and 0.87 (local x64, alternated). Copy the cursor, not the whole writer (`CopyTo` of both
+  took SimpleClass's `__WriteTop` from 78 to 194 stack accesses). Find it with `perf script -F ip,sym,symoff` against
+  `DOTNET_JitDisasmWithCodeBytes` offsets: a hot wide load at a method's entry right after the caller's stores.
+- **Never compare a generic `T` with `null` where `T` may be a `Nullable<U>` on a hot path.** The JIT boxed it per call
+  in `HashTables.Hash` (inlined into every set's fill): NullableHashSetInts deserialized in 15 times main's time; testing
+  the constant first (`!set && key == null`: a set hashes its null through the comparer, as 0) removed the box. The no-boxing rule
+  is the owner's: no box anywhere.
 - **Reach a generated class's members from a kernel through one accessor struct per member, never through a static
   field or table** (#355, the generator seam; `FlatEmitter`, `NinoFlat<TLayout, TBody>`). A flat class (raw members,
   bools, strings) is one chain of items nested in type arguments, each item's member a `readonly struct` whose
@@ -357,9 +371,14 @@ says which CPUs and cases moved.
   and size from generic statics (`static readonly`, #436): B's write loop was 3,708 bytes with 165 stack operands and
   wrote in 1.08 times the base's time; v2's accessor structs made it 1,056 bytes and 31 operands, writes 0.85-0.90
   (local, alternated). Read the run's startup check (`__Check`, block placement and Untrusted's `ReadsAsIs`) once per
-  call in the hook and pick a chain there, never per element. Keep runs under `NinoFlatRuns.MinRun` (16) element by
-  element: a run's fixed cost (about 30 ns: entry, the check, the loop's setup) made a 2-element array 2.2 times as
-  long to write and WorkloadTest's `MediaContent` 1.64. One body's write never takes the block chain (a block's copy
+  call in the hook and pick a chain there, never per element. Send every run to the kernels, one element included, with
+  an entry as cheap as the loop: the run by `in` and the writer or reader by `ref` from the hook
+  (`WriteFlat`/`ReadFlat`) through `NinoFlat` to `NinoFlatRuns.WriteRun`/`ReadRun` (inlined there), never by value.
+  With both by value through each level, a run's fixed cost made a 2-element array 2.2 times as long to write and
+  WorkloadTest's `MediaContent` 1.64, so runs under 16 (`MinRun`, gone) went element by element; by reference a
+  `List<Image>` of 1, 3, 16 and 32 wrote in 1.05, 1.02, 0.90 and 0.95 times the time element by element and read in
+  1.04, 0.99, 0.94 and 0.95 (local, alternated, #355). Short runs reaching the kernels showed that a class nested in a
+  generic one wrote type id 0 in the typed kernels (its layout printed the model's id, not `s_typeId`). One body's write never takes the block chain (a block's copy
   pays off in runs) and keeps the sealed class's `__WriteTop` twin: without it one value wrote in 1.11 times the
   base's time, with it 0.88. Read one body member by member (`BodyEmitter`), never through the chain: through it a
   body inlined into a polymorphic dispatch kept more on the stack (ChatMessage's `ReadBody` 14 to 33 stack accesses,

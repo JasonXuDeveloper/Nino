@@ -57,7 +57,7 @@ internal static class FlatEmitter
         w.Line(m.Kind == FormatterKind.SealedClass
             ? $"{names.Inline} public bool IsExact(object value) => true;"
             : $"{names.Inline} public bool IsExact(object value) => value.GetType() == typeof({t});");
-        w.Line($"public int TypeId => {m.TypeId.ToString(CultureInfo.InvariantCulture)};");
+        w.Line($"public int TypeId => {FormatterEmitter.TypeIdValue(m)};"); // a generic class's from its formatter
         w.Close();
         w.Line();
         w.Line($"private sealed class __Flat : {Services}NinoFlat<__Layout, {Chain(m, fields: false)}> {{ }}");
@@ -93,15 +93,15 @@ internal static class FlatEmitter
         if (flat.ValueType)
         {
             w.Line(names.Inline);
-            w.Line($"public void WriteFlat({Services}NinoRun run, ref {Core}Writer writer) => __Flat.Write(run, ref writer);");
+            w.Line($"public void WriteFlat(in {Services}NinoRun run, ref {Core}Writer writer) => __Flat.Write(in run, ref writer);");
             w.Line(names.Inline);
-            w.Line($"public void ReadFlat({Services}NinoRun run, ref {Core}Reader reader) => __Flat.Read(run, ref reader);");
+            w.Line($"public void ReadFlat(in {Services}NinoRun run, ref {Core}Reader reader) => __Flat.Read(in run, ref reader);");
             return;
         }
 
-        Hook(w, names, flat.Checks, $"public void WriteFlat({Services}NinoRun run, ref {Core}Writer writer)",
-            "__Check.Write", $"Write{kind}<{t}, {formatter}>(run, ref writer)");
-        Hook(w, names, flat.Checks, $"public void ReadFlat({Services}NinoRun run, ref {Core}Reader reader)",
+        Hook(w, names, flat.Checks, $"public void WriteFlat(in {Services}NinoRun run, ref {Core}Writer writer)",
+            "__Check.Write", $"Write{kind}<{t}, {formatter}>(in run, ref writer)");
+        Hook(w, names, flat.Checks, $"public void ReadFlat(in {Services}NinoRun run, ref {Core}Reader reader)",
             "__Check.Read", $"Read{kind}<{t}, {formatter}>(run, ref reader)");
     }
 
