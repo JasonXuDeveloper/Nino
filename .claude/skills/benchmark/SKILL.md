@@ -87,6 +87,15 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
      Check `git merge-base --is-ancestor <sha> HEAD` for both refs after the history merges. The #353 benchmark
      baseline and candidate were built on independent branches, so merging only the candidate left the baseline
      missing from every runner checkout (44333395182).
+   - **Compare a series of steps with the previous main, not only each step with its base.** Every #355 step was
+     judged against the step before it, mostly on large collections, and each added a little fixed cost per collection;
+     the A/B of the whole branch against main then found SimpleClass serialize 1.44-1.60, AppData Players 1.75-2.5 and
+     WorkloadTest's serialize cases 1.3-1.9 on every x64 runner (run 44979508452), from collections of 1 to 3 strings
+     inside the objects (a top-level `Dictionary<int, string>` of one entry +30 ns, 1.8x; 1,000 elements on par or
+     faster), built up over #409, #412, #423 and #427. Time a run-path change at 1, 3, 32 and 1,000 elements and against
+     the last main, and run the branch's A/B against main before its pull request, early enough to fix what it finds.
+     When head's benchmark project needs packages main lacks, base is main plus head's
+     `runtimes/csharp/Directory.Packages.props` in one commit (bcc00f8f: LuminPack 2.0.0-rc.2), reached as above.
    - **Time the Nino.Core build you mean.** BenchmarkDotNet's runner project (`Nino.Benchmark-<job>`) gets Nino.Core
      only through Nino.Benchmark's references, so a referenced package built for fewer frameworks than Nino.Core brings
      an older build into it: until f01a8d3c Nino.Immutable (net8.0 only) made every runner process load Nino.Core's
@@ -136,9 +145,12 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
      decide a question (narrow filters, one floor per base shared by everyone, repeats only for a verdict). The
      workflows cap themselves (`max-parallel` 10 runtime, 8 .NET jobs); cancelling and re-running from a session
      returns 403, so a run started is a run spent: 8 queued runtime runs of 25 lines (250 jobs each) once blocked every
-     other workflow for hours. The whole .NET suite in one line, `*Test.Nino*` (128 cases, quick), takes about 24
-     minutes a round on every runner: 5 rounds are 2 hours a job, and an A/B line, its floor and a second Neoverse line
-     took 6 h 17 min (run 41364890698); a filter of 13 cases at 12 rounds took 2 hours (41399172268).
+     other workflow for hours. The whole .NET suite in one line, `*Test.Nino*`, took about 24 minutes a round at 128
+     cases (5 rounds 2 hours a job; an A/B line, its floor and a second Neoverse line 6 h 17 min, run 41364890698); at
+     326 cases (rc.11) one side of a round takes about 33 minutes on an EPYC 9V74, so 3 rounds are 3 h 20 min a job, and
+     two lines on `cpu='EPYC|Xeon|Neoverse'` made 27 jobs that ran for more than 7 hours (run 44979508452). Split the
+     suite across lines by class, or take 2 rounds, when the question allows; a filter of 13 cases at 12 rounds took 2
+     hours (41399172268).
    - **Skip an A/B whose code is unchanged** (identical generated files or machine code prove it), and prove it per
      runtime before requesting the line: Go, `go test -c` the bench at both commits and diff `go tool objdump` with
      paths and addresses stripped; in TypeScript, diff each revision's benchmark harness, `src/nino.ts`, and the

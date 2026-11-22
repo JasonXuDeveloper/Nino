@@ -153,6 +153,10 @@ reusing is written down before the task ends, in the same series of commits as t
    way through public seams; standard practice over a new mechanism. The standard is stated in `audit-code`; for
    collections it is one storage layer and one devirtualized loop per element kind over `<T, TFormatter>`, reads and
    writes, a composite (a pair, a tuple, a generic struct) composed from its items, never a loop shape of its own (`optimize`).
+   Generated code only composes calls of those kernels: unifying or simplifying it never changes which kernels run or
+   in what order, and speed comes from three places only, a cheaper composition, faster kernels, and generated code the
+   JIT compiles well (everything inlined, state in registers, no per-element `static readonly`, one length check, cold
+   paths out of line) (the owner's rule, #355).
 5. **Proven.** Tests for behavior, the machine code for hot paths, runner numbers for speed (`benchmark`).
 
 ## Rules
@@ -193,6 +197,10 @@ reusing is written down before the task ends, in the same series of commits as t
   when the owner asks), after the pull request's CI is green. A contributor's pull request is reviewed against
   `feature`; fix it on their branch where maintainers may push, otherwise merge it into ours with their commits kept,
   so it shows as merged once ours lands. The test branch moves only by merge. No force push, never trigger a release.
+- **Work in progress is pushed.** Commit unfinished work and push it to its working branch at each meaningful point
+  and before a session or an agent stops, so another session can continue it (the owner's rule): a normal
+  Conventional subject whose summary starts with `WIP:`, a body that says what is done, measured and left, and a tree
+  that builds. A WIP commit lands on `main` only after the work is finished and its branch passes `verify`.
 - **Shell**: never bare `git stash`, `pkill -f` or `pgrep -f`; heavy commands (builds, tests, benchmarks, cargo) run
   under `flock -o /tmp/nino-heavy.lock` when agents share the machine; scratch files stay out of the repository.
   Remove each experiment's worktree and temporary builds once its timing is done (keep uncommitted source changes,
