@@ -49,7 +49,18 @@ shift and the diff lists unrelated `SerializeNNN`; dump the base from a worktree
 case reaches, normalized (addresses, labels, `align [N bytes]` padding, Arm64 `movz`/`movk` address immediates).
 For the Arm64 side run `Nino.Benchmark.dll` directly with the cross JIT (runtimes/csharp/benchmarks/README.md), `DOTNET_STARTUP_HOOKS`
 set to `jitwarm`'s build and `NINO_JIT_FILTER` to the case: `DOTNET_AltJit` around `asm.py` reaches its `dotnet
-build`, which fails (round 105).
+build`, which fails (round 105). A dump that aborts with glibc's `free(): invalid pointer`,
+`printf_buffer_to_file.c:86 ... assertion failed` or `invalid stdio handle` is the process exiting while the JIT
+still prints a listing, not Nino: the runtime's shutdown closes (frees) the `DOTNET_JitStdOutFile` stream under the
+background Tier1 compiles still writing to it. Make any program that exits right after warming methods under
+`DOTNET_JitDisasm` wait first until `JitInfo.GetCompiledMethodCount()` stands still, as `jitwarm` does, and catch
+such an abort with a kernel core (`ulimit -c unlimited`), not `DOTNET_DbgEnableMiniDump`, under which it never
+showed (#413: a program without Nino that called `Environment.Exit` while the JIT printed aborted in 27 of 1,081
+runs, once with `free(): invalid pointer`, under `libc_malloc_debug` with `invalid stdio handle`, and in 0 of 550
+with createdump on; 0 of 400 with the wait. Its core: two JIT threads inside `vfprintf` on the one stream at once,
+the main thread in `exit`'s handlers. Nino.Benchmark's JIT compiled another 902 methods in the 1.7 s after the
+hook's last round, the window its `Environment.Exit` fell in; the review of the unsafe cursor, entry and flat-kernel
+writes found none that reaches native memory).
 
 ## The techniques, by topic
 
