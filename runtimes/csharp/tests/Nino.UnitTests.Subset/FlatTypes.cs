@@ -203,4 +203,36 @@ namespace Nino.UnitTests.Subset.Flat
         public DateTime At;
         [NinoUtf8] public string Tag;
     }
+
+    /// <summary>
+    /// A generic flat class whose members name no type parameter (#355 step B): its runs take the item chain where its
+    /// type argument is a value type (exact code), element by element where it is a class (code shared over it).
+    /// </summary>
+    [NinoType]
+    public sealed class FlatBox<T>
+    {
+        public int Id;
+        public string Name;
+        public long? Big { get; set; }
+    }
+
+    /// <summary><see cref="FlatBox{T}"/> with a callback: not flat, the same bytes.</summary>
+    [NinoType]
+    public sealed class FlatBoxTwin<T>
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public int Id;
+        public string Name;
+        public long? Big { get; set; }
+    }
+
+    /// <summary>A generic flat struct, as <see cref="FlatBox{T}"/>.</summary>
+    [NinoType]
+    public struct FlatEntry<T>
+    {
+        public string Key;
+        public int Value;
+    }
 }

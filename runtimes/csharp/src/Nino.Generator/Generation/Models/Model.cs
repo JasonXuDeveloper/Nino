@@ -500,8 +500,13 @@ internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool P
 /// one item per member and a startup check read once per call (<see cref="Checks"/>): the fallback.
 /// </summary>
 /// <param name="ValueType">A struct: its runs only, each element in place, through one chain of one item per member.</param>
-internal sealed record FlatModel(EquatableArray<FlatItem> Items, bool ValueType = false)
+/// <param name="Generic">A generic type: its runs only (one value member by member: code shared over a class argument
+/// would call each accessor), and its hooks only where every type argument is a value type.</param>
+internal sealed record FlatModel(EquatableArray<FlatItem> Items, bool ValueType = false, bool Generic = false)
 {
+    /// <summary>Whether only runs take the chain, one value its member-by-member body.</summary>
+    public bool RunsOnly => ValueType || Generic;
+
     /// <summary>Whether the body has a fallback chain and a startup check: a block or a struct among its items.</summary>
     public bool Checks => !ValueType && Items.Any(static i => i.Kind == FlatItemKind.Block || i.Kind == FlatItemKind.Struct && !i.Property);
 }

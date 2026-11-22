@@ -8,7 +8,7 @@ namespace Nino.Generator.Generation;
 /// <summary>
 /// Whether a class's body is flat (#355, the generator seam), and its items (<see cref="FlatModel"/>): decided from
 /// the body the generator would write, never from a list of member types. A body is flat where it is a sequence of
-/// raw members, bools, raw <c>T?</c>s and strings and nothing else runs around it: a positional class, neither generic,
+/// raw members, bools, raw <c>T?</c>s and strings and nothing else runs around it: a positional class or struct (a generic one whose members name no type parameter), neither
 /// tracked, pooled, made by a factory or a constructor with arguments, a collection, nor calling callbacks; every member
 /// a field or property generated code reads and assigns directly (a field by reference, NinoItemAt; a property through
 /// its accessors, NinoPropertyAt), raw, a raw <c>T?</c> or a string written by the built-in formatters (a custom member
@@ -35,7 +35,10 @@ internal static class FlatRules
         // A struct (not raw: a raw one is a block) composes in place, its runs only, as a pair does: with a string, so
         // that collections move it through the run kernels (NinoCursor.Own); never in blocks (no startup check).
         bool valueType = kind == FormatterKind.Struct;
-        if (!(valueType ? !rawStruct : kind is FormatterKind.Class or FormatterKind.SealedClass) || generic ||
+        // A generic type: its members' types name no type parameter (each a constant item, whatever the arguments);
+        // its hooks hold only where every argument is a value type (FlatEmitter), where its code is exact.
+        if (!(valueType ? !rawStruct : kind is FormatterKind.Class or FormatterKind.SealedClass) ||
+            generic && members.Any(static m => m.Formatter.Open) ||
             trackReferences || collection || pooled || callbacks || format != NinoFormat.Positional ||
             construction.Recreate || construction.Factory.Length != 0 ||
             !valueType && !construction.Creator.StartsWith("new ", System.StringComparison.Ordinal) ||
@@ -96,7 +99,7 @@ internal static class FlatRules
             i = end;
         }
 
-        return items.Count <= MaxItems ? new FlatModel(new EquatableArray<FlatItem>(items.ToArray()), valueType) : null;
+        return items.Count <= MaxItems ? new FlatModel(new EquatableArray<FlatItem>(items.ToArray()), valueType, generic) : null;
     }
 
     /// <summary>

@@ -70,6 +70,8 @@ internal static class FlatEmitter
 
         w.Line();
         EmitHooks(w, m, names, m.Self);
+        if (flat.RunsOnly)
+            return;
         w.Line();
         EmitBodies(w, m, names);
     }
@@ -83,7 +85,11 @@ internal static class FlatEmitter
         var flat = m.Flat!;
         string t = m.TypeName;
         string kind = m.Kind == FormatterKind.SealedClass ? "Sealed" : "Typed";
-        w.Line("public bool HasFlat => true;");
+        // A generic type's chain is exact where every type argument is a value type; shared over a class, each accessor
+        // would be a call, and its runs go element by element.
+        w.Line(m.IsGeneric
+            ? $"public bool HasFlat => {string.Join(" && ", m.TypeParameters.Select(static p => $"typeof({p}).IsValueType"))};"
+            : "public bool HasFlat => true;");
         if (flat.ValueType)
         {
             w.Line(names.Inline);

@@ -154,7 +154,7 @@ internal static class FormatterEmitter
         }
 
         w.Line();
-        if (m.Flat is { ValueType: false })
+        if (m.Flat is { RunsOnly: false })
         {
             // Runs and one value's writes go through the flat kernels; one value's read member by member, as any
             // other body (FlatEmitter's summary says why).
@@ -176,7 +176,8 @@ internal static class FormatterEmitter
             body.EmitWriteBody();
             w.Line();
             body.EmitReadBody();
-            // A struct whose body is flat: its runs through the chain of items, one value member by member.
+            // A struct or generic type whose body is flat: its runs through the chain of items, one value member by
+            // member.
             if (m.Flat != null)
             {
                 w.Line();
@@ -269,7 +270,7 @@ internal static class FormatterEmitter
         // registers and knows it starts empty (no region open, no context) instead of loading it from the caller's
         // memory and storing it back.
         // A flat body (TypeModel.Flat) the same way, through its chain inlined into __WriteTop.
-        bool serializeTop = !m.TopInline && (m.LocalWriter || m.Flat is { ValueType: false });
+        bool serializeTop = !m.TopInline && (m.LocalWriter || m.Flat is { RunsOnly: false });
         bool readTop = m.ReadTop;
         if (serializeTop)
         {
@@ -373,7 +374,7 @@ internal static class FormatterEmitter
         w.Line($"byte __present = (byte)(value == null ? {NinoWire.Null} : {NinoWire.NotNull});");
         w.Line("__w.UnsafeWrite(__present);");
         w.Line($"if (__present != {NinoWire.Null})");
-        w.IndentedLine(m.Flat is { ValueType: false } ? $"{FlatEmitter.Body(m)}.WriteInline(value, ref __w);" : "__WriteBodyInline(value, ref __w);");
+        w.IndentedLine(m.Flat is { RunsOnly: false } ? $"{FlatEmitter.Body(m)}.WriteInline(value, ref __w);" : "__WriteBodyInline(value, ref __w);");
     }
 
     /// <summary>

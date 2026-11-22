@@ -297,6 +297,48 @@ namespace Nino.UnitTests
         }
 
         /// <summary>
+        /// Generic flat types (#355 step B): the item chain where every type argument is a value type, element by
+        /// element where one is a class, the same bytes either way as a twin written by the generated body.
+        /// </summary>
+        [TestMethod]
+        public void GenericTypesTakeTheChainOverValueTypes()
+        {
+            var ints = Enumerable.Range(0, 40).Select(static i => new FlatBox<int> { Id = i, Name = "b" + i, Big = i % 2 == 0 ? null : i }).ToArray();
+            var strings = ints.Select(static b => new FlatBox<string> { Id = b.Id, Name = b.Name, Big = b.Big }).ToArray();
+            var twins = ints.Select(static b => new FlatBoxTwin<int> { Id = b.Id, Name = b.Name, Big = b.Big }).ToArray();
+            byte[] bytes = NinoSerializer.Serialize(ints);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(twins), bytes);
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(strings));
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<FlatBox<int>[]>(bytes)));
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<FlatBox<string>[]>(bytes)));
+
+            var (intWrites, intReads) = GenericStacks<FlatBox<int>>(ints, "Nino_UnitTests_Subset_Flat_FlatBox_1Formatter", typeof(int));
+            Assert.IsTrue(intWrites.Contains("NinoFlat`2.WriteSealed") && intReads.Contains("NinoFlat`2.ReadSealed"));
+            var (stringWrites, stringReads) = GenericStacks<FlatBox<string>>(strings, "Nino_UnitTests_Subset_Flat_FlatBox_1Formatter", typeof(string));
+            Assert.IsFalse(stringWrites.Contains("NinoFlat`2") || stringReads.Contains("NinoFlat`2"));
+
+            var entries = Enumerable.Range(0, 300).Select(static i => new FlatEntry<long> { Key = "entry key " + i, Value = i }).ToArray();
+            byte[] entryBytes = NinoSerializer.Serialize(entries);
+            CollectionAssert.AreEqual(entries, NinoDeserializer.Deserialize<FlatEntry<long>[]>(entryBytes));
+            CollectionAssert.AreEqual(entryBytes, NinoSerializer.Serialize(entries.Select(static e => new FlatEntry<string> { Key = e.Key, Value = e.Value }).ToArray()));
+            var (entryWrites, entryReads) = GenericStacks<FlatEntry<long>>(entries, "Nino_UnitTests_Subset_Flat_FlatEntry_1Formatter", typeof(long));
+            Assert.IsTrue(entryWrites.Contains("NinoFlatValues`1.Write"), entryWrites);
+            Assert.IsTrue(entryReads.Contains("NinoFlatValues`1.Read"), entryReads);
+        }
+
+        /// <summary><see cref="Stacks{T}"/>' array stacks of a generic type's formatter, closed over
+        /// <paramref name="argument"/> and its formatter.</summary>
+        private static (string Writes, string Reads) GenericStacks<T>(T[] values, string formatter, Type argument)
+        {
+            var open = typeof(T).Assembly.GetType("NinoGen." + formatter + "`2", true)!;
+            var argumentFormatter = argument == typeof(string) ? typeof(StringFormatter) : typeof(UnmanagedFormatter<>).MakeGenericType(argument);
+            var closed = open.MakeGenericType(argument, argumentFormatter);
+            var (writes, reads) = ((string[], string[]))typeof(FlatTests).GetMethod(nameof(StacksWith), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(typeof(T), closed).Invoke(null, new object[] { values })!;
+            return (writes[0], reads[0]);
+        }
+
+        /// <summary>
         /// The stacks of an array and a list of <paramref name="values"/> through the generated formatter: of every
         /// growth of the buffer they are written to, and of the exception reading their bytes without the last three.
         /// </summary>
