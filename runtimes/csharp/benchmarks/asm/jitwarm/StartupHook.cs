@@ -4,7 +4,9 @@ using System.Diagnostics.Tracing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 /// <summary>
@@ -14,6 +16,7 @@ using System.Threading;
 /// the cases have no profile data of their own there either). BenchmarkDotNet is found by attribute names only.
 /// With DOTNET_TieredCompilation=0 every method is compiled once, fully optimized, on its first call: one round.
 /// NINO_JIT_INLINE=FILE writes the inlines the JIT attempted and gave up (InlineFailures) to FILE.
+/// NINO_JIT_BOXES=FILE writes the types the listings allocate (BoxedTypes) to FILE.
 /// </summary>
 internal static class StartupHook
 {
@@ -54,6 +57,9 @@ internal static class StartupHook
 
         failures?.Write(inlineFile);
         WaitForJit();
+        var boxesFile = Environment.GetEnvironmentVariable("NINO_JIT_BOXES");
+        if (!string.IsNullOrEmpty(boxesFile))
+            BoxedTypes.Write(Environment.GetEnvironmentVariable("DOTNET_JitStdOutFile"), boxesFile);
         Environment.Exit(0);
     }
 
@@ -142,6 +148,58 @@ internal sealed class InlineFailures : EventListener
         lock (_gate)
             foreach (var pair in _counts.OrderBy(p => p.Key, StringComparer.Ordinal))
                 text.Append(pair.Key).Append('\t').Append(pair.Value).Append('\n');
+        File.WriteAllText(path, text.ToString());
+    }
+}
+
+/// <summary>
+/// The types behind the method table addresses the listings pass to an allocation helper, for asm.py's --boxes. The
+/// JIT expands a box of a value type inline (CORINFO_HELP_NEWSFAST of the value type's method table, then a store),
+/// so a listing alone cannot tell a box from a `new` of a class: the address names the type only in this process.
+/// Flushes the C runtime's streams (the JIT prints through one) and reads the listing so far, then writes one line
+/// per address an allocation helper takes as an immediate: "0xADDRESS\tvalue|class\ttype name". x64 only (an Arm64
+/// listing builds the address with movz/movk).
+/// </summary>
+internal static class BoxedTypes
+{
+    private static readonly Regex Load = new Regex(@"^\s+mov\s+(rdi|rcx), (0x[0-9A-F]+)\s*$");
+    private static readonly Regex Allocate = new Regex(@"^\s+call\s+\[?CORINFO_HELP_(NEWSFAST|NEWSFAST_ALIGN8|BOX|BOX_NULLABLE)\]?");
+
+    [DllImport("libc", EntryPoint = "fflush")]
+    private static extern int Flush(IntPtr stream);
+
+    public static void Write(string listingFile, string path)
+    {
+        try
+        {
+            Flush(IntPtr.Zero);
+        }
+        catch (Exception e) when (e is DllNotFoundException || e is EntryPointNotFoundException)
+        {
+            // Not glibc: the listing read below is what has reached the file.
+        }
+
+        var addresses = new HashSet<string>();
+        string last = null;
+        using (var reader = new StreamReader(new FileStream(listingFile, FileMode.Open, FileAccess.Read,
+                   FileShare.ReadWrite | FileShare.Delete)))
+            for (string line; (line = reader.ReadLine()) != null;)
+            {
+                if (last != null && Allocate.IsMatch(line))
+                    addresses.Add(last);
+                var load = Load.Match(line);
+                last = load.Success ? load.Groups[2].Value : null;
+            }
+
+        var text = new StringBuilder();
+        foreach (var address in addresses.OrderBy(a => a, StringComparer.Ordinal))
+        {
+            var type = Type.GetTypeFromHandle(RuntimeTypeHandle.FromIntPtr(
+                (IntPtr)long.Parse(address.Substring(2), System.Globalization.NumberStyles.HexNumber)));
+            if (type != null)
+                text.Append(address).Append('\t').Append(type.IsValueType ? "value" : "class").Append('\t')
+                    .Append(type.ToString()).Append('\n');
+        }
         File.WriteAllText(path, text.ToString());
     }
 }

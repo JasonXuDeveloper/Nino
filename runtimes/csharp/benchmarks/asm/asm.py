@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The machine code of the Nino benchmark cases, and what changed in it between two commits.
 
-usage: asm.py dump [--ref REF] [--filter TEXT] [--runs N] [--asm FILE] [--inline] OUT.json
+usage: asm.py dump [--ref REF] [--filter TEXT] [--runs N] [--asm FILE] [--inline] [--boxes] OUT.json
        asm.py diff BASE.json HEAD.json
        asm.py compare [--filter TEXT] [--inline] REF    (dump REF and the working tree, then diff them)
 
@@ -26,7 +26,11 @@ variation above: dump again to tell.
 up with its reason ({root: {"inlinee | reason": count}}), from the runtime's MethodJitInliningFailed events (jitwarm's
 NINO_JIT_INLINE), kept when every run reported them (the fewest times of any run). `diff` then lists the failures
 head has and base has not, as it lists new calls (when both OUT.inline.json files exist). The reason says which fix
-applies: `optimize`, references/jit.md, "Inlining budget". With DOTNET_TieredCompilation=0 in the environment both
+applies: `optimize`, references/jit.md, "Inlining budget".
+
+`--boxes` lists every box in the listings, per method, and exits with 1 when there is one (Nino boxes nothing on a
+read or write path: `optimize`, "Never box"): the boxing helpers, and the allocations of a value type's method table
+that the JIT expands a box into inline (jitwarm names each address's type in the process: NINO_JIT_BOXES; x64). With DOTNET_TieredCompilation=0 in the environment both
 the listings and the failures are FullOpts (what NativeAOT and the first calls compile), one round per case.
 """
 import argparse
@@ -51,13 +55,22 @@ CALL = re.compile(r"\b(call|bl|blr)\s+(.*)$")
 ADDRESS = re.compile(r"0x[0-9A-Fa-f]{6,}")
 
 
-def parse(listing):
-    """-> {method: {size, stack, calls}} from DOTNET_JitDisasm output; the last Tier1 listing of each wins."""
-    methods, name, current = {}, None, None
+# An allocation helper and the method table address loaded for it on the line before (x64).
+LOAD = re.compile(r"^\s+mov\s+(rdi|rcx), (0x[0-9A-F]+)\s*$")
+ALLOCATE = re.compile(r"^\s+call\s+\[?CORINFO_HELP_(NEWSFAST|NEWSFAST_ALIGN8|BOX|BOX_NULLABLE)\]?")
+
+
+def parse(listing, types=None):
+    """-> {method: {size, stack, calls}} from DOTNET_JitDisasm output; the last Tier1 listing of each wins. With
+    types ({address: (kind, name)} from jitwarm's NINO_JIT_BOXES), each method also gets "boxes": the value types it
+    boxes (a boxing helper's, or an inline allocation of a value type's method table)."""
+    methods, name, current, loaded = {}, None, None, None
     for line in listing.splitlines():
         match = LISTING.match(line)
         if match:
             name, current = HASH.sub("", match.group(1)), {"size": 0, "stack": 0, "calls": {}}
+            if types is not None:
+                current["boxes"] = []
         elif current is None:
             continue
         elif line.startswith("; Assembly listing"):
@@ -68,6 +81,13 @@ def parse(listing):
             methods[name], current = current, None
         elif STACK.search(line):
             current["stack"] += 1
+        if current is not None and types is not None:
+            if (allocate := ALLOCATE.match(line)) and (allocate.group(1).startswith("BOX") or loaded in types):
+                kind, type_name = types.get(loaded, ("value", "?"))
+                if kind == "value":
+                    current["boxes"].append(type_name)
+            load = LOAD.match(line)
+            loaded = load.group(2) if load else None
         if current is not None and (call := CALL.search(line)) and not call.group(2).startswith("G_M"):
             target = HASH.sub("", ADDRESS.sub("", call.group(2))).strip()
             current["calls"][target] = current["calls"].get(target, 0) + 1
@@ -107,7 +127,12 @@ def parse_inline(table):
     return failures
 
 
-def dump(ref, text, keep, runs=3, inline=False):
+def parse_types(table):
+    """-> {address: (kind, name)} from jitwarm's lines "address\tvalue|class\tname"."""
+    return {address: (kind, name) for address, kind, name in (line.split("\t") for line in table.splitlines())}
+
+
+def dump(ref, text, keep, runs=3, inline=False, boxes=False):
     """-> ({method: code}, {root: {failure: count}} or None)."""
     dotnet_env = dict(os.environ, NINO_BENCH_QUICK="1")
     tree, worktree = REPO, None
@@ -125,7 +150,7 @@ def dump(ref, text, keep, runs=3, inline=False):
         if build.returncode != 0:
             sys.exit(f"build of {ref or 'the working tree'} failed:\n{build.stdout[-4000:]}")
         startup_hook = hook()
-        methods, failures = {}, None
+        methods, failures, boxed = {}, None, {}
         for run in range(runs):
             with tempfile.TemporaryDirectory() as tmp:
                 out = os.path.join(tmp, "jit.asm")
@@ -133,10 +158,16 @@ def dump(ref, text, keep, runs=3, inline=False):
                            DOTNET_STARTUP_HOOKS=startup_hook, NINO_JIT_FILTER=text or "")
                 if inline:
                     env["NINO_JIT_INLINE"] = os.path.join(tmp, "inline.tsv")
+                if boxes:
+                    env["NINO_JIT_BOXES"] = os.path.join(tmp, "boxes.tsv")
                 subprocess.run(["dotnet", newest_build(project, "Nino.Benchmark.dll")],
                                env=env, cwd=project, check=True)
                 with open(out, encoding="utf-8") as f:
                     listing = f.read()
+                types = None
+                if boxes:
+                    with open(env["NINO_JIT_BOXES"], encoding="utf-8") as f:
+                        types = parse_types(f.read())
                 if inline:
                     with open(env["NINO_JIT_INLINE"], encoding="utf-8") as f:
                         found = parse_inline(f.read())
@@ -150,13 +181,28 @@ def dump(ref, text, keep, runs=3, inline=False):
                     f.write(listing)
             # What the JIT inlines also depends on the profile data of the methods it inlines, gathered while the
             # process ran: of a few runs, the leanest code of each method (the one with the fewest stack accesses).
-            for name, code in parse(listing).items():
+            for name, code in parse(listing, types).items():
+                if boxes:
+                    # A box in any run's code is kept, whichever run's code is: the JIT may compile it so.
+                    boxed[name] = max(boxed.get(name, []), code.pop("boxes"), key=len)
                 if name not in methods or (code["stack"], code["size"]) < (methods[name]["stack"], methods[name]["size"]):
                     methods[name] = code
+        for name, types in boxed.items():
+            methods[name]["boxes"] = types
         return methods, failures
     finally:
         if worktree:
             subprocess.run(["git", "-C", ROOT, "worktree", "remove", "--force", worktree], check=False)
+
+
+def report_boxes(methods):
+    """Prints every method that boxes, with the value types; -> how many."""
+    boxing = {m: c["boxes"] for m, c in sorted(methods.items()) if c.get("boxes")}
+    for method, types in boxing.items():
+        counts = {t: types.count(t) for t in types}
+        print(f"{method}\n    boxes " + "; ".join(f"{t} x{n}" if n > 1 else t for t, n in sorted(counts.items())))
+    print(f"{len(boxing)} of {len(methods)} methods box" if boxing else f"no method boxes ({len(methods)} listed)")
+    return len(boxing)
 
 
 def diff(base, head):
@@ -222,6 +268,7 @@ def main():
     p.add_argument("--filter")
     p.add_argument("--asm")
     p.add_argument("--inline", action="store_true")
+    p.add_argument("--boxes", action="store_true")
     p.add_argument("out")
     p = commands.add_parser("diff")
     p.add_argument("base")
@@ -233,7 +280,10 @@ def main():
     args = parser.parse_args()
 
     if args.command == "dump":
-        write(args.out, *dump(args.ref, args.filter, args.asm, args.runs, args.inline))
+        methods, failures = dump(args.ref, args.filter, args.asm, args.runs, args.inline, args.boxes)
+        write(args.out, methods, failures)
+        if args.boxes and report_boxes(methods):
+            sys.exit(1)
     elif args.command == "diff":
         worse = diff(load(args.base), load(args.head))
         if os.path.exists(inline_path(args.base)) and os.path.exists(inline_path(args.head)):
