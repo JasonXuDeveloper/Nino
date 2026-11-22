@@ -425,8 +425,9 @@ says which CPUs and cases moved.
   per top-level call in shared code) and why.
 - **Never box** (the owner's rule): nothing on a read or write path, nor on a branch of one that FullOpts code compiles
   before the field guarding it is set, boxes a value type. Test a value of a type parameter for null with
-  `NinoUnsafe.IsNull`, never `== null`: on a `T?` the JIT removes that box only where the boxed value has no side
-  effects, and .NET 11's JIT kept it in an inlined call (#449: `HashTables.Hash` boxed every non-null `int?` of a
+  `NinoUnsafe.IsNull` (one load of the presence byte at the offset `NinoPresence<T>` found; `Nullable<T>.Equals(object)`
+  boxed nothing but stayed a call, `HashTables.Hash<int?>` 1 -> 6 stack accesses), never `== null`: on a `T?` the JIT
+  removes that box only where the boxed value has no side effects, and .NET 11's JIT kept it in an inlined call (#449: `HashTables.Hash` boxed every non-null `int?` of a
   `HashSet<int?>` read, 46,152 B against 22,176 per 1,000 and 2.2x main, cc8f4132; the dictionary path of the same
   test still boxed in a `Dictionary<int?, int>` read, and `NinoRecycler.Discard` a `ManagedStruct?` replaced by null
   in `NinoRuns.ReadEach`, 61694e6b).
