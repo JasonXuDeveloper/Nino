@@ -50,8 +50,9 @@ namespace Nino.Core
 
         /// <summary>
         /// Whether a run of the formatter's values is written and read by the flat kernels (false, the default):
-        /// <see cref="WriteFlat"/> and <see cref="ReadFlat"/>. Generated formatters of classes whose body is flat (raw
-        /// members, bools and strings: <see cref="NinoFlat{TLayout,TBody}"/>, #355), a constant. Called once.
+        /// <see cref="WriteFlat"/> and <see cref="ReadFlat"/>. Generated formatters of classes and structs whose body is
+        /// flat (raw members, bools, raw T?s and strings: <see cref="NinoFlat{TLayout,TBody}"/>,
+        /// <see cref="NinoFlatValues{TBody}"/>, #355), a constant. Called once.
         /// </summary>
         bool HasFlat => false;
 

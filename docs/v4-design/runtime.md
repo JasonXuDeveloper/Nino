@@ -201,10 +201,15 @@ merges in its own layer, each key read before its value's place is known (`NinoC
 the same items: one cursor read per item, #347).
 
 Classes whose body is flat take a third kind of their own (`NinoFlatRuns`, #355). The generator marks a body flat
-(`FlatRules`) when it is a positional, non-generic class without reference tracking, pooling, callbacks or a factory,
-made by a constructor without arguments, with at least one string and at most twelve items (each is a level of
-inlining, and the JIT inlines at most 20 deep), and every member a field generated code reads and assigns directly, of
-a raw type, a bool or a string. Such a formatter writes no member-by-member body: it names its members once, as a
+(`FlatRules`) when it is a positional class without reference tracking, pooling, callbacks or a factory, made by a
+constructor without arguments, with at least one string or raw `T?` and at most twelve items (each is a level of
+inlining, and the JIT inlines at most 20 deep), and every member a field or property generated code reads and assigns
+directly, of a raw type, a bool, a raw `T?` (`NinoSlotItem`) or a string. A field is reached by reference
+(`NinoItemAt`), a property through its accessors (`NinoPropertyAt`: the bottom item over a local copy, assigned back
+after a read). A non-raw struct of the same members with a string is flat too, for its runs only: each element in place
+(`NinoFlatValues`), as a pair's, reached through the same `HasFlat` hooks from the run kernels' branch. A generic type
+whose members name no type parameter is flat for its runs where every type argument is a value type (`HasFlat` tests
+`typeof(T).IsValueType`): over a class argument its code is shared and each accessor would be a call. Such a formatter writes no member-by-member body: it names its members once, as a
 chain of items nested in type arguments, the one chain every composite is (`NinoItemAt<TMember, TItem, TNext>` with a
 bottom item per member, `NinoRawItem`, `NinoStructItem`, `NinoBoolItem`, `NinoUtf16Item`, `NinoUtf8Item`, and
 `NinoBlockAt`, the raw item, the last item without a next; `NinoFlat<TLayout, TBody>` names it once), each item reaching its

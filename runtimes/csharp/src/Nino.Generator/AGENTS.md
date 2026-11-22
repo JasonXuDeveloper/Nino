@@ -86,9 +86,10 @@ Model.cs                     the equatable model records (TypeModel, MemberModel
 ModelBuilder.cs              turns a [NinoType] symbol into a TypeModel (reports through a DiagnosticSink): the type,
                              its construction, dispatch and registrations
 ModelBuilder.Members.cs      the MemberModel of each serialized member, and whether members start at their defaults
-FlatRules.cs                 whether a class's body is flat (#355) and its items (FlatModel): blocks of primitives the
-                             CoreCLR auto layout places as on the wire (NinoLayoutCore.PlacePrimitives), values,
-                             structs, bools and strings
+FlatRules.cs                 whether a class's or struct's body is flat (#355) and its items (FlatModel): blocks of
+                             primitives the CoreCLR auto layout places as on the wire (NinoLayoutCore.PlacePrimitives),
+                             values, structs, bools, raw T?s (slots) and strings, fields or properties; a struct's and a
+                             generic type's runs only (FlatModel.RunsOnly)
 PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoFormatter.PrefetchBytes):
                              the object's estimated bytes for the cache budget, and which members' objects it prefetches
 TypeFacts.cs                 everything model builds ask about one compilation's symbols, memoized and shared
@@ -147,8 +148,10 @@ BodyEmitter.cs               WriteBody / ReadBody and WriteMembers / ReadMembers
 BodyEmitter.Writes.cs        the member writes: positional, raw blocks, a region opened with its first raw members
 BodyEmitter.Reads.cs         the member reads: in place, recreating (constructor arguments), split fresh bodies
 BodyEmitter.Keyed.cs         keyed bodies: (key, length, value) writes and the in-order reads with their fallback
-FlatEmitter.cs               a flat class's formatter members (#355): an accessor struct per item, the layout, the chains
-                             of items (__Flat, and __Fields with the startup check __Check), the run hooks and bodies
+FlatEmitter.cs               a flat type's formatter members (#355): an accessor struct per item (a field's, or a
+                             property's), the layout, the chains of items (__Flat, and __Fields with the startup check
+                             __Check; a struct's NinoFlatValues), the run hooks (a generic type's over value-type
+                             arguments only) and bodies
 RawBlock.cs                  consecutive raw members in one reservation (offsets as expressions)
 MemberCode.cs                expressions and statements reading or assigning a member, whatever its accessibility
 AccessorEmitter.cs           non-public member access: [UnsafeAccessor] (.NET 8+, generic .NET 9+) or a partial class
