@@ -55,7 +55,12 @@ namespace Nino.Core
             }
 
             if (RuntimeHelpers.IsReferenceOrContainsReferences<CollectionFields.MapEntry<TKey, TValue>>())
-                writer = WriteEntries(value, count, writer);
+            {
+                Writer copy = default;
+                writer.CopyTo(ref copy);
+                WriteEntries(value, count, ref copy);
+                copy.CopyTo(ref writer);
+            }
             else if (CollectionFields.Run(value, count, out var run))
                 NinoRuns.Write<CollectionFields.MapEntry<TKey, TValue>, NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run,
                     count, ref writer);
@@ -81,28 +86,24 @@ namespace Nino.Core
         /// write, 107 to 189 stack accesses).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteEntries(Dictionary<TKey, TValue> value, int count, Writer writer)
+        private static void WriteEntries(Dictionary<TKey, TValue> value, int count, ref Writer writer)
         {
             if (!CollectionFields.Run(value, count, out var run))
-                return WriteEnumerated(value, count, writer);
-
-            if (NinoItems.RunLoop<TKey, TValue, TKeyFormatter, TValueFormatter>(KeyOffset, ValueOffset))
+                writer = WriteEnumerated(value, count, writer);
+            else if (NinoItems.RunLoop<TKey, TValue, TKeyFormatter, TValueFormatter>(KeyOffset, ValueOffset))
             {
-                // The value's run loop, through a copy of the writer (HashSetFormatter).
+                // The value's run loop.
                 writer.WriteLength(count);
-                Writer copy = default;
-                writer.CopyTo(ref copy);
-                NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>.WriteRun(run, ref copy);
-                copy.CopyTo(ref writer);
-                return writer;
+                NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>.WriteRun(run, ref writer);
             }
-
-            if (!CursorPairs)
-                return NinoRuns.WriteEach<CollectionFields.MapEntry<TKey, TValue>, NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run,
+            else if (!CursorPairs)
+                writer = NinoRuns.WriteEach<CollectionFields.MapEntry<TKey, TValue>, NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(run,
                     count, writer);
-            writer.WriteLength(count);
-            return NinoItems.Write<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyOffset, ValueOffset,
-                writer);
+            else
+            {
+                writer.WriteLength(count);
+                NinoItems.Write<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyOffset, ValueOffset, ref writer);
+            }
         }
 
         /// <summary>The count and the pairs through the enumerator, out of line, the writer by value and

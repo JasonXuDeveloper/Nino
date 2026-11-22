@@ -89,8 +89,8 @@ namespace Nino.Core
         // polymorphic value's run loop, the keys written by it; a dropped pair's items recycled.
         bool INinoFormatter.HasCursor => NinoItems.Cursor<TKey, TValue, TKeyFormatter, TValueFormatter>(KeyAt, ValueAt);
 
-        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoItems.Write<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyAt, ValueAt, writer);
+        void INinoFormatter.WriteStrings(scoped in NinoRun run, ref Writer writer) =>
+            NinoItems.Write<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyAt, ValueAt, ref writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
             NinoItems.Read<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyAt, ValueAt, ref data, end);

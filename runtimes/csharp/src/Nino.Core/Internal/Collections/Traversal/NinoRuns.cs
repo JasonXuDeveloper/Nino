@@ -172,7 +172,13 @@ namespace Nino.Core.Internal
                 if (counted)
                     writer.WriteLength(length);
                 if (!row || count != 0)
-                    writer = WriteStrings<T, TFormatter>(run, writer);
+                {
+                    Writer copy = default;
+                    writer.CopyTo(ref copy);
+                    WriteStrings<T, TFormatter>(run, ref copy);
+                    copy.CopyTo(ref writer);
+                }
+
                 return;
             }
 
@@ -248,7 +254,7 @@ namespace Nino.Core.Internal
         /// (any stride, free entries skipped): a set's or a dictionary's; <paramref name="length"/> written first.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static Writer WriteEach<T, TFormatter>(scoped NinoRun run, int length, Writer writer)
+        internal static Writer WriteEach<T, TFormatter>(scoped in NinoRun run, int length, Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (length != NoLength)
@@ -417,19 +423,16 @@ namespace Nino.Core.Internal
         /// serialized with their writers in memory).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static Writer WriteStrings<T, TFormatter>(scoped NinoRun run, Writer writer)
+        internal static void WriteStrings<T, TFormatter>(scoped in NinoRun run, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (!typeof(T).IsValueType)
-                return NinoStringRuns.Write<TFormatter>(run, writer);
+                NinoStringRuns.Write<TFormatter>(run, ref writer);
             // A generated struct whose body is flat (#355): its chain of items, in place.
-            if (NinoKind<TFormatter>.Flat)
-            {
+            else if (NinoKind<TFormatter>.Flat)
                 default(TFormatter).WriteFlat(NinoRun.Unscoped(run), ref writer);
-                return writer;
-            }
-
-            return default(TFormatter).WriteStrings(run, writer);
+            else
+                default(TFormatter).WriteStrings(run, ref writer);
         }
 
         /// <summary>

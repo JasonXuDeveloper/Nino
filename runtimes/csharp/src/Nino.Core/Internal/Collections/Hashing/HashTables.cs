@@ -163,14 +163,9 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int Hash<TKey>(object table, TKey key, int mask, bool set)
         {
-            if (key == null)
-            {
-                if (!set)
-                    NinoThrow.NullKey(table);
-                return 0;
-            }
-
-            return EqualityComparer<TKey>.Default.GetHashCode(key) & mask;
+            if (!set && key == null)
+                NinoThrow.NullKey(table);
+            return EqualityComparer<TKey>.Default.GetHashCode(key!) & mask;
         }
 
         /// <summary>

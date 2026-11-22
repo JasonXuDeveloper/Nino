@@ -110,7 +110,7 @@ namespace Nino.Core.CompilerServices
         /// <summary>Writes the values of <paramref name="run"/> (not empty; free entries skipped).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void Write(NinoRun run, ref Writer writer) =>
-            writer = NinoStringRuns.Write(run, default(TBody), writer);
+            NinoStringRuns.Write(run, default(TBody), ref writer);
 
         /// <summary>Reads the values of <paramref name="run"/> (not empty, every one in use) in place.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]

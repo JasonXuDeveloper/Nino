@@ -124,14 +124,11 @@ namespace Nino.Core
         /// <summary>
         /// Writes the values of <paramref name="run"/> (not empty; the count is the caller's) through the string run
         /// kernels (<see cref="NinoItems"/>): one call per run, so in
-        /// code shared over a class only the call is indirect, never a value. The writer by value and returned. Called
+        /// code shared over a class only the call is indirect, never a value. The writer by reference. Called
         /// only where <see cref="HasCursor"/> is true.
         /// </summary>
-        internal Writer WriteStrings(scoped NinoRun run, Writer writer)
-        {
+        internal void WriteStrings(scoped in NinoRun run, ref Writer writer) =>
             NinoThrow.MissingCapability(GetType(), nameof(WriteStrings));
-            return writer;
-        }
 
         /// <summary>
         /// Reads the values of <paramref name="run"/> (not empty, every one in use) in place from the data at

@@ -288,8 +288,8 @@ namespace Nino.CodeGen
             sb.Append("            " + string.Join(" &&\n            ",
                 s.Items.Select(i => $"NinoItems.Part<{s.Type(i)}, TF{i}>()")) + ";\n");
             sb.Append("\n");
-            sb.Append("        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>\n");
-            sb.Append("            NinoItems.Write(run, Items, writer);\n");
+            sb.Append("        void INinoFormatter.WriteStrings(scoped in NinoRun run, ref Writer writer) =>\n");
+            sb.Append("            NinoItems.Write(run, Items, ref writer);\n");
             sb.Append("\n");
             sb.Append("        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>\n");
             sb.Append("            NinoItems.Read(run, Items, ref data, end);\n");
@@ -312,8 +312,8 @@ namespace Nino.CodeGen
             sb.Append("        // polymorphic second item's run loop, the first written by it.\n");
             sb.Append($"        bool INinoFormatter.HasCursor => {pairs}.Cursor{items}(Offset1, Offset2);\n");
             sb.Append("\n");
-            sb.Append("        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>\n");
-            sb.Append($"            {pairs}.Write{items}(run, Offset1, Offset2, writer);\n");
+            sb.Append("        void INinoFormatter.WriteStrings(scoped in NinoRun run, ref Writer writer) =>\n");
+            sb.Append($"            {pairs}.Write{items}(run, Offset1, Offset2, ref writer);\n");
             sb.Append("\n");
             sb.Append("        int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>\n");
             sb.Append($"            {pairs}.Read{items}(run, Offset1, Offset2, ref data, end);\n");

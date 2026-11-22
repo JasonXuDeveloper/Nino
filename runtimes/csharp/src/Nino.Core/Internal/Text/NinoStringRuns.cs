@@ -34,12 +34,15 @@ namespace Nino.Core.Internal
     {
         /// <summary>Writes the strings of <paramref name="run"/> (not empty; the count is the caller's) in the default
         /// encoding.</summary>
-        public static Writer WriteUtf16(scoped NinoRun run, Writer writer) =>
-            Write(run, default(NinoUtf16Item), writer);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteUtf16(scoped in NinoRun run, ref Writer writer) =>
+            Write(run, default(NinoUtf16Item), ref writer);
 
         /// <summary>Writes the strings of <paramref name="run"/> (not empty; the count is the caller's) as
         /// UTF-8.</summary>
-        public static Writer WriteUtf8(scoped NinoRun run, Writer writer) => Write(run, default(NinoUtf8Item), writer);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteUtf8(scoped in NinoRun run, ref Writer writer) =>
+            Write(run, default(NinoUtf8Item), ref writer);
 
         /// <summary>Reads the strings of <paramref name="run"/> (not empty, every one in use) in the default encoding
         /// in place from the data at <paramref name="data"/> (<paramref name="end"/> bytes); returns the bytes
@@ -56,10 +59,15 @@ namespace Nino.Core.Internal
         /// encoding (<see cref="NinoKind{TFormatter}.Strings"/>): one call, not generic over the element.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Writer Write<TFormatter>(scoped NinoRun run, Writer writer) =>
-            typeof(TFormatter) == typeof(Utf8StringFormatter) ? WriteUtf8(run, writer) : WriteUtf16(run, writer);
+        public static void Write<TFormatter>(scoped in NinoRun run, ref Writer writer)
+        {
+            if (typeof(TFormatter) == typeof(Utf8StringFormatter))
+                WriteUtf8(run, ref writer);
+            else
+                WriteUtf16(run, ref writer);
+        }
 
-        /// <summary>As <see cref="Write{TFormatter}(NinoRun, Writer)"/>, the read of <see cref="ReadUtf16"/>.</summary>
+        /// <summary>As <see cref="Write{TFormatter}(NinoRun, ref Writer)"/>, the read of <see cref="ReadUtf16"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Read<TFormatter>(scoped NinoRun run, ref byte data, int end) =>
             typeof(TFormatter) == typeof(Utf8StringFormatter) ? ReadUtf8(run, ref data, end) : ReadUtf16(run, ref data, end);
@@ -67,23 +75,42 @@ namespace Nino.Core.Internal
         /// <summary>
         /// The write: <paramref name="run"/>'s elements in use (not none), each <paramref name="item"/>, written into
         /// the free part of the buffer by <see cref="WriteFitting{TItem}"/> until one's longest form does not fit,
-        /// then the buffer grown for it and the loop gone on from it. Out of line, the writer by value and returned,
-        /// a local here: only the free space reaches the loop.
+        /// then the buffer grown for it and the loop gone on from it (<see cref="WriteGrown{TItem}"/>). Inline: the
+        /// first pass on the caller's writer, only the free space reaching the loop, which is out of line.
         /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static Writer Write<TItem>(scoped NinoRun run, TItem item, Writer writer)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void Write<TItem>(scoped in NinoRun run, TItem item, ref Writer writer)
             where TItem : struct, INinoItem
         {
-            int next = 0;
+            ulong left = WriteFitting(run, item, 0, ref writer.FreeSpace(out int available), available);
+            writer.Commit(available - (int)left);
+            int entries = (int)(left >> 32);
+            if (entries != 0)
+                WriteGrown(run, item, run.Count - entries, ref writer);
+        }
+
+        /// <summary>
+        /// <see cref="Write{TItem}"/> from the element at <paramref name="next"/>, which did not fit: the buffer grown
+        /// for each element that does not fit and the loop gone on from it. Out of line: the rare path. The writer by
+        /// reference and the run by <c>in</c> all the way down: a struct passed by value is copied with loads wider
+        /// than the stores that just built it, which the CPU cannot forward (a store-forwarding stall per copy). As
+        /// one out-of-line call taking and returning the writer by value, over a run passed by value, a top-level
+        /// Dictionary&lt;int, string&gt; of one pair was written in 68 ns against main's 37 (perf: the copies of the
+        /// writer and the run held most of its samples).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteGrown<TItem>(scoped in NinoRun run, TItem item, int next, ref Writer writer)
+            where TItem : struct, INinoItem
+        {
             while (true)
             {
+                writer.Ensure(RoomFor(run, item, next));
                 ulong left = WriteFitting(run, item, next, ref writer.FreeSpace(out int available), available);
                 writer.Commit(available - (int)left);
                 int entries = (int)(left >> 32);
                 if (entries == 0)
-                    return writer;
+                    return;
                 next = run.Count - entries;
-                writer.Ensure(RoomFor(run, item, next));
             }
         }
 
@@ -96,7 +123,7 @@ namespace Nino.Core.Internal
         /// them once took longer (1,000 strings written 1.3 to 1.4 times as long, local quick runs).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static ulong WriteFitting<TItem>(scoped NinoRun run, TItem item, int next, ref byte destination,
+        private static ulong WriteFitting<TItem>(scoped in NinoRun run, TItem item, int next, ref byte destination,
             int available)
             where TItem : struct, INinoItem =>
             // Twice from one body: runs without free entries (arrays, lists, most sets and dictionaries) with the
@@ -107,7 +134,7 @@ namespace Nino.Core.Internal
                 : WriteFitting(run, item, next, ref destination, available, run.InUse);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static ulong WriteFitting<TItem>(scoped NinoRun run, TItem item, int next, ref byte destination,
+        internal static ulong WriteFitting<TItem>(scoped in NinoRun run, TItem item, int next, ref byte destination,
             int available, int inUse)
             where TItem : struct, INinoItem
         {
@@ -124,13 +151,25 @@ namespace Nino.Core.Internal
                     continue;
                 // Room for the longest form, so a pair is never split across two buffers.
                 if ((ulong)item.MaxSize(ref value) > (uint)left)
-                    break;
+                    return Stopped(ref value, ref last, stride, left);
                 int size = item.WriteAt(ref cursor, ref value);
                 cursor = ref Unsafe.Add(ref cursor, (nint)(uint)size);
                 left -= size;
             }
 
-            // The elements and the bytes left, from which the caller works out where it stopped and what was written.
+            // Every element written: none left, only the bytes.
+            return (uint)left;
+        }
+
+        /// <summary>
+        /// The elements left from <paramref name="value"/> to <paramref name="last"/> (high half) and the bytes left
+        /// (low half), from which the caller works out where the write loop stopped: out of line, the loop's rare stop.
+        /// The stride is data, so this is a division (a 64-bit idiv): only where the loop stopped early, never after a
+        /// run that fit.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ulong Stopped(ref byte value, ref byte last, int stride, int left)
+        {
             int entries = (int)((long)Unsafe.ByteOffset(ref value, ref last) / stride);
             return ((ulong)(uint)entries << 32) | (uint)left;
         }
@@ -140,7 +179,7 @@ namespace Nino.Core.Internal
         /// <c>int</c> holds, which the writer rejects), out of line: the write loop's rare stop.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static int RoomFor<TItem>(scoped NinoRun run, TItem item, int next)
+        internal static int RoomFor<TItem>(scoped in NinoRun run, TItem item, int next)
             where TItem : struct, INinoItem
         {
             // The long bound narrowed here, out of line: in the driver it cost 8 stack accesses more (asm.py).

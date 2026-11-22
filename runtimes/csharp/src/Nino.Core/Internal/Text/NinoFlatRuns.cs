@@ -175,7 +175,7 @@ namespace Nino.Core.Internal
         /// (<paramref name="next"/> is then its index) or all are written (<paramref name="next"/> the count).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer Write<TItem>(scoped NinoRun run, scoped ref int next, Writer writer)
+        private static Writer Write<TItem>(scoped in NinoRun run, scoped ref int next, Writer writer)
             where TItem : struct, INinoItem
         {
             int from = next;
@@ -199,7 +199,7 @@ namespace Nino.Core.Internal
 
         /// <summary>The string run kernels' write loop, every element in use (one copy of the loop).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static ulong WriteFitting<TItem>(scoped NinoRun run, int next, ref byte destination, int available)
+        private static ulong WriteFitting<TItem>(scoped in NinoRun run, int next, ref byte destination, int available)
             where TItem : struct, INinoItem =>
             NinoStringRuns.WriteFitting(run, default(TItem), next, ref destination, available, NinoRun.AllInUse);
 
