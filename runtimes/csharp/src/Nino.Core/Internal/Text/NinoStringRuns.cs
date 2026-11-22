@@ -240,7 +240,7 @@ namespace Nino.Core.Internal
                 : WriteFitting(run, item, next, ref destination, available, run.InUse);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong WriteFitting<TItem>(scoped NinoRun run, TItem item, int next, ref byte destination,
+        internal static ulong WriteFitting<TItem>(scoped NinoRun run, TItem item, int next, ref byte destination,
             int available, int inUse)
             where TItem : struct, INinoRunItem
         {

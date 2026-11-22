@@ -182,7 +182,7 @@ namespace Top
         string nullables = sources["NinoGen.Top_NullablesFormatter.g.cs"];
         StringAssert.Contains(nullables, "writer.CopyCursorTo(ref __w);");
         StringAssert.Contains(nullables, "{ if (value == null) __CS.NinoDirect.WriteNull(buffer); else __WriteTop(value, buffer); }");
-        StringAssert.Contains(nullables, "=> !data.IsEmpty && data[0] == 0 ? null : __ReadTop(data);");
+        StringAssert.Contains(nullables, "=> __CS.NinoDirect.ReadsNull(data) ? null : __ReadTop(data);");
         StringAssert.Contains(nullables, "private static __T __ReadTop(global::System.ReadOnlySpan<byte> data)");
 
         return TestCompilation.EmitAndLoad(compilation.AddSyntaxTrees(run.GeneratedTrees));

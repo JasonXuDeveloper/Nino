@@ -104,6 +104,89 @@ namespace Nino.Core.Internal
             return true;
         }
 
+#if NET8_0_OR_GREATER
+        /// <summary>Longest string <see cref="NarrowShortAscii"/> and <see cref="IsShortAscii"/> take.</summary>
+        public const int ShortAsciiChars = 32;
+
+        /// <summary>
+        /// Writes the <paramref name="n"/> chars at <paramref name="source"/> (1 to <see cref="ShortAsciiChars"/>) as
+        /// bytes at <paramref name="destination"/> when every one is ASCII; false, with nothing written, otherwise.
+        /// UTF-8 strings take it instead of the runtime's transcoder (Writer.EncodeUtf8): its precompiled code pays a
+        /// vector state transition after Nino's own 256-bit code where tiering has not replaced it (#436). Overlapping
+        /// loads of 8 chars, as <see cref="NarrowSmall"/> for fewer.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool NarrowShortAscii(ref char source, ref byte destination, nuint n)
+        {
+            ref ushort chars = ref Unsafe.As<char, ushort>(ref source);
+            if (Vector128.IsHardwareAccelerated && n >= 8)
+            {
+                var mask = Vector128.Create((ushort)0xFF80);
+                if (n <= 16)
+                {
+                    var head = Vector128.LoadUnsafe(ref chars);
+                    var tail = Vector128.LoadUnsafe(ref chars, n - 8);
+                    if (((head | tail) & mask) != Vector128<ushort>.Zero)
+                        return false;
+                    var bytes = Vector128.Narrow(head, tail).AsUInt64();
+                    NinoUnsafe.Write(ref destination, bytes.ToScalar());
+                    NinoUnsafe.Write(ref Unsafe.Add(ref destination, (nint)(n - 8)), bytes.GetElement(1));
+                    return true;
+                }
+
+                var a = Vector128.LoadUnsafe(ref chars);
+                var b = Vector128.LoadUnsafe(ref chars, 8);
+                var c = Vector128.LoadUnsafe(ref chars, n - 16);
+                var d = Vector128.LoadUnsafe(ref chars, n - 8);
+                if (((a | b | c | d) & mask) != Vector128<ushort>.Zero)
+                    return false;
+                Vector128.Narrow(a, b).StoreUnsafe(ref destination);
+                Vector128.Narrow(c, d).StoreUnsafe(ref destination, n - 16);
+                return true;
+            }
+
+            // Without vectors, and under 8 chars: four at a time, then the rest, checked before anything is written.
+            for (nuint i = 0; i < n; i++)
+                if (Unsafe.Add(ref chars, (nint)i) >= 0x80)
+                    return false;
+            nuint j = 0;
+            for (; j + 4 <= n; j += 4)
+                NinoUnsafe.Write(ref Unsafe.Add(ref destination, (nint)j),
+                    Pack4(NinoUnsafe.Read<ulong>(ref Unsafe.As<ushort, byte>(ref Unsafe.Add(ref chars, (nint)j)))));
+            for (; j < n; j++)
+                Unsafe.Add(ref destination, (nint)j) = (byte)Unsafe.Add(ref chars, (nint)j);
+            return true;
+        }
+
+        /// <summary>
+        /// Whether the <paramref name="n"/> bytes at <paramref name="source"/> (1 to <see cref="ShortAsciiChars"/>)
+        /// are all ASCII, by overlapping loads: a UTF-8 string of a byte per char is then read as Latin-1
+        /// (<see cref="NewLatin1"/>), not by the runtime's transcoder (<see cref="NarrowShortAscii"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsShortAscii(ref byte source, nuint n)
+        {
+            if (n >= 16 && Vector128.IsHardwareAccelerated)
+                return ((Vector128.LoadUnsafe(ref source) | Vector128.LoadUnsafe(ref source, n - 16)) &
+                        Vector128.Create((byte)0x80)) == Vector128<byte>.Zero;
+            if (n >= 8)
+            {
+                ulong high = NinoUnsafe.Read<ulong>(ref source) | NinoUnsafe.Read<ulong>(ref Unsafe.Add(ref source, (nint)(n - 8)));
+                for (nuint i = 8; i + 8 < n; i += 8)
+                    high |= NinoUnsafe.Read<ulong>(ref Unsafe.Add(ref source, (nint)i));
+                return (high & 0x8080_8080_8080_8080) == 0;
+            }
+
+            if (n >= 4)
+                return ((NinoUnsafe.Read<uint>(ref source) | NinoUnsafe.Read<uint>(ref Unsafe.Add(ref source, (nint)(n - 4)))) &
+                        0x8080_8080) == 0;
+            uint any = 0;
+            for (nuint i = 0; i < n; i++)
+                any |= Unsafe.Add(ref source, (nint)i);
+            return any < 0x80;
+        }
+#endif
+
         /// <summary>A new string of the <paramref name="length"/> Latin-1 chars at <paramref name="source"/> (length &gt; 0).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string NewLatin1(ref byte source, int length, bool share = true, bool longHeader = false)

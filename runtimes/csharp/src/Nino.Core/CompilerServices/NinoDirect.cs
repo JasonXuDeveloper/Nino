@@ -121,6 +121,15 @@ namespace Nino.Core.CompilerServices
         public static void WriteNull(NinoArrayBufferWriter buffer) => buffer.Reserve(1) = NinoWire.Null;
 
         /// <summary>
+        /// Whether the payload <paramref name="data"/> is a null value (its presence byte 0), where a generated
+        /// <c>__Top</c> twin's <c>Read</c> returns null inline. A method, not the span's indexer in generated code:
+        /// a .NET Framework build of the C# compiler reports the indexer's <c>ref readonly</c> as unsupported (CS0570).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ReadsNull(ReadOnlySpan<byte> data) =>
+            !data.IsEmpty && MemoryMarshal.GetReference(data) == NinoWire.Null;
+
+        /// <summary>
         /// Writes <paramref name="value"/> as a whole payload into <paramref name="buffer"/> with a writer created
         /// here (inlined: in the caller's frame, where the JIT keeps it in registers if no call takes its address).
         /// </summary>

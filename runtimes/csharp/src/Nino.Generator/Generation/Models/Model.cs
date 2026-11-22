@@ -280,7 +280,10 @@ internal sealed record TypeModel(
     // The serialization callbacks its bodies call (Callbacks.Build), or null for none: then nothing in its formatter
     // differs from a type without the feature.
     CallbackModel? Callbacks = null,
-    EquatableArray<UnionCase> Cases = default)
+    EquatableArray<UnionCase> Cases = default,
+    // The items of a flat body (FlatRules), or null: its runs and bodies go through Nino.Core's flat kernels and it has
+    // no member-by-member bodies of its own.
+    FlatModel? Flat = null)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 
@@ -334,7 +337,13 @@ internal sealed record TypeModel(
     /// body (one that does passes the reader to that body's call anyway): a large body inlined into every call site
     /// would use up the JIT's inlining budget there.
     /// </summary>
-    public bool TopInline => HasTop && InlineBody;
+    public bool TopInline => HasTop && InlineBody && Flat == null;
+
+    /// <summary>
+    /// <see cref="TopInline"/> for reads: a flat body (<see cref="Flat"/>) reads one value member by member, as any
+    /// other body (Nino.Core's flat kernels read runs only), so its reads are inlined at the top as the others'.
+    /// </summary>
+    public bool ReadTopInline => HasTop && InlineBody;
 
     /// <summary>
     /// Whether the body is small enough to be inlined wherever the formatter is used (at most two members that call
@@ -417,7 +426,7 @@ internal sealed record TypeModel(
     /// then an inlinable method that the out-of-line one calls on its local copy. Not for pooled types, whose new
     /// value comes from the pool first.
     /// </summary>
-    public bool ReadTop => HasTop && !TopInline && LocalReader && !Pooled;
+    public bool ReadTop => HasTop && !ReadTopInline && LocalReader && !Pooled;
 
     /// <summary>
     /// Whether an out-of-line body reads a new instance in a method of its own (<c>__ReadBodyFresh</c>, see
@@ -451,6 +460,45 @@ internal sealed record TypeModel(
 
     /// <summary>A formatter as its own code names it (<see cref="Self"/>, <see cref="DispatchEntry.Self"/>).</summary>
     public static string SelfOf(string formatterName, string typeParameterList) => formatterName + typeParameterList;
+}
+
+/// <summary>How an item of a flat body (<see cref="FlatItem"/>) is written and read by Nino.Core's flat items.</summary>
+internal enum FlatItemKind
+{
+    /// <summary>Consecutive primitives predicted to lie in the object as on the wire: one copy (NinoFlatBlock), only
+    /// where the startup check proves it; else each a <see cref="Value"/>.</summary>
+    Block,
+
+    /// <summary>One primitive or enum (NinoFlatValue).</summary>
+    Value,
+
+    /// <summary>A raw struct (NinoFlatStruct: padding cleared, Untrusted mode's checks); copied as its bytes (a block)
+    /// where the startup check proves its memory canonical without padding, and reads check nothing in it.</summary>
+    Struct,
+
+    /// <summary>A bool, checked on read (NinoFlatBool).</summary>
+    Bool,
+
+    /// <summary>A string in the default encoding (NinoFlatString).</summary>
+    String,
+
+    /// <summary>A <c>[NinoUtf8]</c> string (NinoFlatUtf8).</summary>
+    Utf8,
+}
+
+/// <summary>An item of a flat body: its kind, the index of its (first) member in TypeModel.Members, and its members
+/// (more than one only for a block).</summary>
+internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count);
+
+/// <summary>
+/// A class body that is flat (FlatRules): its items in wire order. Where an item's fast form depends on what only the
+/// running process knows (a block's layout, a struct's memory, Untrusted mode), the formatter has a second chain of
+/// one item per member and a startup check read once per call (<see cref="Checks"/>): the fallback.
+/// </summary>
+internal sealed record FlatModel(EquatableArray<FlatItem> Items)
+{
+    /// <summary>Whether the body has a fallback chain and a startup check: a block or a struct among its items.</summary>
+    public bool Checks => Items.Any(static i => i.Kind is FlatItemKind.Block or FlatItemKind.Struct);
 }
 
 /// <summary>

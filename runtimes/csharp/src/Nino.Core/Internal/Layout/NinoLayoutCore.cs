@@ -314,11 +314,7 @@ namespace Nino.Core.Internal
             }
 
             var offsets = new int[count];
-            int end = 0;
-            for (int primitiveSize = 8; primitiveSize >= 1; primitiveSize >>= 1)
-                for (int i = 0; i < count; i++)
-                    if (primitive[i] && sizes[i] == primitiveSize)
-                        Place(i);
+            int end = PlacePrimitives(sizes, aligns, primitive, offsets);
             for (int i = 0; i < count; i++)
                 if (!primitive[i])
                     Place(i);
@@ -350,6 +346,28 @@ namespace Nino.Core.Internal
                 offsets[i] = end = (end + aligns[i] - 1) / aligns[i] * aligns[i];
                 end += sizes[i];
             }
+        }
+
+        /// <summary>
+        /// The first pass of 64-bit CoreCLR's auto layout (<see cref="PlaceAuto"/>): the fields marked
+        /// <paramref name="primitive"/> placed from offset 0, by size from 8 bytes down to 1 and in declaration order
+        /// within a size, each aligned to its alignment, their offsets written to <paramref name="offsets"/>. Returns
+        /// where they end. The generator predicts with it which raw fields of a class lie in its memory as on the
+        /// wire (a class's primitive fields are placed the same way after its references), for the flat bodies of
+        /// #355, which a startup check then proves.
+        /// </summary>
+        public static int PlacePrimitives(int[] sizes, int[] aligns, bool[] primitive, int[] offsets)
+        {
+            int end = 0;
+            for (int primitiveSize = 8; primitiveSize >= 1; primitiveSize >>= 1)
+                for (int i = 0; i < sizes.Length; i++)
+                    if (primitive[i] && sizes[i] == primitiveSize)
+                    {
+                        offsets[i] = end = (end + aligns[i] - 1) / aligns[i] * aligns[i];
+                        end += sizes[i];
+                    }
+
+            return end;
         }
 
         private static bool Add(int leafSize, int leafAlign, int baseOffset, List<Leaf> leaves, out int size,

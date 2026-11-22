@@ -173,7 +173,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static SizedString ReadStringOver(ref byte source, int available, string current)
+        internal static SizedString ReadStringOver(ref byte source, int available, string current)
         {
             // The same short Latin-1 string again (a reused object's names, ids, keys) compared inline: through
             // NinoStrings.Read it took a second call (SameLatin1), where rc.7 read the header inline and made one, and
@@ -242,6 +242,18 @@ namespace Nino.Core
             // transcoder reports (DestinationTooSmall).
             if (size < length)
                 NinoThrow.InvalidData("invalid UTF-8 string.");
+#if NET8_0_OR_GREATER
+            // A short string of a byte per char is ASCII if it is UTF-8 at all: read as Latin-1, not by the runtime's
+            // transcoder, whose precompiled code pays a vector state transition after Nino's own vector code where
+            // tiering has not replaced it (NinoStrings.NarrowShortAscii; #436). Any other byte is invalid, as the
+            // transcoder says.
+            if (size == length && (uint)(length - 1) < NinoStrings.ShortAsciiChars)
+            {
+                if (!NinoStrings.IsShortAscii(ref src, (uint)length))
+                    NinoThrow.InvalidData("invalid UTF-8 string.");
+                return NinoStrings.NewLatin1(ref src, length);
+            }
+#endif
             var value = NinoStrings.Allocate(length);
 #if NET8_0_OR_GREATER
             // Done means every byte was decoded; the chars must then fill the string exactly.

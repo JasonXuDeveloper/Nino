@@ -465,6 +465,12 @@ internal sealed partial class BodyEmitter
         EmitMemberWrites();
         _w.Close();
         _w.Line();
+        EmitReadMembers();
+    }
+
+    /// <summary>The static <c>ReadMembers</c> of <see cref="EmitMembersMethods"/> (alone for a flat body's base).</summary>
+    public void EmitReadMembers()
+    {
         _w.Line(_names.Inline);
         // Version tolerant: reading the region of the type that called it, which may end before any member.
         _w.Open(Signature.ReadMembers(T));

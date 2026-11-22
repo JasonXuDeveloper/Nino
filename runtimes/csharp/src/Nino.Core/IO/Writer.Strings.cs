@@ -70,7 +70,17 @@ namespace Nino.Core
                 return 1;
             }
 
-            return EncodeUtf8(value, ref destination, Utf8Capacity(value));
+            // The room was sized by Utf8MaxSize, which counted a long string's bytes. Counting them again here took a
+            // flat class of one 100,000-char UTF-8 string 1.35 times as long to write as WriteUtf8: where the
+            // shortest and the longest count (1 and 3 bytes per char) take a header of one size, the bound is
+            // enough, as the transcoder writes only the bytes it encodes and the header's size is the same.
+            int length = value.Length;
+            int capacity = length <= Utf8WorstCaseMaxChars ||
+                           length <= int.MaxValue / 3 - NinoStrings.MaxHeaderSize &&
+                           NinoStrings.HeaderSize((uint)length) == NinoStrings.HeaderSize((uint)length * 3)
+                ? length * 3
+                : Utf8ByteCount(value);
+            return EncodeUtf8(value, ref destination, capacity);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -102,11 +112,28 @@ namespace Nino.Core
             int sizeSize = NinoStrings.HeaderSize((uint)(length <= Utf8WorstCaseMaxChars ? length : capacity));
             ref byte bytes = ref Unsafe.Add(ref sizeAt, sizeSize);
 #if NET8_0_OR_GREATER
-            // Without replacement, the transcoder's call is all that is inlined; an unpaired surrogate stops it.
-            var status = System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), MemoryMarshal.CreateSpan(ref bytes, capacity),
-                out int consumed, out int written, replaceInvalidSequences: false);
-            if (status != System.Buffers.OperationStatus.Done)
-                written = EncodeUtf8Replacing(value, ref bytes, capacity, consumed, written);
+            // A short ASCII string (names, tags, keys) is narrowed here; the rest goes to the runtime's transcoder.
+            // Its precompiled (ReadyToRun) code, which runs until tiering replaces it and always where tiering is off
+            // (TieredCompilation=0), uses legacy SSE encodings, and Nino's string writes before it leave the upper
+            // halves of the vector registers dirty (masked 256-bit loads inlined into the body, after which the JIT
+            // emits no vzeroupper before a managed call): every such call then paid a transition penalty. A sealed
+            // class of an int, a string and a 4-char UTF-8 string serialized in 177 ns at TieredCompilation=0
+            // against 25 ns with the UTF-8 string first, and 28 ns with DOTNET_ReadyToRun=0 (#436).
+            int written;
+            if (length > NinoStrings.ShortAsciiChars ||
+                !NinoStrings.NarrowShortAscii(ref MemoryMarshal.GetReference(value.AsSpan()), ref bytes, (uint)length))
+            {
+                // Without replacement, the transcoder's call is all that is inlined; an unpaired surrogate stops it.
+                var status = System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(),
+                    MemoryMarshal.CreateSpan(ref bytes, capacity), out int consumed, out written,
+                    replaceInvalidSequences: false);
+                if (status != System.Buffers.OperationStatus.Done)
+                    written = EncodeUtf8Replacing(value, ref bytes, capacity, consumed, written);
+            }
+            else
+            {
+                written = length;
+            }
 #else
             int written = EncodeUtf8Replacing(value, ref bytes, capacity);
 #endif
@@ -120,6 +147,7 @@ namespace Nino.Core
             NinoStrings.WriteHeader(ref sizeAt, (uint)written);
             return countSize + sizeSize + written;
         }
+
 
         /// <summary>Moves <paramref name="count"/> bytes up to <paramref name="to"/>, overlapping (rare: out of line).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]

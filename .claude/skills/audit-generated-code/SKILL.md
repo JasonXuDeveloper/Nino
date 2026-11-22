@@ -207,6 +207,11 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
   member that is not `Direct` delegates to a by-value `__WriteFixed` as a sealed class's does (an
   `Unsafe.AsRef(in o)` getter needs C# 12 against .NET 8+'s `ref readonly` signature: CS9058 in the C# 11 test
   project).
+- **A flat class's formatter names its members once, as data for Nino.Core's kernels** (`FlatEmitter`): one-line
+  accessor structs (`__F_<Member>`, `__B_<First>`), `__Layout`, the chain as `__Flat`'s base class, and `__Check` /
+  `__Fields` only where a block or struct member needs the startup check; no member-by-member body. Check that a new
+  member kind keeps the accessor form (a field reached through `Ref(object)`, a literal `Size`) and no static read per
+  element: `optimize`, the rule on accessor structs, has the evidence (v1's statics: 3,708 bytes, 165 stack operands).
 - Check the Tier1 listing of generated serializers for the benchmark types on each ISA (`runtimes/csharp/benchmarks/asm/asm.py`), and
   compare with the hand-written equivalent where one exists: generated code is not slower than what a user would
   write by hand.

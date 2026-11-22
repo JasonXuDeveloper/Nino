@@ -681,6 +681,34 @@ public class MadeList : System.Collections.Generic.List<Made> { }
     }
 
     [TestMethod]
+    public void FlatBodiesFollowTheirMembers()
+    {
+        // The flat layout (#355) is part of the model, equatable and symbol-free: an edit that leaves it alone keeps
+        // the model cached; one that changes a member's form changes the formatter.
+        var compilation = Create(("Flat.cs", Usings +
+            "[NinoType] public sealed class Flat { public long A; public int B; public string S; public bool F; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
+        driver = driver.RunGenerators(compilation);
+        string flat = Output(driver, "Flat");
+        StringAssert.Contains(flat, "public bool HasFlat => true;");
+        StringAssert.Contains(flat, "NinoFlatBlock<__B_A, ");
+        StringAssert.Contains(flat, "NinoFieldBlock.IsAt(in value.A, in value.B, 8, 4)");
+        Assert.IsFalse(flat.Contains("writer.Write(value.S)"), "no member-by-member body");
+
+        compilation = Edit(compilation, "Flat.cs", "public bool F; }", "public bool F; /* edited */ }");
+        driver = driver.RunGenerators(compilation);
+        foreach (var (_, reason) in driver.GetRunResult().Results[0].TrackedSteps["NinoType"].SelectMany(s => s.Outputs))
+            Assert.IsTrue(reason is IncrementalStepRunReason.Unchanged or IncrementalStepRunReason.Cached, reason.ToString());
+        Assert.AreEqual(flat, Output(driver, "Flat"));
+
+        // A property is no field to reach: the generated body again.
+        compilation = Edit(compilation, "Flat.cs", "public string S;", "public string S { get; set; }");
+        driver = driver.RunGenerators(compilation);
+        Assert.IsFalse(Output(driver, "Flat").Contains("HasFlat"));
+    }
+
+    [TestMethod]
     public void ReparsedSourcesReuseCallBindings()
     {
         var compilation = Create(

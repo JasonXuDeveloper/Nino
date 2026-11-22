@@ -46,6 +46,17 @@ public abstract class RtShape { public int Id; public override string ToString()
 public sealed class RtCircle : RtShape { public float R; }
 [NinoType]
 public sealed class RtRect : RtShape { public int W; public string Name; }
+// Classes whose body is flat (#355): runs of 16 or more through Nino.Core's flat kernels, a block of primitives copied
+// at once where the startup check proves this runtime lays them out as the wire does ("# flat"), the chain of fields
+// elsewhere; a subtype leaves the run.
+[NinoType]
+public class RtFlat
+{
+    public long W; public double D; public int X; public byte K; public string S; [NinoUtf8] public string U;
+    public DateTime At; public bool B; public decimal P;
+}
+[NinoType]
+public sealed class RtFlatSub : RtFlat { public short Y; }
 [NinoType]
 public class EventLog { public HoldsDateTime First; public List<HoldsDateTimes> Rest; public StampedEvent Last; }
 
@@ -398,6 +409,21 @@ public static class Program
         Case("Dictionary<int,str>", ints.Distinct().ToDictionary(i => i, i => "v" + i));
         RtShape Shape(int i) => i % 5 == 4 ? null
             : i % 2 == 0 ? new RtCircle { Id = i, R = i * 0.5f } : new RtRect { Id = i, W = -i, Name = "r" + i };
+        // Informational: whether this runtime lays out RtFlat's primitives as the wire does (its block is copied whole).
+        var flatCheck = typeof(RtFlat).Assembly.GetTypes().FirstOrDefault(t => t.Name == "__Check" &&
+            t.DeclaringType?.Name.EndsWith("RtFlatFormatter", StringComparison.Ordinal) == true);
+        Console.WriteLine("# flat: " + (flatCheck?.GetField("Write", BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null) ?? "none"));
+        RtFlat Flat(int i) => i % 9 == 4 ? null : new RtFlat
+        {
+            W = (long)i << 35, D = i * 0.25, X = -i, K = (byte)i, S = i % 7 == 0 ? null : "flat " + i,
+            U = i % 5 == 0 ? "" : "ü" + i, At = new DateTime(637000000000000000L + i, (DateTimeKind)(i % 3)), B = i % 2 == 0,
+            P = i / 3m,
+        };
+        RtFlat FlatOrSub(int i) => i % 11 == 6 ? new RtFlatSub { W = i, S = "sub", Y = (short)i } : Flat(i);
+        Case("RtFlat[]", Enumerable.Range(0, 40).Select(FlatOrSub).ToArray());
+        Case("List<RtFlat>", Enumerable.Range(0, 40).Select(Flat).ToList());
+        Case("Dictionary<int,RtFlat>", Enumerable.Range(0, 40).ToDictionary(i => i, Flat));
+        Case("RtFlat", Flat(3));
         Case("List<Shape>", Enumerable.Range(0, 50).Select(Shape).ToList());
         Case("Dictionary<int,Shape>", Enumerable.Range(0, 50).ToDictionary(i => i * 3, Shape));
         Case("Dictionary<str,Shape>", Enumerable.Range(0, 50).ToDictionary(i => "k" + i, Shape));

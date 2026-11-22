@@ -132,6 +132,40 @@ public class Utf8WireTests
     }
 
     [TestMethod]
+    public void ShortAsciiTakesItsOwnPathWithTheSameBytes()
+    {
+        // Up to 32 chars, ASCII is narrowed and widened by Nino's own code (not the runtime's transcoder): the bytes
+        // and the checks are the transcoder's, at every length around the bound and with a non-ASCII char anywhere.
+        for (int length = 1; length <= 40; length++)
+        {
+            string ascii = new string(Enumerable.Range(0, length).Select(i => (char)('!' + i % 90)).ToArray());
+            CollectionAssert.AreEqual(Wire(length, Encoding.UTF8.GetBytes(ascii)), Write(ascii), ascii);
+            Assert.AreEqual(ascii, Read(Write(ascii), out _));
+            for (int at = 0; at < length; at += 7)
+            {
+                string other = ascii.Substring(0, at) + "\u00e9" + ascii.Substring(at + 1);
+                CollectionAssert.AreEqual(Wire(length, Encoding.UTF8.GetBytes(other)), Write(other), other);
+                Assert.AreEqual(other, Read(Write(other), out _));
+                // A byte per char claimed, a byte that is not ASCII among them: invalid.
+                byte[] bad = Encoding.UTF8.GetBytes(ascii);
+                bad[at] = 0xC3;
+                Throws(Wire(length, bad));
+                bad[at] = 0x80;
+                Throws(Wire(length, bad));
+            }
+        }
+
+        static byte[] Write(string value)
+        {
+            var buffer = new NinoArrayBufferWriter();
+            var writer = new Writer(buffer);
+            writer.WriteUtf8(value);
+            writer.Flush();
+            return buffer.WrittenSpan.ToArray();
+        }
+    }
+
+    [TestMethod]
     public void MalformedDataThrows()
     {
         // Truncated counts.

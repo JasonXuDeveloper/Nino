@@ -49,6 +49,26 @@ namespace Nino.Core
         void WriteRun(NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(GetType(), nameof(WriteRun));
 
         /// <summary>
+        /// Whether a run of the formatter's values is written and read by the flat kernels (false, the default):
+        /// <see cref="WriteFlat"/> and <see cref="ReadFlat"/>. Generated formatters of classes whose body is flat (raw
+        /// members, bools and strings: <see cref="NinoFlat{TLayout,TBody}"/>, #355), a constant. Called once.
+        /// </summary>
+        bool HasFlat => false;
+
+        /// <summary>
+        /// Writes the values of <paramref name="run"/> (not empty, every one in use; the count is the caller's) through
+        /// the flat kernels. Called only where <see cref="HasFlat"/> is true. By reference, as <see cref="WriteRun"/>:
+        /// the kernels copy the writer out of line, so the collection that calls this keeps its own in registers.
+        /// </summary>
+        void WriteFlat(NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(GetType(), nameof(WriteFlat));
+
+        /// <summary>
+        /// Reads the values of <paramref name="run"/> (not empty, values in a row) in place through the flat kernels,
+        /// as <see cref="WriteFlat"/>. Called only where <see cref="HasFlat"/> is true.
+        /// </summary>
+        void ReadFlat(NinoRun run, ref Reader reader) => NinoThrow.MissingCapability(GetType(), nameof(ReadFlat));
+
+        /// <summary>
         /// The bytes an element of a long array or list brings into the cache (a constant: its object, and a line of
         /// each object its reference members point to), or 0 (the default): generated formatters of non-generic
         /// classes whose collections prefetch, in a project built with <c>NinoPrefetchLargeCollections</c>. An array or

@@ -114,7 +114,12 @@ internal static partial class ModelBuilder
                 : EquatableArray<string>.Empty,
             Callbacks: kind == FormatterKind.Union ? null :
                 Callbacks.Build(type, kind, rawStruct, construction, facts, diagnostics),
-            Cases: cases);
+            Cases: cases,
+            // The analyzer reads nothing of it.
+            Flat: diagnostics == null
+                ? FlatRules.Build(type, kind, shape.Format, generic, trackReferences, collection != null, pooled,
+                    shape.HasCallbacks, construction, members, built.Symbols)
+                : null);
     }
 
     private static EquatableArray<UnionCase> BuildUnionCases(INamedTypeSymbol type, TypeFacts facts,

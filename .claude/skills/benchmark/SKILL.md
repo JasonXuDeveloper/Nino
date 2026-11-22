@@ -54,6 +54,11 @@ runners measure. Runners still decide (round 123).
   against LuminPack's 475 in three such probes, and 475 to 481 against 505 once the probe first wrote other arrays;
   a reflection sweep of every pair with `DOTNET_TC_CallCountingDelayMs=0` showed `Scalars` at 9.5x and
   `SkillLevels` reads at 4.8x, each within 10 % when timed alone (#305).
+- Judge ScatteredTest's million-object cases, and WorkloadTest's AoiUpdate and CardBattleLog medians in processes
+  that run several classes, over at least five alternated processes per side, never over one sweep: a process lands
+  in one of two modes (where the GC left the shuffled objects), so one sweep of three rounds can show a gap that is
+  not there. `NinoDeserializeScatteredItemsInto` read 1.33-1.55x the base's time in three sweeps of #355's seam;
+  five processes each of base, the previous head and the head then took 26-39, 30-37 and 27-38 ms, on par.
 
 In the Unity player, time small cases without allocation: `NinoSerializer.Serialize` to a new array made the
 6000.3 player's string rows bimodal (the same case 1.0x or 1.3x from run to run); `SerializeTo` a reused

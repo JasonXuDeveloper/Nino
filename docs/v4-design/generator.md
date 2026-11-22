@@ -356,6 +356,19 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   each inherited member is compiled once per hierarchy rather than once per subtype (about a third less code for
   deep hierarchies). The bytes are unchanged. Delegation is skipped when raw members on both sides of the
   boundary would otherwise be written as one block, since splitting that block costs an extra reservation.
+* A class whose body is flat (`TypeModel.Flat`, built by `FlatRules`: positional, non-generic, untracked, raw members,
+  bools and strings only, at least one string; [runtime.md](runtime.md), the flat kernels) gets no member-by-member
+  write body (`FlatEmitter`). It emits an accessor struct per member and per block of raw members, one line each
+  (`__F_<Member>`, `__B_<First>`: `Ref(object)` returns the field, `Size` is a literal), a `__Layout` struct, the chain
+  of items once as the base class of `private sealed class __Flat`, and where a block or struct member needs the
+  startup check, `__Fields` (one item per member) and `__Check`. `HasFlat`, `WriteFlat` and `ReadFlat` pick one chain
+  once per call; a sealed class's `WriteBody` calls the chain of fields out of line whatever the body's size
+  (inlined into a dispatch, the chain took the caller's inlining budget; its top-level writes have `__WriteTop`), a
+  small one of a class that is not sealed inline, and `WriteMembers` inline. One value's read (`ReadBody`,
+  `ReadMembers`, the `__Top` twin's) is `BodyEmitter`'s member-by-member read, as for any class: the model's read facts
+  (`LocalReader`, `SplitFresh`, `ReadTop`, `ReadTopInline`) do not look at `Flat`. `FlatModel` is equatable, so an edit
+  elsewhere leaves it cached
+  (`IncrementalGeneratorTests.FlatBodiesFollowTheirMembers`).
 * `[assembly: NinoTypeLayout(typeof(T), format, header, trackReferences, raw, typeId, "members", Deferrable = ...)]`
   publishes what the formatter writes (issue #197): whether a body nested past `NinoDepth.Inline` is deferred (the
   formatter's `NinoBodyTraits.Deferrable` trait, which readers in other languages need), and each member as

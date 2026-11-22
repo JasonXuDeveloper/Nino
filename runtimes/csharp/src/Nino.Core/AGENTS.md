@@ -64,6 +64,13 @@ FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBodyTraits), INinoRawB
 NinoPrefetched.cs            NinoPrefetched.At: the prefetch generated INinoFormatter.PrefetchMembers calls
 NinoObject.cs                header handling of generated class formatters: presence byte / type id / reference header,
                              then the body; the ...Raw forms write header and raw body into one reservation
+NinoFlat.cs                  the generator seam of #355: classes whose generated body is flat (raw members, bools and
+                             strings) written and read through items the string run kernels move, one kernel source
+                             for every type: INinoFlatMember (a generated field accessor, a constant offset),
+                             INinoFlatLayout (construction, exact type, type id), the items as a list nested in type
+                             arguments (NinoFlatBlock, Value, Struct, Bool, String, Utf8, End), NinoFlatAccess, and
+                             NinoFlat<TLayout, TBody>, which a generated class derives: runs (Write/ReadSealed,
+                             Write/ReadTyped) and one body (WriteBody/ReadBody out of line, WriteInline/ReadInline)
 NinoFieldBlock.cs            generated raw bodies of classes: whether the fields lie in the object as the body lays them
                              out (checked once on an uninitialized instance), then one block copy
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
@@ -115,7 +122,8 @@ NinoFormatter.cs             INinoFormatter<T> (Serialize, Deserialize; capabili
                              WriteFixed, BlockMap, ReadBlock, internal slots with a slot's single value at a reference
                              (WriteAt, ReadAt), and a composite's ItemsMayRecycle, RecycleItems) and the non-generic
                              INinoFormatter it
-                             extends (BodyTraits; the run loop of polymorphic bases: HasRunLoop, WriteRun; the prefetch of long
+                             extends (BodyTraits; the run loop of polymorphic bases: HasRunLoop, WriteRun; the flat
+                             kernels' runs of flat classes: HasFlat, WriteFlat, ReadFlat; the prefetch of long
                              collections of classes: PrefetchBytes, HasMemberPrefetch, PrefetchMembers; internal
                              HasSizedWrite, HasExternalWrite, HasCursor with WriteStrings, ReadStrings: a run of pairs
                              holding strings through the string run kernels; RecyclesItems);
@@ -411,6 +419,10 @@ NinoStringRuns.cs            the string run kernels (#355): a run of strings, or
                              (NinoUtf16Item, NinoUtf8Item, NinoValueItem, NinoSlotItem: a raw T?'s single value;
                              a composite's element is NinoItems'), stores (InPlace, a set's and a dictionary's adds)
                              and a set's read (ReadSet, with an add loop of its own where the set guards its buckets)
+NinoFlatRuns.cs              the flat kernels (#355): the element items of a sealed class (presence byte) and of one that
+                             is not (type id, exact type), the write loop (NinoStringRuns' WriteFitting) and a read loop
+                             that stop at an element the items leave (a subtype, another id, an existing object), which
+                             goes through the formatter out of line
 NinoStrings.Latin1.cs        Latin-1 chars narrowed, widened, appended and compared (the scalar and word paths; the
                              vector kernels are NinoSimd.Text)
 ```
