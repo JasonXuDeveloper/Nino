@@ -499,10 +499,11 @@ internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool P
 /// running process knows (a block's layout, a struct's memory, Untrusted mode), the formatter has a second chain of
 /// one item per member and a startup check read once per call (<see cref="Checks"/>): the fallback.
 /// </summary>
-internal sealed record FlatModel(EquatableArray<FlatItem> Items)
+/// <param name="ValueType">A struct: its runs only, each element in place, through one chain of one item per member.</param>
+internal sealed record FlatModel(EquatableArray<FlatItem> Items, bool ValueType = false)
 {
     /// <summary>Whether the body has a fallback chain and a startup check: a block or a struct among its items.</summary>
-    public bool Checks => Items.Any(static i => i.Kind == FlatItemKind.Block || i.Kind == FlatItemKind.Struct && !i.Property);
+    public bool Checks => !ValueType && Items.Any(static i => i.Kind == FlatItemKind.Block || i.Kind == FlatItemKind.Struct && !i.Property);
 }
 
 /// <summary>

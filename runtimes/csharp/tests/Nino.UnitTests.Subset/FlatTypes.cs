@@ -171,4 +171,36 @@ namespace Nino.UnitTests.Subset.Flat
         public long C { get; set; }
         public byte? D;
     }
+
+    /// <summary>
+    /// A struct whose body is flat (#355 step B): its runs through the one item chain, each element in place, as a
+    /// pair's are; one value member by member.
+    /// </summary>
+    [NinoType]
+    public struct FlatPoint
+    {
+        public int Id;
+        public string Name;
+        public double X { get; set; }
+        public bool Flag;
+        public int? Count;
+        public DateTime At;
+        [NinoUtf8] public string Tag;
+    }
+
+    /// <summary><see cref="FlatPoint"/> with a callback: not flat, the same bytes.</summary>
+    [NinoType]
+    public struct FlatPointTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public int Id;
+        public string Name;
+        public double X { get; set; }
+        public bool Flag;
+        public int? Count;
+        public DateTime At;
+        [NinoUtf8] public string Tag;
+    }
 }

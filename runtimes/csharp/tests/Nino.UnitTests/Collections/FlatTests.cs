@@ -254,6 +254,49 @@ namespace Nino.UnitTests
         }
 
         /// <summary>
+        /// A struct whose body is flat (#355 step B): its runs go through the item chain in place, with the bytes of a
+        /// twin written by the generated body, read back new and into existing elements, every cut rejected.
+        /// </summary>
+        [TestMethod]
+        public void StructsTakeTheChain()
+        {
+            Assert.IsTrue(HasFlat(Formatter<FlatPoint>()));
+            Assert.IsFalse(HasFlat(Formatter<FlatPointTwin>()));
+            var random = new Random(7);
+            foreach (int count in new[] { 1, 2, 17, 300 })
+            {
+                var points = Enumerable.Range(0, count).Select(i => new FlatPoint
+                {
+                    Id = i, Name = i % 5 == 3 ? null : Text(random, 0, 30, i % 4 == 1), X = random.NextDouble(),
+                    Flag = i % 2 == 1, Count = i % 3 == 0 ? null : -i, At = new DateTime(2021, 2, 3).AddSeconds(i),
+                    Tag = i % 7 == 6 ? "" : Text(random, 1, 9, true),
+                }).ToArray();
+                var twins = points.Select(static p => new FlatPointTwin
+                {
+                    Id = p.Id, Name = p.Name, X = p.X, Flag = p.Flag, Count = p.Count, At = p.At, Tag = p.Tag,
+                }).ToArray();
+                byte[] bytes = NinoSerializer.Serialize(points);
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(twins), bytes, $"points {count}");
+                CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(points.ToList()));
+                CollectionAssert.AreEqual(points, NinoDeserializer.Deserialize<FlatPoint[]>(bytes));
+                CollectionAssert.AreEqual(points, NinoDeserializer.Deserialize<List<FlatPoint>>(bytes));
+                var existing = points.Select(static p => p with { Name = p.Name + "?", Count = 5 }).ToArray();
+                NinoDeserializer.Deserialize(bytes, ref existing);
+                CollectionAssert.AreEqual(points, existing, $"into existing {count}");
+                for (int cut = 0; cut < bytes.Length; cut += Math.Max(1, bytes.Length / 31))
+                {
+                    var prefix = bytes.AsSpan(0, cut).ToArray();
+                    Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatPoint[]>(prefix),
+                        $"cut {cut} of {count}");
+                }
+            }
+
+            var (writes, reads) = Stacks(Enumerable.Range(0, 50).Select(static i => new FlatPoint { Id = i, Name = "p" }).ToArray());
+            Assert.IsTrue(writes[0].Contains("NinoFlatValues`1.Write"), "FlatPoint[] write");
+            Assert.IsTrue(reads[0].Contains("NinoFlatValues`1.Read"), "FlatPoint[] read");
+        }
+
+        /// <summary>
         /// The stacks of an array and a list of <paramref name="values"/> through the generated formatter: of every
         /// growth of the buffer they are written to, and of the exception reading their bytes without the last three.
         /// </summary>

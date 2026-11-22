@@ -97,4 +97,25 @@ namespace Nino.Core.CompilerServices
             writer.Commit(default(TBody).WriteAt(ref writer.Ensure(max > int.MaxValue ? -1 : (int)max), ref item));
         }
     }
+
+    /// <summary>
+    /// What a generated formatter of a struct whose body is flat calls over its chain of items (a generated class derives
+    /// this one to name it once): the runs of a collection, each element read and written in place
+    /// (<see cref="INinoFormatter.WriteFlat"/>, <see cref="INinoFormatter.ReadFlat"/>), as a pair's or a value tuple's
+    /// are. One value is written and read member by member.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public abstract class NinoFlatValues<TBody> where TBody : struct, INinoItem
+    {
+        /// <summary>Writes the values of <paramref name="run"/> (not empty; free entries skipped).</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void Write(NinoRun run, ref Writer writer) =>
+            writer = NinoStringRuns.Write(run, default(TBody), writer);
+
+        /// <summary>Reads the values of <paramref name="run"/> (not empty, every one in use) in place.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void Read(NinoRun run, ref Reader reader) =>
+            reader.UnsafeAdvance(NinoStringRuns.Read(run, default(TBody), ref reader.Peek(), reader.Remaining,
+                default(NinoStringRuns.InPlace)));
+    }
 }

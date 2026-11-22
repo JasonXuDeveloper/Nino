@@ -27,15 +27,20 @@ internal static class FlatRules
     /// The flat layout of <paramref name="type"/>, or null when its body is not flat. <paramref name="symbols"/> are the
     /// members' symbols in the order of <paramref name="members"/>.
     /// </summary>
-    public static FlatModel? Build(INamedTypeSymbol type, FormatterKind kind, NinoFormat format, bool generic,
+    public static FlatModel? Build(INamedTypeSymbol type, FormatterKind kind, bool rawStruct, NinoFormat format, bool generic,
         bool trackReferences, bool collection, bool pooled, bool callbacks, ConstructionModel construction,
         IReadOnlyList<MemberModel> members, IReadOnlyList<ISymbol> symbols)
     {
         // A body of raw members alone is one block already (TypeModel.RawBody): a string or a T? makes it flat.
-        if (kind is not (FormatterKind.Class or FormatterKind.SealedClass) || generic || trackReferences ||
-            collection || pooled || callbacks || format != NinoFormat.Positional || construction.Recreate ||
-            construction.Factory.Length != 0 || !construction.Creator.StartsWith("new ", System.StringComparison.Ordinal) ||
-            members.Count == 0 || members.Count != symbols.Count || !members.Any(static m => m.IsString || IsSlot(m)))
+        // A struct (not raw: a raw one is a block) composes in place, its runs only, as a pair does: with a string, so
+        // that collections move it through the run kernels (NinoCursor.Own); never in blocks (no startup check).
+        bool valueType = kind == FormatterKind.Struct;
+        if (!(valueType ? !rawStruct : kind is FormatterKind.Class or FormatterKind.SealedClass) || generic ||
+            trackReferences || collection || pooled || callbacks || format != NinoFormat.Positional ||
+            construction.Recreate || construction.Factory.Length != 0 ||
+            !valueType && !construction.Creator.StartsWith("new ", System.StringComparison.Ordinal) ||
+            members.Count == 0 || members.Count != symbols.Count ||
+            !members.Any(valueType ? static m => m.IsString : static m => m.IsString || IsSlot(m)))
             return null;
         foreach (var member in members)
             if (member.Access != MemberAccess.Direct || member.ConstructionOnly || member.Unassignable ||
@@ -68,17 +73,18 @@ internal static class FlatRules
                 continue;
             }
 
-            // A struct, or a value Untrusted mode checks (DateTime, decimal): copied as its bytes only where proven.
+            // A struct, or a value Untrusted mode checks (DateTime, decimal): copied as its bytes only where proven
+            // (a property's and a struct's never).
             if (!raw.IsConstant || raw.Read != RawRead.Plain)
             {
                 items.Add(new FlatItem(FlatItemKind.Struct, i++, 1, property));
                 continue;
             }
 
-            // A property: its value alone, through its accessors.
-            if (property)
+            // A property, or a struct's member: its value alone.
+            if (property || valueType)
             {
-                items.Add(new FlatItem(FlatItemKind.Value, i++, 1, true));
+                items.Add(new FlatItem(FlatItemKind.Value, i++, 1, property));
                 continue;
             }
 
@@ -90,7 +96,7 @@ internal static class FlatRules
             i = end;
         }
 
-        return items.Count <= MaxItems ? new FlatModel(new EquatableArray<FlatItem>(items.ToArray())) : null;
+        return items.Count <= MaxItems ? new FlatModel(new EquatableArray<FlatItem>(items.ToArray()), valueType) : null;
     }
 
     /// <summary>

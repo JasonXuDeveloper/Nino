@@ -43,6 +43,15 @@ internal static class FlatEmitter
         }
 
         w.Line();
+        if (flat.ValueType)
+        {
+            // A struct: each element of a run in place, through one item per member.
+            w.Line($"private sealed class __Flat : {Services}NinoFlatValues<{Chain(m, fields: true)}> {{ }}");
+            w.Line();
+            EmitHooks(w, m, names, m.Self);
+            return;
+        }
+
         w.Open($"internal readonly struct __Layout : {Services}INinoFlatLayout");
         w.Line($"{names.Inline} public object Create() => {BodyEmitter.Create(m, compactSyntax: false)};");
         w.Line(m.Kind == FormatterKind.SealedClass
@@ -75,6 +84,15 @@ internal static class FlatEmitter
         string t = m.TypeName;
         string kind = m.Kind == FormatterKind.SealedClass ? "Sealed" : "Typed";
         w.Line("public bool HasFlat => true;");
+        if (flat.ValueType)
+        {
+            w.Line(names.Inline);
+            w.Line($"public void WriteFlat({Services}NinoRun run, ref {Core}Writer writer) => __Flat.Write(run, ref writer);");
+            w.Line(names.Inline);
+            w.Line($"public void ReadFlat({Services}NinoRun run, ref {Core}Reader reader) => __Flat.Read(run, ref reader);");
+            return;
+        }
+
         Hook(w, names, flat.Checks, $"public void WriteFlat({Services}NinoRun run, ref {Core}Writer writer)",
             "__Check.Write", $"Write{kind}<{t}, {formatter}>(run, ref writer)");
         Hook(w, names, flat.Checks, $"public void ReadFlat({Services}NinoRun run, ref {Core}Reader reader)",

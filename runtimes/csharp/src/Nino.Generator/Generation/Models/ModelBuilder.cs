@@ -117,7 +117,7 @@ internal static partial class ModelBuilder
             Cases: cases,
             // The analyzer reads nothing of it.
             Flat: diagnostics == null
-                ? FlatRules.Build(type, kind, shape.Format, generic, trackReferences, collection != null, pooled,
+                ? FlatRules.Build(type, kind, rawStruct, shape.Format, generic, trackReferences, collection != null, pooled,
                     shape.HasCallbacks, construction, members, built.Symbols)
                 : null);
     }

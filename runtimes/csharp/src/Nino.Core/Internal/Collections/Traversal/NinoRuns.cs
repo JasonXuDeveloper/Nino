@@ -418,10 +418,19 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static Writer WriteStrings<T, TFormatter>(scoped NinoRun run, Writer writer)
-            where TFormatter : struct, INinoFormatter<T> =>
-            typeof(T).IsValueType
-                ? default(TFormatter).WriteStrings(run, writer)
-                : NinoStringRuns.Write<TFormatter>(run, writer);
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (!typeof(T).IsValueType)
+                return NinoStringRuns.Write<TFormatter>(run, writer);
+            // A generated struct whose body is flat (#355): its chain of items, in place.
+            if (NinoKind<TFormatter>.Flat)
+            {
+                default(TFormatter).WriteFlat(NinoRun.Unscoped(run), ref writer);
+                return writer;
+            }
+
+            return default(TFormatter).WriteStrings(run, writer);
+        }
 
         /// <summary>
         /// As <see cref="WriteStrings{T,TFormatter}"/>, the read in place. The data and the bytes left go to the call,
@@ -429,8 +438,23 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void ReadStrings<T, TFormatter>(scoped NinoRun run, ref Reader reader)
-            where TFormatter : struct, INinoFormatter<T> =>
-            reader.UnsafeAdvance(ReadStrings<T, TFormatter>(run, ref reader.Peek(), reader.Remaining));
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            // A generated struct whose body is flat (#355): its chain of items, in place, the reader by value and
+            // returned (ReadEach's way).
+            if (typeof(T).IsValueType && NinoKind<TFormatter>.Flat)
+                reader = ReadFlatValues<T, TFormatter>(NinoRun.Unscoped(run), reader);
+            else
+                reader.UnsafeAdvance(ReadStrings<T, TFormatter>(run, ref reader.Peek(), reader.Remaining));
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadFlatValues<T, TFormatter>(NinoRun run, Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            default(TFormatter).ReadFlat(run, ref reader);
+            return reader;
+        }
 
         /// <summary>The read of <see cref="ReadStrings{T,TFormatter}(NinoRun, ref Reader)"/> from the data at
         /// <paramref name="data"/> (<paramref name="end"/> bytes); returns the bytes read.</summary>
