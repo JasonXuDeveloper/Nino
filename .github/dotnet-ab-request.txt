@@ -436,4 +436,9 @@
 # done (run 44312770361, #394 merged into feat/storage-layer): geomean 1.003 Xeon 6975P, 1.005 N2: 44d49866 0a2275ca 3 *PolymorphicTest.Nino* *GenericPolymorphicTest.Nino* *SimpleTest.Nino* *CollectionsTest.Nino*Dictionary* *CommonTypesTest.Nino* *StringsTest.Nino* *AppDataTest.Nino*
 # #355 PR 3 probe (claude/step-probe 1ca26846): kernel + generated step against the per-base loop, same commit both
 # sides (shapes compared within one commit): Foo20 and Small3, arrays and lists of 1,000, dictionaries of 12/32/100.
-1ca26846 1ca26846 3 *StepProbe* *StepDictProbe*
+# done (run 44379569172): 1ca26846 1ca26846 3 *StepProbe* *StepDictProbe*
+# #355 whole (feat/storage-layer c6eff3b7, every step merged) against the previous main 9540e0bb. The base is bcc00f8f:
+# main plus LuminPack 2.0.0-rc.2 in Directory.Packages.props, which head's benchmark project needs; Nino is main's.
+# The whole Nino suite, and main against itself for the floor. Decides the feat/storage-layer -> main PR.
+cpu='EPYC|Xeon|Neoverse' bcc00f8f c6eff3b7 3 *Test.Nino*
+cpu='EPYC|Xeon|Neoverse' bcc00f8f bcc00f8f 3 *Test.Nino*
