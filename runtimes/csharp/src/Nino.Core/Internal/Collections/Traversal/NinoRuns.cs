@@ -422,9 +422,13 @@ namespace Nino.Core.Internal
         {
             if (!typeof(T).IsValueType)
                 return NinoStringRuns.Write<TFormatter>(run, writer);
-            // A generated struct whose body is flat (#355): its chain of items, in place.
+            // A generated struct whose body is flat (#355): its chain of items, in place, from NinoFlatRuns.MinRun
+            // elements on, as a class's; a shorter run element by element (through the kernels a run of one wrote in
+            // 2.1 times main's time, of three 1.35: the run's fixed cost; Tier1, local, alternated).
             if (NinoKind<TFormatter>.Flat)
             {
+                if (run.Count < NinoFlatRuns.MinRun)
+                    return WriteEach<T, TFormatter>(run, NoLength, writer);
                 default(TFormatter).WriteFlat(NinoRun.Unscoped(run), ref writer);
                 return writer;
             }
@@ -452,7 +456,11 @@ namespace Nino.Core.Internal
         private static Reader ReadFlatValues<T, TFormatter>(NinoRun run, Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
-            default(TFormatter).ReadFlat(run, ref reader);
+            // As WriteStrings: a run shorter than NinoFlatRuns.MinRun element by element.
+            if (run.Count < NinoFlatRuns.MinRun)
+                ReadLoop<T, TFormatter>(ref run.First, run.Count, run.Stride, ref reader);
+            else
+                default(TFormatter).ReadFlat(run, ref reader);
             return reader;
         }
 
