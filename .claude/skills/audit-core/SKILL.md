@@ -68,6 +68,9 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
 - **Exceptions**: data errors are `NinoDataException` (`audit-security`), caller mistakes say which call and why.
 - **Platforms**: every TFM (netstandard2.1, net8.0, net10.0) builds the same behavior; Unity and IL2CPP
   constraints (`platforms`); trim and AOT annotations on every reflection path.
+- **Boxing**: nothing on a read or write path boxes (`optimize`, "Never box"): no `== null` on a type parameter that
+  may be a `T?` (`NinoUnsafe.IsNull`), no struct passed as `object` or an interface, no default interface member that
+  uses its `this`; `AllocationTests` and `asm.py dump --boxes` prove it.
 - **Unbounded memory**: pools, caches and registries with a cap or a release.
 - **Dead code**: members, overloads and helpers nothing uses (`audit-code` owns the cross-project sweep).
 

@@ -154,6 +154,9 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
   fixes (`optimize`'s [references/jit.md](../optimize/references/jit.md), Inlining budget). The generated
   read and write bodies keep rare paths (deferral, pooling, growth, polymorphic fallback) in calls out of line and
   the common path inline; a run of fixed-size members is one bounds check and one block copy where the layout allows.
+- No box in a generated read or write path (`optimize`, "Never box"): no member or formatter struct passed as
+  `object` or an interface, no `== null` on a member of a type parameter; `asm.py dump --boxes` lists any (a C# union
+  holds its case as `object`, by the language, and is the one exception).
 - No indirect call in a generated read or write path where a direct one exists (`optimize`, the owner's rule): a
   member's formatter is named directly (a generic type's formatter takes its arguments' formatters), and
   `CachedFormatter<T>` only for a method's type parameter or a `[NinoType]` generated in another assembly (a type

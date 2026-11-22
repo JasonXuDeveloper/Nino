@@ -144,7 +144,8 @@ reusing is written down before the task ends, in the same series of commits as t
 
 1. **Fast on every platform.** x64 (AVX-512, AVX2, SSSE3), Arm64, Arm32 and other 32-bit targets, WebAssembly and no
    SIMD, Mono and Unity (IL2CPP). A fast path is behind `#if` or a startup check with the shared path as
-   fallback, and both write the same bytes (`optimize`, `platforms`).
+   fallback, and both write the same bytes (`optimize`, `platforms`). Nothing on a read or write path boxes
+   (`optimize`, "Never box").
 2. **Safe on hostile input.** Nino reads untrusted bytes: nothing may crash, read outside the input, allocate or take
    time out of proportion to it, or recurse without a bound (`audit-security`), in every runtime.
 3. **The bytes are the contract.** .NET, Go, Rust, TypeScript and the generated code write identical bytes; a change
