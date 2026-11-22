@@ -107,7 +107,26 @@ internal static class FlatRules
     /// single value (a presence byte, then the value).
     /// </summary>
     private static bool IsSlot(MemberModel member) =>
-        member.Formatter.Name == TypeNames.Core + "UnmanagedNullableFormatter" && !member.Formatter.Open;
+        member.Formatter.Name == TypeNames.Core + "UnmanagedNullableFormatter" && !member.Formatter.Open &&
+        SlotBytes(member) > 0;
+
+    /// <summary>
+    /// The most bytes a raw <c>T?</c> member's single value takes (its item's size, a literal of the generated
+    /// accessor): its presence byte and the canonical bytes of <c>T</c>, as its encoding publishes them
+    /// (<c>nullable(raw(N)...)</c>, WireEncoding); 0 where the encoding names none.
+    /// </summary>
+    public static int SlotBytes(MemberModel member)
+    {
+        const string prefix = "nullable(raw(";
+        string encoding = member.Encoding;
+        if (!encoding.StartsWith(prefix, System.StringComparison.Ordinal))
+            return 0;
+        int end = encoding.IndexOf(')', prefix.Length);
+        return end > prefix.Length && int.TryParse(encoding.Substring(prefix.Length, end - prefix.Length),
+            System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int bytes)
+            ? 1 + bytes
+            : 0;
+    }
 
     /// <summary>
     /// Whether member <paramref name="i"/> extends the block of the member before it: both primitives (not bools,

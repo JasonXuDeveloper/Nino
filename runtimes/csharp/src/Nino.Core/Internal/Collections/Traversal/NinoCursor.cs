@@ -40,7 +40,7 @@ namespace Nino.Core.Internal
         /// Reads into <paramref name="value"/> (a string, or a value read as one) the value at
         /// <paramref name="source"/> (<paramref name="available"/> bytes) through its run item, the one cursor read of
         /// an item (<see cref="INinoItem.ReadAt"/>: <see cref="NinoValueItem{T,TFormatter}"/>,
-        /// <see cref="NinoSlotItem{T,TFormatter}"/>, <see cref="NinoUtf8Item"/>, <see cref="NinoUtf16Item"/>), with its checks: too few bytes and values no write
+        /// <see cref="NinoSlotItem{T,TFormatter,TSize}"/>, <see cref="NinoUtf8Item"/>, <see cref="NinoUtf16Item"/>), with its checks: too few bytes and values no write
         /// makes are invalid data; an unchanged string is kept. Returns the bytes read. An item of a pair merged into an
         /// existing dictionary (NinoDictionary.Refill), read apart.
         /// </summary>
@@ -49,10 +49,15 @@ namespace Nino.Core.Internal
             where TFormatter : struct, INinoFormatter<T>
         {
             ref byte item = ref Unsafe.As<T, byte>(ref value);
-            if (NinoRuns.ScattersItems<T, TFormatter>())
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Block)
                 return default(NinoValueItem<T, TFormatter>).ReadAt(ref source, available, ref item, false);
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw)
+                return typeof(T) == typeof(bool)
+                    ? default(NinoBoolItem).ReadAt(ref source, available, ref item, false)
+                    : default(NinoStructItem<T>).ReadAt(ref source, available, ref item, false);
             if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                return default(NinoSlotItem<T, TFormatter>).ReadAt(ref source, available, ref item, false);
+                return default(NinoSlotItem<T, TFormatter, NinoMemorySize<T>>).ReadAt(ref source, available, ref item,
+                    false);
             // A string, told by its formatter's type (a constant in code shared over a class too).
             return typeof(TFormatter) == typeof(Utf8StringFormatter)
                 ? default(NinoUtf8Item).ReadAt(ref source, available, ref item, false)
@@ -62,11 +67,12 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Whether a value is an item the string run kernels move beside a string without a string of its own: a value
         /// read as one (<see cref="NinoRuns.ScattersItems{T,TFormatter}"/>: <see cref="NinoValueItem{T,TFormatter}"/>)
-        /// or a slot's value (a raw <c>T?</c>, <see cref="NinoSlotItem{T,TFormatter}"/>), so a dictionary of
+        /// or a slot's value (a raw <c>T?</c>, <see cref="NinoSlotItem{T,TFormatter,TSize}"/>), so a dictionary of
         /// <c>int?</c> values beside string keys is a run of the kernels too. A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Item<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            NinoRuns.ScattersItems<T, TFormatter>() || NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot;
+            NinoRuns.ScattersItems<T, TFormatter>() ||
+            NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot && Unsafe.SizeOf<T>() >= NinoKind.Stride<T, TFormatter>();
     }
 }

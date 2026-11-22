@@ -42,18 +42,28 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// Where a member of a composite lies (generated code and Nino.Core): its memory in the composite's, and for a block
-    /// the bytes of its consecutive raw members (a constant).
+    /// A size an item takes as a type argument (generated code and Nino.Core): a constant, never a field read per
+    /// element (#436). A generated accessor's is a literal of the generator: a block's bytes, a raw <c>T?</c>'s longest
+    /// single value; Nino.Core's are JIT-time constants (<c>Unsafe.SizeOf</c>).
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public interface INinoMember
+    public interface INinoSize
+    {
+        /// <summary>The bytes (a constant): of a block that starts at a member, or the most a slot's value
+        /// (<see cref="NinoSlotItem{T,TFormatter,TSize}"/>) writes; unused by other items.</summary>
+        int Size { get; }
+    }
+
+    /// <summary>
+    /// Where a member of a composite lies (generated code and Nino.Core): its memory in the composite's, and its
+    /// <see cref="INinoSize.Size"/> (a block's, a slot's).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoMember : INinoSize
     {
         /// <summary>The member's memory in <paramref name="item"/>: the composite in place for a struct, a reference to
         /// the object (never null) for a class.</summary>
         ref byte Ref(ref byte item);
-
-        /// <summary>The bytes of a block that starts at the member (a constant); unused by other items.</summary>
-        int Size { get; }
     }
 
     /// <summary>What a generated <see cref="INinoMember"/> reaches its field through.</summary>
@@ -261,7 +271,7 @@ namespace Nino.Core.CompilerServices
     /// be reached by reference (an auto-property's backing field has no name C# can write).
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public interface INinoProperty<TValue>
+    public interface INinoProperty<TValue> : INinoSize
     {
         /// <summary>The property's value in <paramref name="item"/> (as <see cref="INinoMember.Ref"/>'s item).</summary>
         TValue Load(ref byte item);
@@ -515,47 +525,57 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// A value of a fixed size moved as its formatter moves it in a block: raw, or a block read as one
-    /// (<see cref="NinoRuns.ScattersItems{T,TFormatter}"/>). Only for values without references.
+    /// A block of a fixed size (<see cref="INinoFormatter{T}.BlockMap"/>: a <c>DateTimeOffset</c>, a generated block
+    /// struct, a tuple or pair of raw items) moved as its formatter moves it, read as one
+    /// (<see cref="NinoRuns.ScattersItems{T,TFormatter}"/>). Its bytes are the formatter's
+    /// <see cref="INinoFormatter{T}.FixedSize"/>: a literal of a generated formatter, its items' sizes in a generic one,
+    /// never a field of Nino's read per element (#436). A raw value is a <see cref="NinoStructItem{T}"/> (its bytes
+    /// <c>Unsafe.SizeOf</c>, a constant) or a <see cref="NinoBoolItem"/>, picked outside the loop
+    /// (<see cref="NinoCursor"/>). Only for values without references.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public readonly struct NinoValueItem<T, TFormatter> : INinoItem where TFormatter : struct, INinoFormatter<T>
     {
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long MaxSize(ref byte item) => NinoKind.Stride<T, TFormatter>();
+        public long MaxSize(ref byte item) => default(TFormatter).FixedSize;
 
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int WriteAt(ref byte destination, ref byte item)
         {
-            NinoBlocks.WriteItem<T, TFormatter>(in Unsafe.As<byte, T>(ref item), ref destination);
-            return NinoKind.Stride<T, TFormatter>();
+            default(TFormatter).WriteFixed(in Unsafe.As<byte, T>(ref item), ref destination);
+            return default(TFormatter).FixedSize;
         }
 
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
         {
-            if ((uint)available < (uint)NinoKind.Stride<T, TFormatter>())
+            int size = default(TFormatter).FixedSize;
+            if ((uint)available < (uint)size)
                 NinoThrow.EndOfData();
-            NinoBlocks.ReadItem<T, TFormatter>(ref Unsafe.As<byte, T>(ref item), ref source);
-            return NinoKind.Stride<T, TFormatter>();
+            default(TFormatter).ReadBlock(ref Unsafe.As<byte, T>(ref item), ref source);
+            return size;
         }
     }
 
     /// <summary>
     /// A slot's value (<see cref="NinoCursor.Item{T,TFormatter}"/>: a raw <c>T?</c>,
     /// <see cref="UnmanagedNullableFormatter{T}"/>) in a single value's bytes: a presence byte, then the value when
-    /// present (<see cref="INinoFormatter{T}.WriteAt"/>, <see cref="INinoFormatter{T}.ReadAt"/>), at most its slot's
-    /// bytes. A value without references.
+    /// present (<see cref="INinoFormatter{T}.WriteAt"/>, <see cref="INinoFormatter{T}.ReadAt"/>), at most
+    /// <typeparamref name="TSize"/>'s bytes: a generated accessor's literal (one presence byte and the value's
+    /// canonical bytes), or <c>Unsafe.SizeOf&lt;T&gt;()</c> where that bounds it (<see cref="NinoCursor.Item{T,TFormatter}"/>).
+    /// A value without references.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public readonly struct NinoSlotItem<T, TFormatter> : INinoItem where TFormatter : struct, INinoFormatter<T>
+    public readonly struct NinoSlotItem<T, TFormatter, TSize> : INinoItem
+        where TFormatter : struct, INinoFormatter<T>
+        where TSize : struct, INinoSize
     {
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long MaxSize(ref byte item) => NinoKind.Stride<T, TFormatter>();
+        public long MaxSize(ref byte item) => default(TSize).Size;
 
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -566,5 +586,18 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadAt(ref byte source, int available, ref byte item, bool fresh) =>
             default(TFormatter).ReadAt(ref source, available, ref Unsafe.As<byte, T>(ref item));
+    }
+
+    /// <summary>
+    /// The bytes of a <typeparamref name="T"/> in memory (<c>Unsafe.SizeOf</c>, a JIT-time constant on every runtime):
+    /// the size of a slot's value (<see cref="NinoSlotItem{T,TFormatter,TSize}"/>) where it bounds it.
+    /// </summary>
+    internal readonly struct NinoMemorySize<T> : INinoSize
+    {
+        public int Size
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => Unsafe.SizeOf<T>();
+        }
     }
 }

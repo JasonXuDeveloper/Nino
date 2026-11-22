@@ -36,9 +36,10 @@ internal static class FlatEmitter
             {
                 var member = m.Members[i];
                 if (item.Property)
-                    PropertyAccessor(w, m, names, member);
+                    PropertyAccessor(w, m, names, member, item.Kind == FlatItemKind.Slot ? SlotSize(member) : "0");
                 else
-                    Accessor(w, m, names, MemberName(member), member.SourceName, member.Raw?.Expression ?? "0");
+                    Accessor(w, m, names, MemberName(member), member.SourceName,
+                        item.Kind == FlatItemKind.Slot ? SlotSize(member) : member.Raw?.Expression ?? "0");
             }
         }
 
@@ -216,7 +217,8 @@ internal static class FlatEmitter
                     FlatItemKind.Utf8 => Services + "NinoUtf8Item",
                     FlatItemKind.Bool => Services + "NinoBoolItem",
                     FlatItemKind.Struct => $"{Services}NinoStructItem<{member.TypeName}>",
-                    FlatItemKind.Slot => $"{Services}NinoSlotItem<{member.TypeName}, {member.Formatter}>",
+                    FlatItemKind.Slot => $"{Services}NinoSlotItem<{member.TypeName}, {member.Formatter}, " +
+                                         $"{(item.Property ? PropertyName(member) : MemberName(member))}>",
                     _ => $"{Services}NinoRawItem<{member.TypeName}>",
                 };
                 nodes.Add(item.Property
@@ -238,14 +240,24 @@ internal static class FlatEmitter
                $"ref {Services}NinoMemberAccess.Bytes(ref {Services}NinoMemberAccess.As<{m.TypeName}>(ref v).{field}); " +
                $"public int Size => {size}; }}");
 
-    /// <summary>A property's accessor: its value read and assigned through the property (INinoProperty).</summary>
-    private static void PropertyAccessor(CodeWriter w, TypeModel m, FormatterNames names, MemberModel member)
+    /// <summary>
+    /// A property's accessor: its value read and assigned through the property (INinoProperty), and its
+    /// <paramref name="size"/> (a slot's).
+    /// </summary>
+    private static void PropertyAccessor(CodeWriter w, TypeModel m, FormatterNames names, MemberModel member,
+        string size)
     {
         string access = $"{Services}NinoMemberAccess.As<{m.TypeName}>(ref v).{member.SourceName}";
         w.Line($"internal readonly struct {PropertyName(member)} : {Services}INinoProperty<{member.TypeName}> {{ " +
                $"{names.Inline} public {member.TypeName} Load(ref byte v) => {access}; " +
-               $"{names.Inline} public void Store(ref byte v, {member.TypeName} value) => {access} = value; }}");
+               $"{names.Inline} public void Store(ref byte v, {member.TypeName} value) => {access} = value; " +
+               $"public int Size => {size}; }}");
     }
+
+    /// <summary>The most bytes a raw <c>T?</c> member's single value takes, a literal (#436: never a field of Nino.Core
+    /// read per element; <see cref="FlatRules.SlotBytes"/>).</summary>
+    private static string SlotSize(MemberModel member) =>
+        FlatRules.SlotBytes(member).ToString(CultureInfo.InvariantCulture);
 
     private static string PropertyName(MemberModel member) => "__P_" + member.Name;
 
