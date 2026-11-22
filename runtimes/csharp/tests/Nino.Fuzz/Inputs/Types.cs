@@ -122,7 +122,7 @@ namespace Nino.Fuzz
         public ITagged Tagged; public Flag F; public Flag[] Flags; public List<Bird> Birds;
     }
 
-    // Classes whose generated body is flat (#355): raw members, bools and strings read by Nino.Core's flat kernels in
+    // Classes whose generated body is flat (#355): raw members, bools, raw T?s and strings read by Nino.Core's flat kernels in
     // runs of 16 or more, a block of primitives copied at once (FlatOpen, not sealed: subtypes leave the run), a
     // DateTime and a decimal Untrusted mode checks (FlatSealed).
     [NinoType] public class FlatOpen { public long W; public int X; public string S; }
@@ -134,8 +134,19 @@ namespace Nino.Fuzz
         public string Text; public decimal Price;
     }
 
+    // Step B (#355): properties, raw T?s, a body without a string, a struct's runs and a generic type's.
+    [NinoType] public sealed class FlatProps { public int Id { get; set; } public int? N; public string S { get; set; } public bool B { get; set; } public long? L { get; set; } }
+    [NinoType] public sealed class FlatBareFuzz { public int A; public short? B; public byte? C { get; set; } }
+    [NinoType] public struct FlatStructFuzz { public string K; public int V; public double? D; public bool B { get; set; } }
+    [NinoType] public sealed class FlatGeneric<T> { public int Id; public string S; public long? L; }
+
     [NinoType]
-    public sealed class FlatRoot { public FlatOpen[] Opens; public List<FlatSealed> Sealeds; public FlatSealed One; public HashSet<FlatOpen> Set; }
+    public sealed class FlatRoot
+    {
+        public FlatOpen[] Opens; public List<FlatSealed> Sealeds; public FlatSealed One; public HashSet<FlatOpen> Set;
+        public FlatProps[] Props; public List<FlatBareFuzz> Bares; public FlatStructFuzz[] Structs;
+        public List<FlatGeneric<int>> Generics;
+    }
 
     [NinoType]
     public sealed class Prims
