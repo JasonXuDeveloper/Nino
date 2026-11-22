@@ -64,7 +64,9 @@ Shared/                      RepositoryFiles.cs + .props: the repository root as
 Serialization/               round trips of the public API: private members, custom formatters, reference tracking,
                              streams, threads, issue regressions (IssueTests), serialization callbacks (CallbackTests:
                              order and counts on every path, with Subset's CallbackTypes.cs); GoldenBytesTests pins the
-                             wire format for every Nino.Core build (and seeds the fuzzer)
+                             wire format for every Nino.Core build (and seeds the fuzzer); AllocationTests: no box
+                             anywhere (writes allocate nothing, reads only the objects they return, reads into a value
+                             nothing) over every shape of value
   Types/                     primitives, BCL types, DateTimeOffset, tuples and pairs, records, generics
   Strings/                   string encodings (StringEncodingTests) and UTF-8 on the wire (Utf8WireTests)
 Collections/                 arrays, BCL and user collections, empty ones, Stack/Queue through their arrays, the

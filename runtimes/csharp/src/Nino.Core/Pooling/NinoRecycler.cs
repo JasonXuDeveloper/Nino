@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
 namespace Nino.Core
@@ -53,7 +54,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Recycle(T value)
         {
-            if (value != null)
+            if (!NinoUnsafe.IsNull(value))
                 RecycleCore(value);
         }
 
@@ -111,7 +112,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Discard<T>(ref T value)
         {
-            if (value == null)
+            if (NinoUnsafe.IsNull(value))
                 return;
 
             var old = value;

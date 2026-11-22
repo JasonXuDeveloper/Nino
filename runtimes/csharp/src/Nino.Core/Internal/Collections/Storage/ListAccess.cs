@@ -183,7 +183,11 @@ namespace Nino.Core.Internal
         private static void CloseCopy<T>(List<T> list, int count, T[] buffer)
         {
             list.Clear();
-            list.AddRange(new ArraySegment<T>(buffer, 0, count));
+#if NET8_0_OR_GREATER
+            CollectionExtensions.AddRange(list, new ReadOnlySpan<T>(buffer, 0, count));
+#else
+            list.AddRange(new RentedItems<T>(buffer, count));
+#endif
             NinoCollections.ReturnRented(buffer);
         }
     }

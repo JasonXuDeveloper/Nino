@@ -229,6 +229,17 @@ public class SortedCollectionFastPathTests
         NinoDeserializer.Deserialize(sets, ref caseless);
         Assert.AreEqual(2, caseless.Count);
 
+        // A SortedDictionary read from pairs out of its order is sorted in place (no set built aside); a key twice under
+        // its comparer stays invalid data when the pairs come out of order too.
+        var descendingMap = new SortedDictionary<int, int>(Comparer<int>.Create((a, b) => b.CompareTo(a)));
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(new SortedDictionary<int, int>(
+            keys.ToDictionary(k => k, k => -k))), ref descendingMap);
+        CollectionAssert.AreEqual(Enumerable.Reverse(keys).ToList(), descendingMap.Keys.ToList());
+        Assert.AreEqual(-49, descendingMap[49]);
+        var caseTwice = NinoSerializer.Serialize(new List<KeyValuePair<string, int>> { new("b", 1), new("a", 2), new("B", 3) });
+        var caselessMap = new SortedDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(caseTwice, ref caselessMap));
+
         // A null key is invalid data, as for every dictionary that takes none.
         var nullKey = NinoSerializer.Serialize(new List<KeyValuePair<string, int>> { new("a", 1), new(null, 2) });
         StringAssert.Contains(Assert.ThrowsExactly<NinoDataException>(() =>

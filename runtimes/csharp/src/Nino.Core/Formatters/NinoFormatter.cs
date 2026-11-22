@@ -46,7 +46,7 @@ namespace Nino.Core
         /// constrained call even from code shared over a class (IL2CPP 2022.3 cannot build a generic default member,
         /// #405).
         /// </summary>
-        void WriteRun(NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(GetType(), nameof(WriteRun));
+        void WriteRun(NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(null, nameof(WriteRun));
 
         /// <summary>
         /// Whether a run of the formatter's values is written and read by the flat kernels (false, the default):
@@ -61,13 +61,13 @@ namespace Nino.Core
         /// the flat kernels. Called only where <see cref="HasFlat"/> is true. By reference, as <see cref="WriteRun"/>:
         /// the kernels copy the writer out of line, so the collection that calls this keeps its own in registers.
         /// </summary>
-        void WriteFlat(NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(GetType(), nameof(WriteFlat));
+        void WriteFlat(NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(null, nameof(WriteFlat));
 
         /// <summary>
         /// Reads the values of <paramref name="run"/> (not empty, values in a row) in place through the flat kernels,
         /// as <see cref="WriteFlat"/>. Called only where <see cref="HasFlat"/> is true.
         /// </summary>
-        void ReadFlat(NinoRun run, ref Reader reader) => NinoThrow.MissingCapability(GetType(), nameof(ReadFlat));
+        void ReadFlat(NinoRun run, ref Reader reader) => NinoThrow.MissingCapability(null, nameof(ReadFlat));
 
         /// <summary>
         /// The bytes an element of a long array or list brings into the cache (a constant: its object, and a line of
@@ -94,7 +94,7 @@ namespace Nino.Core
         /// </summary>
         int PrefetchMembers(object value)
         {
-            NinoThrow.MissingCapability(GetType(), nameof(PrefetchMembers));
+            NinoThrow.MissingCapability(null, nameof(PrefetchMembers));
             return 0;
         }
 
@@ -128,7 +128,7 @@ namespace Nino.Core
         /// only where <see cref="HasCursor"/> is true.
         /// </summary>
         internal void WriteStrings(scoped in NinoRun run, ref Writer writer) =>
-            NinoThrow.MissingCapability(GetType(), nameof(WriteStrings));
+            NinoThrow.MissingCapability(null, nameof(WriteStrings));
 
         /// <summary>
         /// Reads the values of <paramref name="run"/> (not empty, every one in use) in place from the data at
@@ -137,7 +137,7 @@ namespace Nino.Core
         /// </summary>
         internal int ReadStrings(scoped NinoRun run, ref byte data, int end)
         {
-            NinoThrow.MissingCapability(GetType(), nameof(ReadStrings));
+            NinoThrow.MissingCapability(null, nameof(ReadStrings));
             return 0;
         }
 
@@ -169,7 +169,10 @@ namespace Nino.Core
     /// </para>
     /// <para>
     /// The rule that keeps the defaults free: a call to a default a struct does not override boxes the struct
-    /// (CoreCLR, Mono, IL2CPP). So only the queries (<see cref="FixedSize"/>, <see cref="BlockMap"/>,
+    /// (CoreCLR, Mono, IL2CPP). The defaults that report a missing member never use the formatter itself (its
+    /// <c>GetType()</c>): the box of an unused <c>this</c> is dropped where the JIT inlines them, so a branch the
+    /// queries below rule out boxes nothing even where it is compiled (FullOpts code compiled before those fields
+    /// are set). So only the queries (<see cref="FixedSize"/>, <see cref="BlockMap"/>,
     /// <see cref="INinoFormatter.BodyTraits"/>, <see cref="INinoFormatter.HasRunLoop"/>,
     /// <see cref="INinoFormatter.PrefetchBytes"/>, <see cref="INinoFormatter.HasMemberPrefetch"/> and the internal
     /// ones) are ever called on a formatter that may lack a capability, once per type into a
@@ -205,7 +208,7 @@ namespace Nino.Core
         /// <see cref="FixedSize"/> is not -1.
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
-        void WriteFixed(in T value, ref byte destination) => NinoThrow.MissingCapability(GetType(), nameof(WriteFixed));
+        void WriteFixed(in T value, ref byte destination) => NinoThrow.MissingCapability(typeof(T), nameof(WriteFixed));
 
         /// <summary>
         /// Values a collection moves as blocks of <see cref="FixedSize"/> bytes, or null (the default): value tuples
@@ -224,7 +227,7 @@ namespace Nino.Core
         /// invalid data). Called only where <see cref="BlockMap"/> is not null.
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
-        void ReadBlock(ref T value, ref byte source) => NinoThrow.MissingCapability(GetType(), nameof(ReadBlock));
+        void ReadBlock(ref T value, ref byte source) => NinoThrow.MissingCapability(typeof(T), nameof(ReadBlock));
 
         /// <summary>
         /// The bytes of a slot, or -1 (the default): values whose element in a collection is a slot of a fixed size,
@@ -238,14 +241,14 @@ namespace Nino.Core
 
         /// <summary>Writes <paramref name="values"/> (not empty) into the slots at <paramref name="destination"/>.</summary>
         internal void WriteSlots(ref byte destination, ReadOnlySpan<T> values) =>
-            NinoThrow.MissingCapability(GetType(), nameof(WriteSlots));
+            NinoThrow.MissingCapability(typeof(T), nameof(WriteSlots));
 
         /// <summary>
         /// Reads <paramref name="values"/> from their slots, which the caller checked are there, and moves the reader
         /// past them. Overwrites every value; rejects a presence byte other than 0 or 1.
         /// </summary>
         internal void ReadSlots(Span<T> values, ref Reader reader) =>
-            NinoThrow.MissingCapability(GetType(), nameof(ReadSlots));
+            NinoThrow.MissingCapability(typeof(T), nameof(ReadSlots));
 
         /// <summary>
         /// Whether a slot is its value as it lies in memory on this runtime (then also <see cref="SlotStride"/> is the
@@ -262,7 +265,7 @@ namespace Nino.Core
         internal bool SlotsWriteInPlace => false;
 
         /// <summary>Rejects a presence byte other than 0 or 1 in <paramref name="count"/> slots (not zero).</summary>
-        internal void CheckSlots(ref byte slots, int count) => NinoThrow.MissingCapability(GetType(), nameof(CheckSlots));
+        internal void CheckSlots(ref byte slots, int count) => NinoThrow.MissingCapability(typeof(T), nameof(CheckSlots));
 
         /// <summary>
         /// Writes <paramref name="value"/> as a single value (<see cref="Serialize"/>'s bytes) at
@@ -272,7 +275,7 @@ namespace Nino.Core
         /// </summary>
         internal int WriteAt(ref byte destination, in T value)
         {
-            NinoThrow.MissingCapability(GetType(), nameof(WriteAt));
+            NinoThrow.MissingCapability(typeof(T), nameof(WriteAt));
             return 0;
         }
 
@@ -283,7 +286,7 @@ namespace Nino.Core
         /// </summary>
         internal int ReadAt(ref byte source, int available, ref T value)
         {
-            NinoThrow.MissingCapability(GetType(), nameof(ReadAt));
+            NinoThrow.MissingCapability(typeof(T), nameof(ReadAt));
             return 0;
         }
 
@@ -311,13 +314,13 @@ namespace Nino.Core
         /// </summary>
         internal int Size(T value)
         {
-            NinoThrow.MissingCapability(GetType(), nameof(Size));
+            NinoThrow.MissingCapability(typeof(T), nameof(Size));
             return -1;
         }
 
         /// <summary>Writes <paramref name="value"/> into the <see cref="Size"/> bytes at <paramref name="destination"/>.</summary>
         internal void WriteSized(T value, ref byte destination) =>
-            NinoThrow.MissingCapability(GetType(), nameof(WriteSized));
+            NinoThrow.MissingCapability(typeof(T), nameof(WriteSized));
 
         /// <summary>
         /// Writes <paramref name="value"/> as a whole payload straight into <paramref name="buffer"/> and returns true,
@@ -326,7 +329,7 @@ namespace Nino.Core
         /// </summary>
         internal bool TryWriteExternal(T value, IBufferWriter<byte> buffer)
         {
-            NinoThrow.MissingCapability(GetType(), nameof(TryWriteExternal));
+            NinoThrow.MissingCapability(typeof(T), nameof(TryWriteExternal));
             return false;
         }
     }

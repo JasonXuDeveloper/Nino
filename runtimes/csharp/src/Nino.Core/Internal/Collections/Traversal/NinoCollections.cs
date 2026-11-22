@@ -143,7 +143,7 @@ namespace Nino.Core.Internal
         public static void AddUnique<TKey, TValue>(IDictionary<TKey, TValue> dictionary, TKey key, TValue value,
             int count)
         {
-            if (key == null)
+            if (NinoUnsafe.IsNull(key))
                 AddNullKey(dictionary, value);
             else
                 dictionary[key] = value;

@@ -406,6 +406,19 @@ namespace Nino.Core.CompilerServices
             return RuntimeHelpers.IsReferenceOrContainsReferences<T>();
         }
 
+        /// <summary>
+        /// Whether <paramref name="value"/> is null (a null reference, or a <c>T?</c> without a value), without boxing
+        /// it. <c>value == null</c> on a type parameter is a box the JIT removes only where it can tell the boxed
+        /// value has no side effects: on a <c>T?</c> read through a reference in an inlined call it allocated the box
+        /// whenever the value was present (#449: a <c>HashSet&lt;int?&gt;</c> read, one per element; the reuse read of
+        /// a <c>T?</c> of a struct with a reference). A value type is null only as a <c>T?</c> (<c>default(T)</c> is
+        /// null, a constant) and is tested by <c>Nullable&lt;T&gt;.Equals(object)</c>, a direct call that boxes
+        /// nothing; a class is compared as a reference.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool IsNull<T>(scoped in T value) =>
+            typeof(T).IsValueType ? default(T) == null && value.Equals(null) : value == null;
+
         /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its
         /// layout).</summary>
         // Reached from the runtime resolver (dynamic code only) and reflection over layouts.

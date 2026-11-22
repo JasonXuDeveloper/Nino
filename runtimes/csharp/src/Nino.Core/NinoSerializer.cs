@@ -33,7 +33,7 @@ namespace Nino.Core
 
             // The formatter is a static readonly field: Tier1 code calls (and inlines) it as its exact type.
             if (NinoRawArray<T>.Formatter is { } raw && value != null)
-                return raw.Serialize(Unsafe.As<Array>(value));
+                return raw.Serialize(AsArray(in value));
 
             // A value of fixed size: written into an array of that size (a constant check in Tier1 code).
             if (NinoTopFormatter<T>.Formatter.FixedSize >= 0)
@@ -47,6 +47,15 @@ namespace Nino.Core
 
             return NinoScratch.ToArray(value, new FormatterWriter<T>(NinoTopFormatter<T>.Formatter));
         }
+
+        /// <summary>
+        /// <paramref name="value"/> (an array: <see cref="NinoRawArray{T}"/> has a formatter for it) as an
+        /// <see cref="Array"/>, reinterpreted in place: <c>Unsafe.As&lt;Array&gt;(value)</c> takes an <c>object</c>,
+        /// so a struct <typeparamref name="T"/> was boxed on the branch FullOpts code compiles before the field is set
+        /// (asm.py --boxes).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Array AsArray<T>(scoped in T value) => Unsafe.As<T, Array>(ref Unsafe.AsRef(in value));
 
         /// <summary>
         /// The number of bytes <see cref="Serialize{T}(in T)"/> returns for every value of <typeparamref name="T"/>
@@ -119,7 +128,7 @@ namespace Nino.Core
                 // a constant (the formatter is a static readonly field: Tier1 code knows its exact type).
                 if (value != null && bufferWriter is NinoArrayBufferWriter target)
                 {
-                    raw.Write(target, Unsafe.As<Array>(value));
+                    raw.Write(target, AsArray(in value));
                     return;
                 }
             }
@@ -144,7 +153,7 @@ namespace Nino.Core
 
             if (value != null && NinoRawArray<T>.Formatter is { } raw)
             {
-                raw.WriteTo(bufferWriter, Unsafe.As<Array>(value));
+                raw.WriteTo(bufferWriter, AsArray(in value));
                 return;
             }
 
