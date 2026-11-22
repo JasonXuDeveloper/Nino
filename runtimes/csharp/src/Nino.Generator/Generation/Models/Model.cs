@@ -487,12 +487,29 @@ internal enum FlatItemKind
 
     /// <summary>A raw <c>T?</c> (NinoSlotItem through its UnmanagedNullableFormatter: a presence byte, then the value).</summary>
     Slot,
+
+    /// <summary>
+    /// A member whose type is itself flat (<see cref="FlatItem.Nested"/>, non-generic and generated here): that type's
+    /// chain of fields as one item at the member (<see cref="FlatItem.Nested"/>: a struct in place; a class through its
+    /// element item, its presence byte or type id, then its body).
+    /// </summary>
+    Nested,
 }
 
 /// <summary>An item of a flat body: its kind, the index of its (first) member in TypeModel.Members, its members (more
 /// than one only for a block), and whether it is a property reached through its accessors (NinoPropertyAt: never in a
 /// block, never checked at startup).</summary>
-internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool Property = false);
+/// <param name="Nested">For <see cref="FlatItemKind.Nested"/>, the member type's body as one item: its generated
+/// formatter's chain of fields (<c>__Flat</c> or <c>__Fields</c>) as NinoFlat's Sealed or Typed, or NinoFlatValues'
+/// Item.</param>
+/// <param name="NestedClass">For <see cref="FlatItemKind.Nested"/>, whether the member type is a class.</param>
+internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool Property = false, string Nested = "",
+    bool NestedClass = false)
+{
+    /// <summary>Whether the member's value is a reference (a string, a nested class): a property's local copy is then
+    /// NinoReference, never the class itself as a type argument (code shared over classes, Nino.Core's NinoReference).</summary>
+    public bool Reference => Kind is FlatItemKind.String or FlatItemKind.Utf8 || NestedClass;
+}
 
 /// <summary>
 /// A class body that is flat (FlatRules): its items in wire order. Where an item's fast form depends on what only the
@@ -502,13 +519,30 @@ internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool P
 /// <param name="ValueType">A struct: its runs only, each element in place, through one chain of one item per member.</param>
 /// <param name="Generic">A generic type: its runs only (one value member by member: code shared over a class argument
 /// would call each accessor), and its hooks only where every type argument is a value type.</param>
-internal sealed record FlatModel(EquatableArray<FlatItem> Items, bool ValueType = false, bool Generic = false)
+/// <param name="Format">Positional, or a version-tolerant body (the members in a region, NinoRegionItem, each one
+/// NinoTolerantItem), or a keyed one (each member NinoKeyItem in the region, NinoEntriesItem): runs only, every member
+/// its own item.</param>
+/// <param name="Depth">The class bodies the members nested in the chain open (<see cref="FlatItemKind.Nested"/>), the
+/// element's own not counted: runs that would open one past the inline depth go element by element (NinoFlatRuns).</param>
+/// <param name="Levels">The levels of inlining the chain takes, its deepest item's (a node per item before it, a
+/// wrapper each, a nested body's own levels): at most <see cref="FlatRules.MaxItems"/>.</param>
+/// <param name="Sealed">A sealed class: nested, its presence byte (NinoFlat's Sealed), else its type id (Typed).</param>
+internal sealed record FlatModel(EquatableArray<FlatItem> Items, bool ValueType = false, bool Generic = false,
+    NinoFormat Format = NinoFormat.Positional, int Depth = 0, int Levels = 0, bool Sealed = false)
 {
-    /// <summary>Whether only runs take the chain, one value its member-by-member body.</summary>
-    public bool RunsOnly => ValueType || Generic;
+    /// <summary>
+    /// Whether only runs take the chain, one value its member-by-member body: a struct, a generic type, a
+    /// version-tolerant or keyed body, and a body nesting a class (whose one body checks the depth itself).
+    /// </summary>
+    public bool RunsOnly => ValueType || Generic || Format != NinoFormat.Positional || Depth != 0;
 
-    /// <summary>Whether the body has a fallback chain and a startup check: a block or a struct among its items.</summary>
-    public bool Checks => !ValueType && Items.Any(static i => i.Kind == FlatItemKind.Block || i.Kind == FlatItemKind.Struct && !i.Property);
+    /// <summary>Whether the body has a fallback chain and a startup check: a block or a struct among a positional
+    /// class's items.</summary>
+    public bool Checks => !ValueType && Format == NinoFormat.Positional &&
+                          Items.Any(static i => i.Kind == FlatItemKind.Block || i.Kind == FlatItemKind.Struct && !i.Property);
+
+    /// <summary>The class bodies an element of a run opens: its own (a class's) and those nested in its chain.</summary>
+    public int RunDepth => (ValueType ? 0 : 1) + Depth;
 }
 
 /// <summary>

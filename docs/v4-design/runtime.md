@@ -201,10 +201,22 @@ merges in its own layer, each key read before its value's place is known (`NinoC
 the same items: one cursor read per item, #347).
 
 Classes whose body is flat take a third kind of their own (`NinoFlatRuns`, #355). The generator marks a body flat
-(`FlatRules`) when it is a positional class without reference tracking, pooling, callbacks or a factory, made by a
-constructor without arguments, with at least one string or raw `T?` and at most twelve items (each is a level of
-inlining, and the JIT inlines at most 20 deep), and every member a field or property generated code reads and assigns
-directly, of a raw type, a bool, a raw `T?` (`NinoSlotItem`) or a string. A field is reached by reference
+(`FlatRules`) when it is a class without reference tracking, pooling, callbacks or a factory, made by a
+constructor without arguments, with at least one string, raw `T?` or nested flat body and at most twelve levels (each
+is a level of inlining, and the JIT inlines at most 20 deep), and every member a field or property generated code reads
+and assigns directly, of a raw type, a bool, a raw `T?` (`NinoSlotItem`), a string, or another generated type whose
+body is flat. Version-tolerant and keyed bodies take the same chain, for their runs, through leaves of their own:
+`NinoRegionItem` (the length-prefixed region: a read gets its bytes only and skips what a newer version appended; a
+region longer than the data, or one with deferred bodies, leaves the element), `NinoTolerantItem` (a member past the
+region's end keeps its value), and for keyed bodies `NinoKeyItem` (the member's key and its value's length, written
+after the value) inside `NinoEntriesItem` (the entries must fill the region): an entry in another order, under a former
+name or unknown leaves the element to the formatter, which reads entries in any order. A nested flat body is one item
+of the outer chain: its element item for a class (`NinoFlat.Sealed`, `.Typed`: presence or type id, the object made or
+reused) or its chain in place for a struct (`NinoFlatValues.Item`); the hooks pass the class bodies one element opens,
+so a run nested near `NinoDepth.Inline` goes element by element. An item that may leave says so as a constant
+(`INinoItem.Leaves`), and the chain stops after it: the items after it would read at its negative size. A property of
+a class type keeps its local copy as `NinoReference`, so no class reaches the chain as a type argument (which would make
+it code shared over classes). A field is reached by reference
 (`NinoItemAt`), a property through its accessors (`NinoPropertyAt`: the bottom item over a local copy, assigned back
 after a read). A non-raw struct of the same members with a string is flat too, for its runs only: each element in place
 (`NinoFlatValues`), as a pair's, reached through the same `HasFlat` hooks from the run kernels' branch. A generic type

@@ -167,7 +167,7 @@ namespace Nino.Core.Internal
 
             // Strings and pairs holding them: the string run kernels, one call not generic over the element (a pair's
             // through its formatter, once per run), free entries skipped.
-            if (NinoCursor.Own<T, TFormatter>())
+            if (NinoCursor.Own<T, TFormatter>() && !ShortFlatValues<T, TFormatter>(count))
             {
                 if (counted)
                     writer.WriteLength(length);
@@ -403,7 +403,7 @@ namespace Nino.Core.Internal
             // Strings and pairs holding them: the string run kernels, with the data and the bytes left, not the reader,
             // which stays in the caller's registers. Raw values and blocks that reach here are read one by one with
             // their checks, as before.
-            if (NinoCursor.Own<T, TFormatter>())
+            if (NinoCursor.Own<T, TFormatter>() && !ShortFlatValues<T, TFormatter>(count))
             {
                 ReadStrings<T, TFormatter>(run, ref reader);
                 return;
@@ -419,6 +419,17 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
+        /// Whether a run of <paramref name="count"/> values is a flat struct's (#355) too short for the flat kernels
+        /// (under <see cref="NinoFlatRuns.MinRun"/>): it takes the loops of values one at a time.
+        /// Through the kernels, out of line twice, a run of one flat struct wrote in 2.1 times main's time and one of a
+        /// version-tolerant struct 2.8 (their fixed cost; Tier1, local, alternated). The count first: the static
+        /// after it only for short runs.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool ShortFlatValues<T, TFormatter>(int count) where TFormatter : struct, INinoFormatter<T> =>
+            typeof(T).IsValueType && count < NinoFlatRuns.MinRun && NinoKind<TFormatter>.Flat;
+
+        /// <summary>
         /// Writes the strings, or the pairs holding them, of <paramref name="run"/> (not empty; the count is the
         /// caller's) through the string run kernels (<see cref="NinoStringRuns"/>): a run of strings by the kernel of
         /// its encoding, a run of pairs through its formatter (<see cref="INinoFormatter.WriteStrings"/>, once per run).
@@ -432,7 +443,8 @@ namespace Nino.Core.Internal
         {
             if (!typeof(T).IsValueType)
                 NinoStringRuns.Write<TFormatter>(run, ref writer);
-            // A generated struct whose body is flat (#355): its chain of items, in place.
+            // A generated struct whose body is flat (#355): its chain of items, in place (from NinoFlatRuns.MinRun
+            // elements on: ShortFlatValues).
             else if (NinoKind<TFormatter>.Flat)
                 default(TFormatter).WriteFlat(NinoRun.Unscoped(run), ref writer);
             else

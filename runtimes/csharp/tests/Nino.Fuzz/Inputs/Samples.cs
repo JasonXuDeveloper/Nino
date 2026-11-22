@@ -178,6 +178,18 @@ namespace Nino.Fuzz
             Bares = Enumerable.Range(0, 18).Select(i => new FlatBareFuzz { A = i, B = i % 2 == 0 ? null : (short)i, C = (byte)i }).ToList(),
             Structs = Enumerable.Range(0, 17).Select(i => new FlatStructFuzz { K = "k" + i, V = i, D = i % 3 == 0 ? null : i, B = i % 2 == 1 }).ToArray(),
             Generics = Enumerable.Range(0, 16).Select(i => new FlatGeneric<int> { Id = i, S = "g" + i, L = i }).ToList(),
+            Keyeds = Enumerable.Range(0, 18).Select(i => i == 4 ? null : new FlatKeyedFuzz { Id = i, S = i % 3 == 0 ? null : "k" + i, L = i % 2 == 0 ? null : i, B = i % 2 == 1 }).ToList(),
+            Tolerants = Enumerable.Range(0, 17).Select(i => i == 8 ? null : new FlatTolerantFuzz { Id = i, S = "t" + i, D = i % 4 == 0 ? null : i * 0.5 }).ToArray(),
+            TolerantStructs = Enumerable.Range(0, 16).Select(i => new FlatTolerantStruct { K = i % 5 == 0 ? null : "v" + i, V = i }).ToArray(),
+            Nests = Enumerable.Range(0, 18).Select(i => new FlatNest
+            {
+                Id = i,
+                Open = i % 6 == 2 ? null : i % 5 == 1 ? new FlatOpenSub { W = i, S = "sub", Y = 1 } : new FlatOpen { W = i, X = -i, S = "o" + i },
+                Sealed = i % 4 == 3 ? null : new FlatSealed { Id = i, Name = "n", Tag = "t", Text = "x", Price = i },
+                Struct = new FlatStructFuzz { K = "s" + i, V = i, D = i, B = true },
+                Keyed = i % 7 == 0 ? null : new FlatKeyedFuzz { Id = i, S = "nk", L = i },
+                Tolerant = new FlatTolerantStruct { K = "nt", V = i },
+            }).ToArray(),
         };
 
         public static Holder Holder()

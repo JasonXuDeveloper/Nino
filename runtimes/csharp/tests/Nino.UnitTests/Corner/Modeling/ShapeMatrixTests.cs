@@ -387,6 +387,9 @@ namespace Other
                 leaves.Append($"{Attribute()} public {Keyword} {N("FOpen")} : {parent} {{ public long W; public int X; public string S;{cb} }}\n");
                 // Flat through properties and raw T?s (#355 step B): a property item, a slot item, no string.
                 leaves.Append($"{Attribute()} public sealed {Keyword} {N("FProp")} : {parent} {{ public int W {{ get; set; }} public int? FP; public long? FQ {{ get; set; }}{cb} }}\n");
+                // Flat bodies nested in a flat body (#355 step C): a sealed one and one that is not, each its chain as
+                // one item, in every format (keyed and version-tolerant bodies as leaves of the chain).
+                leaves.Append($"{Attribute()} public sealed {Keyword} {N("FNest")} : {parent} {{ public {N("FLeaf")} NL; public int W; public {N("FOpen")} NO;{cb} }}\n");
                 if (!_middle && _arity > 0)
                     leaves.Append($"{Attribute()} public sealed {Keyword} {N("GLeaf")}{Parameters(_arity)} : {near}{N("Base")}{Parameters(_arity)} {{ public int W; }}\n");
                 else
@@ -444,6 +447,8 @@ namespace Other
                         $"q.W == 7 && q.X == 8 && q.S == \"open\"{checks}"),
                     (N("FProp"), $"new {leafPrefix}{N("FProp")} {{ {Join(inits, "W = 7, FP = 9, FQ = null")} }}",
                         $"q.W == 7 && q.FP == 9 && q.FQ == null{checks}"),
+                    (N("FNest"), $"new {leafPrefix}{N("FNest")} {{ {Join(inits, $"W = 7, NL = new {leafPrefix}{N("FLeaf")} {{ {Join(inits, "W = 5, S = \"in\"")} }}, NO = null")} }}",
+                        $"q.W == 7 && q.NL.W == 5 && q.NL.S == \"in\" && q.NO == null{checks}"),
                 };
                 if (!_track)
                 {

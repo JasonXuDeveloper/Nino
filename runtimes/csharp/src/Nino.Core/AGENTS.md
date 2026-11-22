@@ -71,12 +71,19 @@ NinoItemChain.cs             the one item chain of #355, every composite's (a pa
                              class), NinoMemberAccess, the nodes NinoItemAt<TMember, TItem, TNext> and NinoBlockAt
                              (the raw item), the last item without a next (NinoItemAt<TMember, TItem>, NinoBlockAt<TMember>), and the bottom items, one per element kind
                              (NinoUtf16Item, NinoUtf8Item, NinoRawItem, NinoStructItem, NinoBoolItem, NinoValueItem,
-                             NinoSlotItem: a raw T?'s single value); INinoProperty and NinoPropertyAt, a member reached
-                             through its accessors (the bottom item over a local copy)
+                             NinoSlotItem: a raw T?'s single value, its size a generator literal through INinoSize);
+                             INinoProperty and NinoPropertyAt, a member reached through its accessors (the bottom item
+                             over a local copy); the leaves of keyed and version-tolerant bodies (NinoRegionItem: the
+                             length-prefixed region, NinoEntriesItem: a keyed region read whole, NinoKeyItem: a member's
+                             key and length, INinoKey, NinoTolerantItem: a member past the region's end keeps its value);
+                             an item that leaves the element (NinoFlatRuns.Left) ends the chain's read
 NinoFlat.cs                  the generator seam of #355: INinoFlatLayout (construction, exact type, type id) and
                              NinoFlat<TLayout, TBody>, which a generated flat class derives over its chain of items: runs
                              (Write/ReadSealed, Write/ReadTyped) and one body's write (WriteBody out of line, WriteInline);
-                             NinoFlatValues<TBody>, a generated flat struct's runs, each element in place (Write, Read)
+                             NinoFlatValues<TBody>, a generated flat struct's runs, each element in place (Write, Read);
+                             the element items of a class (NinoFlatSealedItem: presence byte, NinoFlatTypedItem: type id
+                             and exact type), which also make a flat body nested in another one item of its chain
+                             (NinoFlat.Sealed / Typed, NinoFlatValues.Item)
 NinoFieldBlock.cs            generated raw bodies of classes: whether the fields lie in the object as the body lays them
                              out (checked once on an uninitialized instance), then one block copy
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
@@ -424,10 +431,11 @@ NinoStringRuns.cs            the string run kernels (#355): a run of strings, or
                              check per element and read with each string's lengths checked before it is allocated;
                              stores (InPlace, a set's and a dictionary's adds) and a set's read (ReadSet, with an add loop
                              of its own where the set guards its buckets)
-NinoFlatRuns.cs              the flat kernels (#355): the element items of a sealed class (presence byte) and of one that
-                             is not (type id, exact type), which hand the chain a reference to the object, the write loop (NinoStringRuns' WriteFitting) and a read loop
-                             that stop at an element the items leave (a subtype, another id, an existing object), which
-                             goes through the formatter out of line
+NinoFlatRuns.cs              the flat kernels (#355): the runs of flat classes and structs, the write loop (NinoStringRuns'
+                             WriteFitting, or WriteSkipping over free entries) and a read loop that stop at an element
+                             the items leave (Leave, Left: a subtype, another id or key, an existing object), which goes
+                             through the formatter out of line; element by element where the bodies a run opens would
+                             pass NinoDepth.Inline (the generator's depth literal)
 NinoStrings.Latin1.cs        Latin-1 chars narrowed, widened, appended and compared (the scalar and word paths; the
                              vector kernels are NinoSimd.Text)
 ```

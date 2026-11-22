@@ -212,6 +212,9 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
   `__Fields` only where a block or struct member needs the startup check; no member-by-member body. Check that a new
   member kind keeps the accessor form (a field reached through `Ref(object)`, a literal `Size`) and no static read per
   element: `optimize`, the rule on accessor structs, has the evidence (v1's statics: 3,708 bytes, 165 stack operands).
+  Check too that no class reaches the chain as a type argument (a property of a class type is `NinoReference`; a
+  `string` there made the chain code shared over classes, 4.2 times the generated body's write) and that every leaf
+  that may leave the element declares `Leaves` (`optimize`, the rule on keyed, version-tolerant and nested bodies).
 - Check the Tier1 listing of generated serializers for the benchmark types on each ISA (`runtimes/csharp/benchmarks/asm/asm.py`), and
   compare with the hand-written equivalent where one exists: generated code is not slower than what a user would
   write by hand.
