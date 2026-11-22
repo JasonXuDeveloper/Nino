@@ -196,7 +196,7 @@ internal static class FlatEmitter
     /// </summary>
     private static string Chain(TypeModel m, bool fields)
     {
-        // Each node as its type and its arguments before the next: "NinoBlockAt<__B_A" or "NinoItemAt<__F_S, NinoUtf16Item".
+        // Each node as its type and its arguments before the next: "NinoBlockAt<__B_A" or "NinoItemAt<__M_S, NinoUtf16Item".
         var nodes = new System.Collections.Generic.List<string>();
         foreach (var item in m.Flat!.Items)
         {
@@ -243,8 +243,8 @@ internal static class FlatEmitter
     {
         string access = $"{Services}NinoMemberAccess.As<{m.TypeName}>(ref v).{member.SourceName}";
         w.Line($"internal readonly struct {PropertyName(member)} : {Services}INinoProperty<{member.TypeName}> {{ " +
-               $"{names.Inline} public {member.TypeName} Get(ref byte v) => {access}; " +
-               $"{names.Inline} public void Set(ref byte v, {member.TypeName} value) => {access} = value; }}");
+               $"{names.Inline} public {member.TypeName} Load(ref byte v) => {access}; " +
+               $"{names.Inline} public void Store(ref byte v, {member.TypeName} value) => {access} = value; }}");
     }
 
     private static string PropertyName(MemberModel member) => "__P_" + member.Name;
@@ -252,7 +252,7 @@ internal static class FlatEmitter
     /// <summary>The class one body is written and read through: the chain of fields where there is one.</summary>
     public static string Body(TypeModel m) => m.Flat!.Checks ? "__Fields" : "__Flat";
 
-    private static string MemberName(MemberModel member) => "__F_" + member.Name;
+    private static string MemberName(MemberModel member) => "__M_" + member.Name; // never __F_: a generic formatter's parameters
 
     private static string BlockName(TypeModel m, FlatItem item) => "__B_" + m.Members[item.Member].Name;
 }

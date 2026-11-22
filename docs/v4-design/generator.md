@@ -359,7 +359,7 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
 * A class whose body is flat (`TypeModel.Flat`, built by `FlatRules`: positional, non-generic, untracked, raw members,
   bools and strings only, at least one string; [runtime.md](runtime.md), the flat kernels) gets no member-by-member
   write body (`FlatEmitter`). It emits an accessor struct per member and per block of raw members, one line each
-  (`__F_<Member>`, `__B_<First>`: `Ref(object)` returns the field, `Size` is a literal), a `__Layout` struct, the chain
+  (`__M_<Member>`, `__B_<First>`: `Ref(object)` returns the field, `Size` is a literal), a `__Layout` struct, the chain
   of items once as the base class of `private sealed class __Flat`, and where a block or struct member needs the
   startup check, `__Fields` (one item per member) and `__Check`. `HasFlat`, `WriteFlat` and `ReadFlat` pick one chain
   once per call; a sealed class's `WriteBody` calls the chain of fields out of line whatever the body's size

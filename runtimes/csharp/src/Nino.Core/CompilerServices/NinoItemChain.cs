@@ -264,10 +264,10 @@ namespace Nino.Core.CompilerServices
     public interface INinoProperty<TValue>
     {
         /// <summary>The property's value in <paramref name="item"/> (as <see cref="INinoMember.Ref"/>'s item).</summary>
-        TValue Get(ref byte item);
+        TValue Load(ref byte item);
 
         /// <summary>Assigns <paramref name="value"/> to the property in <paramref name="item"/>.</summary>
-        void Set(ref byte item, TValue value);
+        void Store(ref byte item, TValue value);
     }
 
     /// <summary>
@@ -332,7 +332,7 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long MaxSize(ref byte item)
         {
-            TValue value = _property.Get(ref item);
+            TValue value = _property.Load(ref item);
             return default(TItem).MaxSize(ref Unsafe.As<TValue, byte>(ref value));
         }
 
@@ -340,7 +340,7 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int WriteAt(ref byte destination, ref byte item)
         {
-            TValue value = _property.Get(ref item);
+            TValue value = _property.Load(ref item);
             return default(TItem).WriteAt(ref destination, ref Unsafe.As<TValue, byte>(ref value));
         }
 
@@ -350,9 +350,9 @@ namespace Nino.Core.CompilerServices
         {
             // The value held, so a string equal to it is kept (fresh: none); assigned after the read, so a rejected one
             // assigns nothing.
-            TValue value = fresh ? default : _property.Get(ref item);
+            TValue value = fresh ? default : _property.Load(ref item);
             int size = default(TItem).ReadAt(ref source, available, ref Unsafe.As<TValue, byte>(ref value), fresh);
-            _property.Set(ref item, value);
+            _property.Store(ref item, value);
             return size;
         }
     }
