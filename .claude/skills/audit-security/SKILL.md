@@ -64,6 +64,12 @@ the runtime it targets.
   input shows an over-read. A vector check of values is proven against the types' own constructors over random
   layouts, strides and run lengths, run at every vector width (`ValueCheckLayoutTests`; `DOTNET_MaxVectorTBitWidth=512`,
   `DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0`); its mutations of `Plan.Joins` and of the bool mask fail it. An assertion that a vector path ran follows the build of Nino.Core, not the test runtime: `#if !NINO_CORE_NETSTANDARD` (the netstandard builds have no vector passes, and `Vector.IsHardwareAccelerated` is true there too); run the netstandard2.1 line of `verify` before landing such a test (round 129: main went red on both netstandard shards, then 2.0 and 2.1).
+- A chain of items (#355) that reads on after an item left the element: a leaving item returns
+  `NinoFlatRuns.Left` (`int.MinValue`), and a node that adds it to the source and subtracts it from the bytes left
+  hands the next item a pointer 2 GB away and a negative count that passes unsigned length checks. Each leaf that can
+  leave declares `INinoItem.Leaves` and the nodes stop after it (`optimize`, the rule on keyed, version-tolerant and
+  nested bodies). Prove a chain against its member-by-member twin on mutated bytes: both reject, or both read values
+  that write the same bytes (`FlatTests.Bodies`' `MutationsReadAlike`, which found this as a stray EndOfData).
 - A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
   arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
 - A presize budget per collection instead of per read: each collection nested in another claims the bytes left
