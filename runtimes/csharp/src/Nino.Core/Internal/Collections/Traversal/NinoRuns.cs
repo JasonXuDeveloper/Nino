@@ -173,10 +173,14 @@ namespace Nino.Core.Internal
                     writer.WriteLength(length);
                 if (!row || count != 0)
                 {
+                    // Out of line on a copy of the cursor alone, field by field: strings and the items beside them
+                    // open no class body, defer nothing and track no reference. A writer passed and returned by value
+                    // is copied with loads wider than the stores that built it (store forwarding fails), and the
+                    // whole writer copied each way cost the caller twice the stack accesses.
                     Writer copy = default;
-                    writer.CopyTo(ref copy);
+                    writer.CopyCursorTo(ref copy);
                     WriteStrings<T, TFormatter>(run, ref copy);
-                    copy.CopyTo(ref writer);
+                    copy.CopyCursorTo(ref writer);
                 }
 
                 return;
