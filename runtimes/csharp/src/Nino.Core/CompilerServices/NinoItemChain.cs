@@ -39,6 +39,14 @@ namespace Nino.Core.CompilerServices
         /// <paramref name="fresh"/> (a constant where it can be: a new object, or one slot every element is read into).
         /// </summary>
         int ReadAt(ref byte source, int available, ref byte item, bool fresh);
+
+        /// <summary>
+        /// Whether <see cref="ReadAt"/> may leave the element (a negative size: a subtype, another key, a region the
+        /// items do not fill): a constant, so a node tests the size before reading on only after an item that may
+        /// (a string's size is no constant the JIT can prove positive: a test after each cost a flat struct's runs
+        /// 1.08 times their read time).
+        /// </summary>
+        bool Leaves { get; }
     }
 
     /// <summary>
@@ -120,6 +128,13 @@ namespace Nino.Core.CompilerServices
         where TMember : struct, INinoMember
         where TItem : struct, INinoItem
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(TItem).Leaves;
+        }
+
         private readonly TMember _member;
 
         /// <summary>The item at <paramref name="member"/>.</summary>
@@ -152,6 +167,13 @@ namespace Nino.Core.CompilerServices
         where TItem : struct, INinoItem
         where TNext : struct, INinoItem
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(TItem).Leaves || default(TNext).Leaves;
+        }
+
         private readonly TMember _member;
         private readonly TNext _next;
 
@@ -181,6 +203,10 @@ namespace Nino.Core.CompilerServices
         public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
         {
             int size = default(TItem).ReadAt(ref source, available, ref _member.Ref(ref item), fresh);
+            // An item that left the element (NinoFlatRuns.Left: a subtype, another key) ends the read here: the next
+            // items would read at its negative size. Only after an item that may (Leaves, a constant).
+            if (default(TItem).Leaves && size < 0)
+                return size;
             return size + _next.ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item,
                 fresh);
         }
@@ -196,6 +222,13 @@ namespace Nino.Core.CompilerServices
         where TMember : struct, INinoMember
         where TNext : struct, INinoItem
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(TNext).Leaves;
+        }
+
         private readonly TMember _member;
         private readonly TNext _next;
 
@@ -236,6 +269,13 @@ namespace Nino.Core.CompilerServices
     [EditorBrowsable(EditorBrowsableState.Never)]
     public readonly struct NinoBlockAt<TMember> : INinoItem where TMember : struct, INinoMember
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => false;
+        }
+
         private readonly TMember _member;
 
         /// <summary>The block at <paramref name="member"/>.</summary>
@@ -281,6 +321,29 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
+    /// The value of a property whose type is a class (a string, a nested flat class) as
+    /// <see cref="INinoProperty{TValue}"/>'s value: the reference alone, as the bottom item sees it at
+    /// <c>ref byte item</c>. A type argument that is a class makes every type and method it reaches code shared over
+    /// classes (<c>__Canon</c>): the whole chain, and the run kernels over it, with each item a call through a runtime
+    /// lookup (a version-tolerant class with one string property wrote its runs in 4.2 times the generated body's time);
+    /// this struct is no class.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public struct NinoReference
+    {
+        // The only field: the bottom item reads and writes it at the struct's start.
+        private object _value;
+
+        /// <summary>A copy of <paramref name="value"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public NinoReference(object value) => _value = value;
+
+        /// <summary>The value as the <typeparamref name="T"/> it is (the bottom item read one), without a cast.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public readonly T As<T>() where T : class => Unsafe.As<T>(_value);
+    }
+
+    /// <summary>
     /// <typeparamref name="TItem"/> over the value of the property <typeparamref name="TProperty"/>, then the items
     /// <typeparamref name="TNext"/>: <see cref="NinoItemAt{TMember,TItem,TNext}"/> for a member reached through its
     /// accessors, the bottom item over a local copy (a read assigns it back; a string equal to the one held is kept).
@@ -291,6 +354,13 @@ namespace Nino.Core.CompilerServices
         where TItem : struct, INinoItem
         where TNext : struct, INinoItem
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(TItem).Leaves || default(TNext).Leaves;
+        }
+
         private readonly TProperty _property;
         private readonly TNext _next;
 
@@ -321,6 +391,8 @@ namespace Nino.Core.CompilerServices
         {
             int size = new NinoPropertyAt<TProperty, TValue, TItem>(_property).ReadAt(ref source, available, ref item,
                 fresh);
+            if (default(TItem).Leaves && size < 0)
+                return size;
             return size + _next.ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item,
                 fresh);
         }
@@ -332,6 +404,13 @@ namespace Nino.Core.CompilerServices
         where TProperty : struct, INinoProperty<TValue>
         where TItem : struct, INinoItem
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(TItem).Leaves;
+        }
+
         private readonly TProperty _property;
 
         /// <summary>The item at <paramref name="property"/>.</summary>
@@ -362,9 +441,173 @@ namespace Nino.Core.CompilerServices
             // assigns nothing.
             TValue value = fresh ? default : _property.Load(ref item);
             int size = default(TItem).ReadAt(ref source, available, ref Unsafe.As<TValue, byte>(ref value), fresh);
-            _property.Store(ref item, value);
+            // Nothing stored for an item that read nothing (a version-tolerant region ended before it,
+            // NinoTolerantItem) or left the element: the property keeps its value, as the member-by-member read does.
+            if (size > 0)
+                _property.Store(ref item, value);
             return size;
         }
+    }
+
+    /// <summary>A keyed member's key (generated code): a constant, the generated accessor's literal (#436).</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoKey
+    {
+        /// <summary>The member's key (a constant): the hash of its name, as the layout publishes it.</summary>
+        int Key { get; }
+    }
+
+    /// <summary>
+    /// A body in a length-prefixed region (a version-tolerant or keyed body, #355): an <c>int32</c> length, then
+    /// <typeparamref name="TBody"/>'s bytes, the length written after them. A read gives <typeparamref name="TBody"/>
+    /// the region's bytes only and skips those after its last item (members a newer version appended); a region longer
+    /// than the bytes left, or one holding a section of deferred bodies (the sign bit of its length, which no flat body
+    /// writes), leaves the element to its formatter, which reads or rejects it.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoRegionItem<TBody> : INinoItem where TBody : struct, INinoItem
+    {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => true;
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item) => NinoWire.LengthSize + default(TBody).MaxSize(ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item)
+        {
+            int size = default(TBody).WriteAt(ref Unsafe.Add(ref destination, NinoWire.LengthSize), ref item);
+            NinoUnsafe.Write(ref destination, size);
+            return NinoWire.LengthSize + size;
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
+        {
+            if (available < NinoWire.LengthSize)
+                NinoThrow.EndOfData();
+            int length = NinoUnsafe.Read<int>(ref source);
+            if ((uint)length > (uint)(available - NinoWire.LengthSize))
+                return NinoFlatRuns.Left;
+            int read = default(TBody).ReadAt(ref Unsafe.Add(ref source, NinoWire.LengthSize), length, ref item,
+                fresh);
+            return read < 0 ? read : NinoWire.LengthSize + length;
+        }
+    }
+
+    /// <summary>
+    /// The entries of a keyed body (#355), in a <see cref="NinoRegionItem{TBody}"/>: a read that leaves bytes of the
+    /// region unread (entries of members it does not know, a member repeated, entries in another order) leaves the
+    /// element to its formatter, which reads entries in any order.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoEntriesItem<TBody> : INinoItem where TBody : struct, INinoItem
+    {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => true;
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item) => default(TBody).MaxSize(ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item) => default(TBody).WriteAt(ref destination, ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
+        {
+            int read = default(TBody).ReadAt(ref source, available, ref item, fresh);
+            return read == available ? read : NinoFlatRuns.Left;
+        }
+    }
+
+    /// <summary>
+    /// A keyed member (#355): its key (<typeparamref name="TKey"/>'s constant), the length of its value, then
+    /// <typeparamref name="TItem"/>, the length written after the value. A read takes the entry only where its key is
+    /// the member's and its value fills it exactly; any other entry leaves the element to its formatter (a former name's
+    /// key, entries in another order, a value that does not fill its entry, which the formatter rejects).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoKeyItem<TKey, TItem> : INinoItem
+        where TKey : struct, INinoKey
+        where TItem : struct, INinoItem
+    {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => true;
+        }
+
+        private const int Header = NinoWire.KeySize + NinoWire.LengthSize;
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item) => Header + default(TItem).MaxSize(ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item)
+        {
+            NinoUnsafe.Write(ref destination, default(TKey).Key);
+            int size = default(TItem).WriteAt(ref Unsafe.Add(ref destination, Header), ref item);
+            NinoUnsafe.Write(ref Unsafe.Add(ref destination, NinoWire.KeySize), size);
+            return Header + size;
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
+        {
+            if (available < Header || NinoUnsafe.Read<int>(ref source) != default(TKey).Key)
+                return NinoFlatRuns.Left;
+            int length = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, NinoWire.KeySize));
+            if ((uint)length > (uint)(available - Header))
+                return NinoFlatRuns.Left;
+            int read = default(TItem).ReadAt(ref Unsafe.Add(ref source, Header), length, ref item, fresh);
+            return read == length ? Header + length : NinoFlatRuns.Left;
+        }
+    }
+
+    /// <summary>
+    /// A member of a version-tolerant body (#355), in a <see cref="NinoRegionItem{TBody}"/>: a read where the region
+    /// has ended reads nothing, and the member keeps its value (written by an older version, which lacked it).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoTolerantItem<TItem> : INinoItem where TItem : struct, INinoItem
+    {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(TItem).Leaves;
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item) => default(TItem).MaxSize(ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item) => default(TItem).WriteAt(ref destination, ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh) =>
+            available == 0 ? 0 : default(TItem).ReadAt(ref source, available, ref item, fresh);
     }
 
     /// <summary>
@@ -374,6 +617,13 @@ namespace Nino.Core.CompilerServices
     [EditorBrowsable(EditorBrowsableState.Never)]
     public readonly struct NinoRawItem<T> : INinoItem
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => false;
+        }
+
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long MaxSize(ref byte item) => Unsafe.SizeOf<T>();
@@ -405,6 +655,13 @@ namespace Nino.Core.CompilerServices
     public readonly struct NinoStructItem<T> : INinoItem
     {
         /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => false;
+        }
+
+        /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long MaxSize(ref byte item) => Unsafe.SizeOf<T>();
 
@@ -431,6 +688,13 @@ namespace Nino.Core.CompilerServices
     [EditorBrowsable(EditorBrowsableState.Never)]
     public readonly struct NinoBoolItem : INinoItem
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => false;
+        }
+
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long MaxSize(ref byte item) => 1;
@@ -461,6 +725,13 @@ namespace Nino.Core.CompilerServices
     [EditorBrowsable(EditorBrowsableState.Never)]
     public readonly struct NinoUtf16Item : INinoItem
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => false;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ref string At(ref byte item) => ref Unsafe.As<byte, string>(ref item);
 
@@ -500,6 +771,13 @@ namespace Nino.Core.CompilerServices
     [EditorBrowsable(EditorBrowsableState.Never)]
     public readonly struct NinoUtf8Item : INinoItem
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => false;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ref string At(ref byte item) => ref Unsafe.As<byte, string>(ref item);
 
@@ -537,6 +815,13 @@ namespace Nino.Core.CompilerServices
     public readonly struct NinoValueItem<T, TFormatter> : INinoItem where TFormatter : struct, INinoFormatter<T>
     {
         /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => false;
+        }
+
+        /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long MaxSize(ref byte item) => default(TFormatter).FixedSize;
 
@@ -573,6 +858,13 @@ namespace Nino.Core.CompilerServices
         where TFormatter : struct, INinoFormatter<T>
         where TSize : struct, INinoSize
     {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => false;
+        }
+
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public long MaxSize(ref byte item) => default(TSize).Size;

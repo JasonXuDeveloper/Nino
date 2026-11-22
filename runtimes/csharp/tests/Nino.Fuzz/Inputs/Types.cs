@@ -140,12 +140,26 @@ namespace Nino.Fuzz
     [NinoType] public struct FlatStructFuzz { public string K; public int V; public double? D; public bool B { get; set; } }
     [NinoType] public sealed class FlatGeneric<T> { public int Id; public string S; public long? L; }
 
+    // Step C (#355): keyed and version-tolerant bodies (a region, a key and a length per member) and flat bodies nested in
+    // a flat body, each one item of the outer chain (a subtype or another key leaves the element to its formatter).
+    [NinoType(format: NinoFormat.Keyed)] public sealed class FlatKeyedFuzz { public int Id; public string S; public long? L { get; set; } public bool B; }
+    [NinoType(format: NinoFormat.VersionTolerant)] public sealed class FlatTolerantFuzz { public int Id; public string S; public double? D { get; set; } }
+    [NinoType(format: NinoFormat.VersionTolerant)] public struct FlatTolerantStruct { public string K; public int V; }
+    [NinoType]
+    public sealed class FlatNest
+    {
+        public int Id; public FlatOpen Open; public FlatSealed Sealed; public FlatStructFuzz Struct { get; set; }
+        public FlatKeyedFuzz Keyed; public FlatTolerantStruct Tolerant;
+    }
+
     [NinoType]
     public sealed class FlatRoot
     {
         public FlatOpen[] Opens; public List<FlatSealed> Sealeds; public FlatSealed One; public HashSet<FlatOpen> Set;
         public FlatProps[] Props; public List<FlatBareFuzz> Bares; public FlatStructFuzz[] Structs;
         public List<FlatGeneric<int>> Generics;
+        public List<FlatKeyedFuzz> Keyeds; public FlatTolerantFuzz[] Tolerants; public FlatTolerantStruct[] TolerantStructs;
+        public FlatNest[] Nests;
     }
 
     [NinoType]

@@ -17,7 +17,7 @@ namespace Nino.UnitTests
     /// read back both ways, reads into existing instances, subtypes in runs, and hostile data.
     /// </summary>
     [TestClass]
-    public class FlatTests
+    public partial class FlatTests
     {
         private const string Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ";
 

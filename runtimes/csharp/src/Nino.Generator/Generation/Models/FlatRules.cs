@@ -6,56 +6,123 @@ using Nino.Generator.Common;
 namespace Nino.Generator.Generation;
 
 /// <summary>
-/// Whether a class's body is flat (#355, the generator seam), and its items (<see cref="FlatModel"/>): decided from
-/// the body the generator would write, never from a list of member types. A body is flat where it is a sequence of
-/// raw members, bools, raw <c>T?</c>s and strings and nothing else runs around it: a positional class or struct (a generic one whose members name no type parameter), neither
-/// tracked, pooled, made by a factory or a constructor with arguments, a collection, nor calling callbacks; every member
-/// a field or property generated code reads and assigns directly (a field by reference, NinoItemAt; a property through
-/// its accessors, NinoPropertyAt), raw, a raw <c>T?</c> or a string written by the built-in formatters (a custom member
-/// formatter makes a member none of them); at least one string or <c>T?</c> (a body of raw members alone is one block
-/// already, <see cref="TypeModel.RawBody"/>).
+/// Whether a class's or struct's body is flat (#355, the generator seam), and its items (<see cref="FlatModel"/>):
+/// decided from the body the generator would write, never from a list of member types. A body is flat where it is a
+/// sequence of raw members, bools, raw <c>T?</c>s, strings and members whose type is itself flat, and nothing else runs
+/// around it: a positional, version-tolerant (its members in a region) or keyed (each a key, a length and its value)
+/// class or struct (a generic one whose members name no type parameter), neither tracked, pooled, made by a factory or
+/// a constructor with arguments, a collection, nor calling callbacks; every member a field or property generated code
+/// reads and assigns directly (a field by reference, NinoItemAt; a property through its accessors, NinoPropertyAt),
+/// raw, a raw <c>T?</c> or a string written by the built-in formatters, or of a flat non-generic type generated here
+/// written by its own formatter (a custom member formatter makes a member none of them); a positional class with at
+/// least one string, <c>T?</c> or nested body (one of raw members alone is one block already,
+/// <see cref="TypeModel.RawBody"/>), a struct holding a reference.
 /// </summary>
 internal static class FlatRules
 {
     /// <summary>
-    /// The most items a flat body has: each is a level of inlining in the kernels (a list nested in type arguments), and
-    /// the JIT inlines at most 20 levels deep, the kernels' own frames included.
+    /// The most levels of inlining a flat body's chain takes (<see cref="FlatModel.Levels"/>): each item is a level in
+    /// the kernels (a list nested in type arguments), as is each wrapper (a version-tolerant or keyed body's region and
+    /// members, a nested body), and the JIT inlines at most 20 levels deep, the kernels' own frames included.
     /// </summary>
     public const int MaxItems = 12;
 
     /// <summary>
     /// The flat layout of <paramref name="type"/>, or null when its body is not flat. <paramref name="symbols"/> are the
-    /// members' symbols in the order of <paramref name="members"/>.
+    /// members' symbols in the order of <paramref name="members"/>; <paramref name="facts"/> tells the flat bodies of
+    /// member types (<see cref="TypeFacts.Flat"/>).
     /// </summary>
     public static FlatModel? Build(INamedTypeSymbol type, FormatterKind kind, bool rawStruct, NinoFormat format, bool generic,
         bool trackReferences, bool collection, bool pooled, bool callbacks, ConstructionModel construction,
-        IReadOnlyList<MemberModel> members, IReadOnlyList<ISymbol> symbols)
+        IReadOnlyList<MemberModel> members, IReadOnlyList<ISymbol> symbols, TypeFacts facts)
     {
-        // A body of raw members alone is one block already (TypeModel.RawBody): a string or a T? makes it flat.
-        // A struct (not raw: a raw one is a block) composes in place, its runs only, as a pair does: with a string, so
-        // that collections move it through the run kernels (NinoCursor.Own); never in blocks (no startup check).
+        if (!TypeFacts.EnterFlat(type))
+            return null; // Reached again while its own body is decided: it holds itself, never flat.
+        try
+        {
+            return facts.Flattened(type, Decide(kind, rawStruct, format, generic, trackReferences, collection, pooled,
+                callbacks, construction, members, symbols, facts));
+        }
+        finally
+        {
+            TypeFacts.ExitFlat(type);
+        }
+    }
+
+    private static FlatModel? Decide(FormatterKind kind, bool rawStruct, NinoFormat format, bool generic,
+        bool trackReferences, bool collection, bool pooled, bool callbacks, ConstructionModel construction,
+        IReadOnlyList<MemberModel> members, IReadOnlyList<ISymbol> symbols, TypeFacts facts)
+    {
+        // A positional body of raw members alone is one block already (TypeModel.RawBody): a string, a T? or a nested
+        // body makes it flat; a version-tolerant or keyed one is never raw, its region makes it a chain.
+        // A struct (not raw: a raw one is a block) composes in place, its runs only, as a pair does: with a reference
+        // (a string, or one inside a nested body), so that collections move it through the run kernels (NinoCursor.Own);
+        // never in blocks (no startup check).
         bool valueType = kind == FormatterKind.Struct;
+        bool positional = format == NinoFormat.Positional;
         // A generic type: its members' types name no type parameter (each a constant item, whatever the arguments);
         // its hooks hold only where every argument is a value type (FlatEmitter), where its code is exact.
         if (!(valueType ? !rawStruct : kind is FormatterKind.Class or FormatterKind.SealedClass) ||
             generic && members.Any(static m => m.Formatter.Open) ||
-            trackReferences || collection || pooled || callbacks || format != NinoFormat.Positional ||
+            trackReferences || collection || pooled || callbacks ||
             construction.Recreate || construction.Factory.Length != 0 ||
             !valueType && !construction.Creator.StartsWith("new ", System.StringComparison.Ordinal) ||
-            members.Count == 0 || members.Count != symbols.Count ||
-            !members.Any(valueType ? static m => m.IsString : static m => m.IsString || IsSlot(m)))
+            members.Count == 0 || members.Count != symbols.Count)
             return null;
-        foreach (var member in members)
-            if (member.Access != MemberAccess.Direct || member.ConstructionOnly || member.Unassignable ||
-                member.Raw == null && !member.IsString && !IsSlot(member))
+
+        var nested = new FlatModel?[members.Count];
+        bool holdsReference = false, needsChain = !positional;
+        for (int i = 0; i < members.Count; i++)
+        {
+            var member = members[i];
+            if (member.Access != MemberAccess.Direct || member.ConstructionOnly || member.Unassignable)
                 return null;
+            if (member.IsString)
+            {
+                holdsReference = needsChain = true;
+                continue;
+            }
+
+            if (IsSlot(member))
+            {
+                needsChain = true;
+                continue;
+            }
+
+            if (member.Raw != null)
+                continue;
+            if ((nested[i] = Nested(member, symbols[i], facts)) is not { } inner)
+                return null;
+            // A class is a reference; a flat struct holds one.
+            holdsReference = needsChain = true;
+        }
+
+        if (valueType ? !holdsReference : !needsChain)
+            return null;
 
         var offsets = PredictedOffsets(members, symbols);
         var items = new List<FlatItem>(members.Count);
+        int depth = 0, levels = 0, wrappers = positional ? 0 : format == NinoFormat.Keyed ? 2 : 1;
         for (int i = 0; i < members.Count;)
         {
             var member = members[i];
             bool property = member.IsProperty;
+            // The levels of this item's node: the nodes before it, its own, and its bottom item's wrapper.
+            int level = wrappers + items.Count + 1 + (positional ? 0 : 1);
+            if (nested[i] is { } inner)
+            {
+                // Its item (a level), its element item for a class (another), then its chain.
+                depth = System.Math.Max(depth, inner.RunDepth);
+                levels = System.Math.Max(levels, level + 1 + (inner.ValueType ? 0 : 1) + inner.Levels);
+                // The chain of fields (no startup check), as one item: NinoFlat's Sealed or Typed, NinoFlatValues' Item.
+                string body = inner.ValueType ? "__Flat.Item"
+                    : (inner.Checks ? "__Fields." : "__Flat.") + (inner.Sealed ? "Sealed" : "Typed");
+                items.Add(new FlatItem(FlatItemKind.Nested, i, 1, property, member.Formatter.Name + "." + body, !inner.ValueType));
+                i++;
+                continue;
+            }
+
+            levels = System.Math.Max(levels, level);
             if (member.IsString)
             {
                 bool utf8 = (member.Traits & FormatterTraits.Utf8String) != 0;
@@ -84,8 +151,9 @@ internal static class FlatRules
                 continue;
             }
 
-            // A property, or a struct's member: its value alone.
-            if (property || valueType)
+            // A property, a struct's member, or a member of a region (whose every member is its own item): its value
+            // alone.
+            if (property || valueType || !positional)
             {
                 items.Add(new FlatItem(FlatItemKind.Value, i++, 1, property));
                 continue;
@@ -93,14 +161,37 @@ internal static class FlatRules
 
             // Consecutive primitives laid out in the object as on the wire: one block.
             int end = i + 1;
-            while (end < members.Count && Continues(members, offsets, end))
+            while (end < members.Count && nested[end] == null && Continues(members, offsets, end))
                 end++;
             items.Add(new FlatItem(end - i > 1 ? FlatItemKind.Block : FlatItemKind.Value, i, end - i));
             i = end;
         }
 
-        return items.Count <= MaxItems ? new FlatModel(new EquatableArray<FlatItem>(items.ToArray()), valueType, generic) : null;
+        return levels <= MaxItems
+            ? new FlatModel(new EquatableArray<FlatItem>(items.ToArray()), valueType, generic, format, depth, levels,
+                kind == FormatterKind.SealedClass)
+            : null;
     }
+
+    /// <summary>
+    /// The flat body of <paramref name="member"/>'s type, where the chain nests it: a non-generic <c>[NinoType]</c>
+    /// generated here, written by its own generated formatter (no custom one), whose body is flat; else null.
+    /// </summary>
+    private static FlatModel? Nested(MemberModel member, ISymbol symbol, TypeFacts facts)
+    {
+        if (TypeOf(symbol) is not INamedTypeSymbol { IsGenericType: false } type || !member.Formatter.Generated ||
+            member.Formatter.Args.Length != 0 ||
+            member.Formatter.Name != TypeNames.Gen + TypeNames.FormatterName(type.OriginalDefinition))
+            return null;
+        return facts.Flat(type) is { Generic: false } inner ? inner : null;
+    }
+
+    private static ITypeSymbol? TypeOf(ISymbol symbol) => symbol switch
+    {
+        IFieldSymbol field => field.Type,
+        IPropertySymbol property => property.Type,
+        _ => null,
+    };
 
     /// <summary>
     /// Whether <paramref name="member"/> is a raw <c>T?</c>: written by <c>UnmanagedNullableFormatter</c>, a slot's
