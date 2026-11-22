@@ -20,8 +20,9 @@ internal static class FlatEmitter
     {
         var flat = m.Flat!;
         string t = m.TypeName;
-        w.Line("// The body is flat (raw members, bools and strings): Nino.Core's flat kernels write and read it through");
-        w.Line("// the accessor of each item (its field, a constant offset), the layout and the chain of items below.");
+        w.Line("// The body is flat (raw members, bools, raw T?s and strings): Nino.Core's flat kernels write and read it");
+        w.Line("// through the accessor of each item (a field, a constant offset; or a property), the layout and the chain");
+        w.Line("// of items below.");
         foreach (var item in flat.Items)
         {
             if (item.Kind == FlatItemKind.Block)
@@ -34,7 +35,10 @@ internal static class FlatEmitter
             for (int i = item.Member; i < item.Member + item.Count; i++)
             {
                 var member = m.Members[i];
-                Accessor(w, m, names, MemberName(member), member.SourceName, member.Raw?.Expression ?? "0");
+                if (item.Property)
+                    PropertyAccessor(w, m, names, member);
+                else
+                    Accessor(w, m, names, MemberName(member), member.SourceName, member.Raw?.Expression ?? "0");
             }
         }
 
@@ -132,7 +136,7 @@ internal static class FlatEmitter
         var flat = m.Flat!;
         w.Open("private static class __Check");
         w.Line("internal static readonly bool Write = Proves();");
-        var structs = flat.Items.Where(static i => i.Kind == FlatItemKind.Struct)
+        var structs = flat.Items.Where(static i => i.Kind == FlatItemKind.Struct && !i.Property)
             .Select(i => $"{Services}NinoFieldBlock.ReadsAsIs<{m.Members[i.Member].TypeName}>()").ToArray();
         w.Line(structs.Length == 0
             ? "internal static readonly bool Read = Write;"
@@ -141,7 +145,7 @@ internal static class FlatEmitter
         w.Open("private static bool Proves()");
         w.Line($"var value = {Services}NinoFieldBlock.Probe<{m.TypeName}>();");
         w.Line("return value != null");
-        var checks = flat.Items.Where(static i => i.Kind is FlatItemKind.Block or FlatItemKind.Struct).ToArray();
+        var checks = flat.Items.Where(static i => i.Kind == FlatItemKind.Block || i.Kind == FlatItemKind.Struct && !i.Property).ToArray();
         for (int c = 0; c < checks.Length; c++)
         {
             var item = checks[c];
@@ -172,7 +176,7 @@ internal static class FlatEmitter
         var nodes = new System.Collections.Generic.List<string>();
         foreach (var item in m.Flat!.Items)
         {
-            if (!fields && item.Kind is FlatItemKind.Block or FlatItemKind.Struct)
+            if (!fields && (item.Kind == FlatItemKind.Block || item.Kind == FlatItemKind.Struct && !item.Property))
             {
                 string member = item.Kind == FlatItemKind.Block ? BlockName(m, item) : MemberName(m.Members[item.Member]);
                 nodes.Add($"{Services}NinoBlockAt<{member}");
@@ -188,9 +192,12 @@ internal static class FlatEmitter
                     FlatItemKind.Utf8 => Services + "NinoUtf8Item",
                     FlatItemKind.Bool => Services + "NinoBoolItem",
                     FlatItemKind.Struct => $"{Services}NinoStructItem<{member.TypeName}>",
+                    FlatItemKind.Slot => $"{Services}NinoSlotItem<{member.TypeName}, {member.Formatter}>",
                     _ => $"{Services}NinoRawItem<{member.TypeName}>",
                 };
-                nodes.Add($"{Services}NinoItemAt<{MemberName(member)}, {bottom}");
+                nodes.Add(item.Property
+                    ? $"{Services}NinoPropertyAt<{PropertyName(member)}, {member.TypeName}, {bottom}"
+                    : $"{Services}NinoItemAt<{MemberName(member)}, {bottom}");
             }
         }
 
@@ -206,6 +213,17 @@ internal static class FlatEmitter
         w.Line($"internal readonly struct {name} : {Services}INinoMember {{ {names.Inline} public ref byte Ref(ref byte v) => " +
                $"ref {Services}NinoMemberAccess.Bytes(ref {Services}NinoMemberAccess.As<{m.TypeName}>(ref v).{field}); " +
                $"public int Size => {size}; }}");
+
+    /// <summary>A property's accessor: its value read and assigned through the property (INinoProperty).</summary>
+    private static void PropertyAccessor(CodeWriter w, TypeModel m, FormatterNames names, MemberModel member)
+    {
+        string access = $"{Services}NinoMemberAccess.As<{m.TypeName}>(ref v).{member.SourceName}";
+        w.Line($"internal readonly struct {PropertyName(member)} : {Services}INinoProperty<{member.TypeName}> {{ " +
+               $"{names.Inline} public {member.TypeName} Get(ref byte v) => {access}; " +
+               $"{names.Inline} public void Set(ref byte v, {member.TypeName} value) => {access} = value; }}");
+    }
+
+    private static string PropertyName(MemberModel member) => "__P_" + member.Name;
 
     /// <summary>The class one body is written and read through: the chain of fields where there is one.</summary>
     public static string Body(TypeModel m) => m.Flat!.Checks ? "__Fields" : "__Flat";

@@ -257,6 +257,107 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
+    /// A property of a composite (generated code): its value read and assigned through its accessors, where no field can
+    /// be reached by reference (an auto-property's backing field has no name C# can write).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoProperty<TValue>
+    {
+        /// <summary>The property's value in <paramref name="item"/> (as <see cref="INinoMember.Ref"/>'s item).</summary>
+        TValue Get(ref byte item);
+
+        /// <summary>Assigns <paramref name="value"/> to the property in <paramref name="item"/>.</summary>
+        void Set(ref byte item, TValue value);
+    }
+
+    /// <summary>
+    /// <typeparamref name="TItem"/> over the value of the property <typeparamref name="TProperty"/>, then the items
+    /// <typeparamref name="TNext"/>: <see cref="NinoItemAt{TMember,TItem,TNext}"/> for a member reached through its
+    /// accessors, the bottom item over a local copy (a read assigns it back; a string equal to the one held is kept).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoPropertyAt<TProperty, TValue, TItem, TNext> : INinoItem
+        where TProperty : struct, INinoProperty<TValue>
+        where TItem : struct, INinoItem
+        where TNext : struct, INinoItem
+    {
+        private readonly TProperty _property;
+        private readonly TNext _next;
+
+        /// <summary>The node at <paramref name="property"/>, then <paramref name="next"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public NinoPropertyAt(TProperty property, TNext next)
+        {
+            _property = property;
+            _next = next;
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item) =>
+            new NinoPropertyAt<TProperty, TValue, TItem>(_property).MaxSize(ref item) + _next.MaxSize(ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item)
+        {
+            int size = new NinoPropertyAt<TProperty, TValue, TItem>(_property).WriteAt(ref destination, ref item);
+            return size + _next.WriteAt(ref Unsafe.Add(ref destination, (nint)(uint)size), ref item);
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
+        {
+            int size = new NinoPropertyAt<TProperty, TValue, TItem>(_property).ReadAt(ref source, available, ref item,
+                fresh);
+            return size + _next.ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item,
+                fresh);
+        }
+    }
+
+    /// <summary>As <see cref="NinoPropertyAt{TProperty,TValue,TItem,TNext}"/>, the last item of a chain.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoPropertyAt<TProperty, TValue, TItem> : INinoItem
+        where TProperty : struct, INinoProperty<TValue>
+        where TItem : struct, INinoItem
+    {
+        private readonly TProperty _property;
+
+        /// <summary>The item at <paramref name="property"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public NinoPropertyAt(TProperty property) => _property = property;
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item)
+        {
+            TValue value = _property.Get(ref item);
+            return default(TItem).MaxSize(ref Unsafe.As<TValue, byte>(ref value));
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item)
+        {
+            TValue value = _property.Get(ref item);
+            return default(TItem).WriteAt(ref destination, ref Unsafe.As<TValue, byte>(ref value));
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
+        {
+            // The value held, so a string equal to it is kept (fresh: none); assigned after the read, so a rejected one
+            // assigns nothing.
+            TValue value = fresh ? default : _property.Get(ref item);
+            int size = default(TItem).ReadAt(ref source, available, ref Unsafe.As<TValue, byte>(ref value), fresh);
+            _property.Set(ref item, value);
+            return size;
+        }
+    }
+
+    /// <summary>
     /// A primitive or enum <typeparamref name="T"/> (every bit pattern a value), stored and loaded as the generated
     /// bodies do.
     /// </summary>

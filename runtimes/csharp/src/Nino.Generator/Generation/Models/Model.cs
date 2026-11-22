@@ -484,11 +484,15 @@ internal enum FlatItemKind
 
     /// <summary>A <c>[NinoUtf8]</c> string (NinoUtf8Item).</summary>
     Utf8,
+
+    /// <summary>A raw <c>T?</c> (NinoSlotItem through its UnmanagedNullableFormatter: a presence byte, then the value).</summary>
+    Slot,
 }
 
-/// <summary>An item of a flat body: its kind, the index of its (first) member in TypeModel.Members, and its members
-/// (more than one only for a block).</summary>
-internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count);
+/// <summary>An item of a flat body: its kind, the index of its (first) member in TypeModel.Members, its members (more
+/// than one only for a block), and whether it is a property reached through its accessors (NinoPropertyAt: never in a
+/// block, never checked at startup).</summary>
+internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool Property = false);
 
 /// <summary>
 /// A class body that is flat (FlatRules): its items in wire order. Where an item's fast form depends on what only the
@@ -498,7 +502,7 @@ internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count);
 internal sealed record FlatModel(EquatableArray<FlatItem> Items)
 {
     /// <summary>Whether the body has a fallback chain and a startup check: a block or a struct among its items.</summary>
-    public bool Checks => Items.Any(static i => i.Kind is FlatItemKind.Block or FlatItemKind.Struct);
+    public bool Checks => Items.Any(static i => i.Kind == FlatItemKind.Block || i.Kind == FlatItemKind.Struct && !i.Property);
 }
 
 /// <summary>
