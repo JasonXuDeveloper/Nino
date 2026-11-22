@@ -217,8 +217,9 @@ the run too, and a million shuffled items read into their objects took twice as 
 class lays out next to each other in wire order are one block, copied at once, and a struct member is copied whole;
 both hold only where `__Check`, a startup check on an uninitialized instance (`NinoFieldBlock.IsAt`, `ReadsAsIs` for
 Untrusted mode's checks), proves the object's memory is the wire's, read once per call and never per element; where it
-fails, a second chain with one item per member (`__Fields`) runs instead, which also writes one body. The bytes are
-the member-by-member body's. A run of accessor structs, not a delegate or an offset table, keeps each member a
+fails, a second chain with one item per member (`__Fields`) runs instead, which also writes one body. One body is
+read member by member, as any other class's: through the chain, a body inlined into a polymorphic dispatch kept more
+values on the stack and read slower. The bytes are the member-by-member body's. A run of accessor structs, not a delegate or an offset table, keeps each member a
 constant offset the JIT folds: a first form that read members through generic static fields spilled the loop to 165
 stack operands (3,708 bytes of code for one write loop; 31 operands and 1,056 bytes now).
 
