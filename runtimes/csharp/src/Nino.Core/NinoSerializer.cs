@@ -50,12 +50,12 @@ namespace Nino.Core
 
         /// <summary>
         /// <paramref name="value"/> (an array: <see cref="NinoRawArray{T}"/> has a formatter for it) as an
-        /// <see cref="Array"/>, reinterpreted in place: <c>Unsafe.As&lt;Array&gt;(value)</c> takes an <c>object</c>,
-        /// so a struct <typeparamref name="T"/> was boxed on the branch FullOpts code compiles before the field is set
-        /// (asm.py --boxes).
+        /// <see cref="Array"/>. A struct is never one, and <c>Unsafe.As&lt;Array&gt;(value)</c> takes an <c>object</c>:
+        /// the branch FullOpts code compiles before the field is set boxed it (asm.py --boxes). The test is folded
+        /// where the JIT imports it, so a struct's branch is never compiled.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Array AsArray<T>(scoped in T value) => Unsafe.As<T, Array>(ref Unsafe.AsRef(in value));
+        private static Array AsArray<T>(scoped in T value) => typeof(T).IsValueType ? null : Unsafe.As<Array>(value);
 
         /// <summary>
         /// The number of bytes <see cref="Serialize{T}(in T)"/> returns for every value of <typeparamref name="T"/>

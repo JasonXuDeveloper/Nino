@@ -409,15 +409,18 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// Whether <paramref name="value"/> is null (a null reference, or a <c>T?</c> without a value), without boxing
         /// it. <c>value == null</c> on a type parameter is a box the JIT removes only where it can tell the boxed
-        /// value has no side effects: on a <c>T?</c> read through a reference in an inlined call it allocated the box
-        /// whenever the value was present (#449: a <c>HashSet&lt;int?&gt;</c> read, one per element; the reuse read of
-        /// a <c>T?</c> of a struct with a reference). A value type is null only as a <c>T?</c> (<c>default(T)</c> is
-        /// null, a constant) and is tested by <c>Nullable&lt;T&gt;.Equals(object)</c>, a direct call that boxes
-        /// nothing; a class is compared as a reference.
+        /// value has no side effects: on a <c>T?</c> read through a reference in an inlined call .NET 11 allocated the
+        /// box whenever the value was present (#449: a <c>HashSet&lt;int?&gt;</c> read, one per element; the reuse read
+        /// of a <c>T?</c> of a struct with a reference). A value type is null only as a <c>T?</c> whose presence byte
+        /// is 0 (<see cref="NinoPresence{T}"/>: a field the JIT folds, then one load); <c>Nullable&lt;T&gt;.Equals
+        /// (object)</c> boxed nothing either but stayed a call. A class is compared as a reference.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool IsNull<T>(scoped in T value) =>
-            typeof(T).IsValueType ? default(T) == null && value.Equals(null) : value == null;
+            typeof(T).IsValueType
+                ? NinoPresence<T>.Offset >= 0 && Unsafe.AddByteOffset(
+                    ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), (nint)NinoPresence<T>.Offset) == 0
+                : value == null;
 
         /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its
         /// layout).</summary>
@@ -441,6 +444,33 @@ namespace Nino.Core.CompilerServices
             }
 
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Where a <typeparamref name="T"/> that is a <c>T?</c> keeps its presence (HasValue), or -1 for any other type:
+    /// found once by comparing a present value (an unboxed zeroed value of the underlying type) with
+    /// <c>default</c>, so <see cref="NinoUnsafe.IsNull{T}"/> reads one byte on every runtime, whatever its layout of
+    /// <c>Nullable&lt;T&gt;</c> (CoreCLR's presence first, Mono's after the value).
+    /// </summary>
+    internal static class NinoPresence<T>
+    {
+        public static readonly int Offset = Find();
+
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2067",
+            Justification = "A value type: its zeroed instance runs no constructor, and the type is kept as T's argument.")]
+        private static int Find()
+        {
+            if (!typeof(T).IsValueType || Nullable.GetUnderlyingType(typeof(T)) is not { } underlying)
+                return -1;
+            T present = (T)RuntimeHelpers.GetUninitializedObject(underlying);
+            T absent = default;
+            ref byte a = ref Unsafe.As<T, byte>(ref absent);
+            ref byte p = ref Unsafe.As<T, byte>(ref present);
+            for (int i = 0; i < Unsafe.SizeOf<T>(); i++)
+                if (Unsafe.Add(ref a, i) != Unsafe.Add(ref p, i))
+                    return i;
+            return -1;
         }
     }
 }
