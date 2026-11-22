@@ -304,10 +304,10 @@ namespace Nino.Core
         bool INinoFormatter.HasCursor => NinoItems.Cursor<T1, T2, TF1, TF2>(Offset1, Offset2);
 
         Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoItems.WritePair<T1, T2, TF1, TF2>(run, Offset1, Offset2, writer);
+            NinoItems.Write<T1, T2, TF1, TF2>(run, Offset1, Offset2, writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
-            NinoItems.ReadPair<T1, T2, TF1, TF2>(run, Offset1, Offset2, ref data, end);
+            NinoItems.Read<T1, T2, TF1, TF2>(run, Offset1, Offset2, ref data, end);
 
         bool INinoFormatter.HasRunLoop => NinoItems.RunLoop<T1, T2, TF1, TF2>(Offset1, Offset2);
 
@@ -541,11 +541,11 @@ namespace Nino.Core
             }
         }
 
-        // The items as a chain, for the string run kernels.
-        private static NinoItem<T1, TF1, NinoItem<T2, TF2, NinoItem<T3, TF3, NinoItemsEnd>>> Items
+        // The plan of the items' chain (last item first), for the run kernels.
+        private static NinoItemPlan<T3, TF3, NinoItemPlan<T2, TF2, NinoItemPlan<T1, TF1, NinoItemPlanEnd>>> Items
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(Offset1, new(Offset2, new(Offset3, default)));
+            get => new(Offset3, new(Offset2, new(Offset1, default)));
         }
 
         // A run of tuples whose every item is a string or moves beside one, a string among them, through the string
@@ -817,11 +817,11 @@ namespace Nino.Core
             }
         }
 
-        // The items as a chain, for the string run kernels.
-        private static NinoItem<T1, TF1, NinoItem<T2, TF2, NinoItem<T3, TF3, NinoItem<T4, TF4, NinoItemsEnd>>>> Items
+        // The plan of the items' chain (last item first), for the run kernels.
+        private static NinoItemPlan<T4, TF4, NinoItemPlan<T3, TF3, NinoItemPlan<T2, TF2, NinoItemPlan<T1, TF1, NinoItemPlanEnd>>>> Items
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(Offset1, new(Offset2, new(Offset3, new(Offset4, default))));
+            get => new(Offset4, new(Offset3, new(Offset2, new(Offset1, default))));
         }
 
         // A run of tuples whose every item is a string or moves beside one, a string among them, through the string
@@ -1124,11 +1124,11 @@ namespace Nino.Core
             }
         }
 
-        // The items as a chain, for the string run kernels.
-        private static NinoItem<T1, TF1, NinoItem<T2, TF2, NinoItem<T3, TF3, NinoItem<T4, TF4, NinoItem<T5, TF5, NinoItemsEnd>>>>> Items
+        // The plan of the items' chain (last item first), for the run kernels.
+        private static NinoItemPlan<T5, TF5, NinoItemPlan<T4, TF4, NinoItemPlan<T3, TF3, NinoItemPlan<T2, TF2, NinoItemPlan<T1, TF1, NinoItemPlanEnd>>>>> Items
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(Offset1, new(Offset2, new(Offset3, new(Offset4, new(Offset5, default)))));
+            get => new(Offset5, new(Offset4, new(Offset3, new(Offset2, new(Offset1, default)))));
         }
 
         // A run of tuples whose every item is a string or moves beside one, a string among them, through the string
@@ -1462,11 +1462,11 @@ namespace Nino.Core
             }
         }
 
-        // The items as a chain, for the string run kernels.
-        private static NinoItem<T1, TF1, NinoItem<T2, TF2, NinoItem<T3, TF3, NinoItem<T4, TF4, NinoItem<T5, TF5, NinoItem<T6, TF6, NinoItemsEnd>>>>>> Items
+        // The plan of the items' chain (last item first), for the run kernels.
+        private static NinoItemPlan<T6, TF6, NinoItemPlan<T5, TF5, NinoItemPlan<T4, TF4, NinoItemPlan<T3, TF3, NinoItemPlan<T2, TF2, NinoItemPlan<T1, TF1, NinoItemPlanEnd>>>>>> Items
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(Offset1, new(Offset2, new(Offset3, new(Offset4, new(Offset5, new(Offset6, default))))));
+            get => new(Offset6, new(Offset5, new(Offset4, new(Offset3, new(Offset2, new(Offset1, default))))));
         }
 
         // A run of tuples whose every item is a string or moves beside one, a string among them, through the string
@@ -1831,11 +1831,11 @@ namespace Nino.Core
             }
         }
 
-        // The items as a chain, for the string run kernels.
-        private static NinoItem<T1, TF1, NinoItem<T2, TF2, NinoItem<T3, TF3, NinoItem<T4, TF4, NinoItem<T5, TF5, NinoItem<T6, TF6, NinoItem<T7, TF7, NinoItemsEnd>>>>>>> Items
+        // The plan of the items' chain (last item first), for the run kernels.
+        private static NinoItemPlan<T7, TF7, NinoItemPlan<T6, TF6, NinoItemPlan<T5, TF5, NinoItemPlan<T4, TF4, NinoItemPlan<T3, TF3, NinoItemPlan<T2, TF2, NinoItemPlan<T1, TF1, NinoItemPlanEnd>>>>>>> Items
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(Offset1, new(Offset2, new(Offset3, new(Offset4, new(Offset5, new(Offset6, new(Offset7, default)))))));
+            get => new(Offset7, new(Offset6, new(Offset5, new(Offset4, new(Offset3, new(Offset2, new(Offset1, default)))))));
         }
 
         // A run of tuples whose every item is a string or moves beside one, a string among them, through the string

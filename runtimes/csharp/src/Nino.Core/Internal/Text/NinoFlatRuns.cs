@@ -7,18 +7,17 @@ namespace Nino.Core.Internal
     /// The element of a run of a sealed class whose body is flat (<see cref="NinoFlat{TLayout,TBody}"/>): its presence
     /// byte, then its body. Reads go into the object an element holds, or make one (<see cref="INinoFlatLayout.Create"/>).
     /// </summary>
-    internal readonly struct NinoFlatSealedItem<TLayout, TBody> : INinoRunItem
+    internal readonly struct NinoFlatSealedItem<TLayout, TBody> : INinoItem
         where TLayout : struct, INinoFlatLayout
-        where TBody : struct, INinoFlatItem
+        where TBody : struct, INinoItem
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(ref byte element)
+        public long MaxSize(ref byte element)
         {
             object value = Unsafe.As<byte, object>(ref element);
             if (value == null)
                 return 1;
-            long body = default(TBody).MaxSize(value);
-            return body >= int.MaxValue ? -1 : (int)body + 1;
+            return default(TBody).MaxSize(ref Unsafe.As<object, byte>(ref value)) + 1;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -32,7 +31,7 @@ namespace Nino.Core.Internal
             }
 
             destination = NinoWire.NotNull;
-            return 1 + default(TBody).WriteAt(ref Unsafe.Add(ref destination, 1), value);
+            return 1 + default(TBody).WriteAt(ref Unsafe.Add(ref destination, 1), ref Unsafe.As<object, byte>(ref value));
         }
 
         /// <summary>
@@ -59,7 +58,8 @@ namespace Nino.Core.Internal
             bool made = value == null;
             if (made)
                 value = default(TLayout).Create();
-            int size = default(TBody).ReadAt(ref Unsafe.Add(ref source, 1), available - 1, value, made);
+            int size = default(TBody).ReadAt(ref Unsafe.Add(ref source, 1), available - 1,
+                ref Unsafe.As<object, byte>(ref value), made);
             if (made)
                 Unsafe.As<byte, object>(ref element) = value; // after the read: a rejected one leaves no new object
             return size + 1;
@@ -70,20 +70,19 @@ namespace Nino.Core.Internal
     /// As <see cref="NinoFlatSealedItem{TLayout,TBody}"/>, a class that is not sealed: its type id (0 for null), its
     /// exact type checked per element; a subtype, or another type id on a read, leaves the run.
     /// </summary>
-    internal readonly struct NinoFlatTypedItem<TLayout, TBody> : INinoRunItem
+    internal readonly struct NinoFlatTypedItem<TLayout, TBody> : INinoItem
         where TLayout : struct, INinoFlatLayout
-        where TBody : struct, INinoFlatItem
+        where TBody : struct, INinoItem
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int MaxSize(ref byte element)
+        public long MaxSize(ref byte element)
         {
             object value = Unsafe.As<byte, object>(ref element);
             if (value == null)
                 return 4;
             if (!default(TLayout).IsExact(value))
                 return NinoFlatRuns.Leave;
-            long body = default(TBody).MaxSize(value);
-            return body > int.MaxValue - 4 ? -1 : (int)body + 4;
+            return default(TBody).MaxSize(ref Unsafe.As<object, byte>(ref value)) + 4;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -97,7 +96,7 @@ namespace Nino.Core.Internal
             }
 
             Unsafe.WriteUnaligned(ref destination, default(TLayout).TypeId);
-            return 4 + default(TBody).WriteAt(ref Unsafe.Add(ref destination, 4), value);
+            return 4 + default(TBody).WriteAt(ref Unsafe.Add(ref destination, 4), ref Unsafe.As<object, byte>(ref value));
         }
 
         /// <summary>
@@ -113,13 +112,14 @@ namespace Nino.Core.Internal
             int id = Unsafe.ReadUnaligned<int>(ref source);
             object value = Unsafe.As<byte, object>(ref element);
             if (id != default(TLayout).TypeId)
-                return id == NinoWire.NullTypeId && value == null ? 4 : NinoFlatRuns.Leave;
+                return id == NinoWire.NullTypeId && value == null ? 4 : -1;
             bool made = value == null;
             if (made)
                 value = default(TLayout).Create();
             else if (!default(TLayout).IsExact(value))
-                return NinoFlatRuns.Leave;
-            int size = default(TBody).ReadAt(ref Unsafe.Add(ref source, 4), available - 4, value, made);
+                return -1;
+            int size = default(TBody).ReadAt(ref Unsafe.Add(ref source, 4), available - 4,
+                ref Unsafe.As<object, byte>(ref value), made);
             if (made)
                 Unsafe.As<byte, object>(ref element) = value; // after the read: a rejected one leaves no new object
             return size + 4;
@@ -143,8 +143,8 @@ namespace Nino.Core.Internal
         /// </summary>
         public const int MinRun = 16;
 
-        /// <summary>What an element item's MaxSize or ReadAt returns for an element the run leaves.</summary>
-        public const int Leave = int.MinValue;
+        /// <summary>What an element item's MaxSize returns for an element the run leaves (ReadAt returns any negative).</summary>
+        public const long Leave = long.MinValue;
 
         /// <summary>
         /// The write of a run of <typeparamref name="T"/> (not empty, every element in use) through
@@ -153,7 +153,7 @@ namespace Nino.Core.Internal
         public static Writer WriteRun<T, TFormatter, TItem>(NinoRun run, Writer writer)
             where T : class
             where TFormatter : struct, INinoFormatter<T>
-            where TItem : struct, INinoRunItem
+            where TItem : struct, INinoItem
         {
             // Bodies too deep are deferred by the formatter: the whole run goes that way.
             if (writer.Depth >= NinoDepth.Inline)
@@ -176,7 +176,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer Write<TItem>(scoped NinoRun run, scoped ref int next, Writer writer)
-            where TItem : struct, INinoRunItem
+            where TItem : struct, INinoItem
         {
             int from = next;
             while (true)
@@ -187,9 +187,9 @@ namespace Nino.Core.Internal
                 from = run.Count - entries;
                 if (entries == 0)
                     break;
-                int room = default(TItem).MaxSize(ref Unsafe.Add(ref run.First, (nint)from * run.Stride));
-                if (room == Leave)
-                    break;
+                int room = NinoStringRuns.RoomFor(run, default(TItem), from);
+                if (room == int.MinValue)
+                    break; // Leave
                 writer.Ensure(room);
             }
 
@@ -200,7 +200,7 @@ namespace Nino.Core.Internal
         /// <summary>The string run kernels' write loop, every element in use (one copy of the loop).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ulong WriteFitting<TItem>(scoped NinoRun run, int next, ref byte destination, int available)
-            where TItem : struct, INinoRunItem =>
+            where TItem : struct, INinoItem =>
             NinoStringRuns.WriteFitting(run, default(TItem), next, ref destination, available, NinoRun.AllInUse);
 
         /// <summary>An element the items leave, through its formatter, out of line.</summary>
@@ -217,7 +217,7 @@ namespace Nino.Core.Internal
         public static Reader ReadRun<T, TFormatter, TItem>(NinoRun run, Reader reader)
             where T : class
             where TFormatter : struct, INinoFormatter<T>
-            where TItem : struct, INinoRunItem
+            where TItem : struct, INinoItem
         {
             int count = run.Count, stride = run.Stride;
             if (reader.Depth >= NinoDepth.Inline)
@@ -242,7 +242,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int Read<TItem>(scoped NinoRun run, scoped ref int next, ref byte data, int end)
-            where TItem : struct, INinoRunItem
+            where TItem : struct, INinoItem
         {
             ref byte source = ref data;
             int stride = run.Stride, available = end;

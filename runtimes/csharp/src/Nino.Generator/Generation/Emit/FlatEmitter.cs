@@ -162,67 +162,49 @@ internal static class FlatEmitter
     }
 
     /// <summary>
-    /// The items as nested type arguments in wire order, ended by <c>NinoFlatEnd</c>: blocks and struct members copied
-    /// whole, or (<paramref name="fields"/>) one item per member.
+    /// The items as nested type arguments in wire order: blocks and struct members copied whole (<c>NinoBlockAt</c>), or
+    /// (<paramref name="fields"/>) one item per member (<c>NinoItemAt</c> with its bottom item), the last without a next:
+    /// the one chain of items every composite is (Nino.Core's NinoItemChain.cs).
     /// </summary>
     private static string Chain(TypeModel m, bool fields)
     {
-        var text = new StringBuilder();
-        int open = 0;
+        // Each node as its type and its arguments before the next: "NinoBlockAt<__B_A" or "NinoItemAt<__F_S, NinoUtf16Item".
+        var nodes = new System.Collections.Generic.List<string>();
         foreach (var item in m.Flat!.Items)
         {
-            switch (item.Kind)
+            if (!fields && item.Kind is FlatItemKind.Block or FlatItemKind.Struct)
             {
-                case FlatItemKind.Block when !fields:
-                    Open(text, "NinoFlatBlock", BlockName(m, item));
-                    open++;
-                    break;
-                case FlatItemKind.Struct when !fields:
-                    Open(text, "NinoFlatBlock", MemberName(m.Members[item.Member]));
-                    open++;
-                    break;
-                default:
-                    for (int i = item.Member; i < item.Member + item.Count; i++)
-                    {
-                        var member = m.Members[i];
-                        string name = MemberName(member);
-                        switch (item.Kind)
-                        {
-                            case FlatItemKind.String:
-                                Open(text, "NinoFlatString", name);
-                                break;
-                            case FlatItemKind.Utf8:
-                                Open(text, "NinoFlatUtf8", name);
-                                break;
-                            case FlatItemKind.Bool:
-                                Open(text, "NinoFlatBool", name);
-                                break;
-                            case FlatItemKind.Struct:
-                                Open(text, "NinoFlatStruct", name + ", " + member.TypeName);
-                                break;
-                            default:
-                                Open(text, "NinoFlatValue", name + ", " + member.TypeName);
-                                break;
-                        }
+                string member = item.Kind == FlatItemKind.Block ? BlockName(m, item) : MemberName(m.Members[item.Member]);
+                nodes.Add($"{Services}NinoBlockAt<{member}");
+                continue;
+            }
 
-                        open++;
-                    }
-
-                    break;
+            for (int i = item.Member; i < item.Member + item.Count; i++)
+            {
+                var member = m.Members[i];
+                string bottom = item.Kind switch
+                {
+                    FlatItemKind.String => Services + "NinoUtf16Item",
+                    FlatItemKind.Utf8 => Services + "NinoUtf8Item",
+                    FlatItemKind.Bool => Services + "NinoBoolItem",
+                    FlatItemKind.Struct => $"{Services}NinoStructItem<{member.TypeName}>",
+                    _ => $"{Services}NinoRawItem<{member.TypeName}>",
+                };
+                nodes.Add($"{Services}NinoItemAt<{MemberName(member)}, {bottom}");
             }
         }
 
-        text.Append(Services).Append("NinoFlatEnd").Append('>', open);
+        var text = new StringBuilder();
+        for (int i = 0; i < nodes.Count; i++)
+            text.Append(nodes[i]).Append(i < nodes.Count - 1 ? ", " : "");
+        text.Append('>', nodes.Count);
         return text.ToString();
     }
 
-    private static void Open(StringBuilder text, string item, string arguments) =>
-        text.Append(Services).Append(item).Append('<').Append(arguments).Append(", ");
-
     private static void Accessor(CodeWriter w, TypeModel m, FormatterNames names, string name, string field,
         string size) =>
-        w.Line($"internal readonly struct {name} : {Services}INinoFlatMember {{ {names.Inline} public ref byte Ref(object v) => " +
-               $"ref {Services}NinoFlatAccess.Bytes(ref {Services}NinoFlatAccess.As<{m.TypeName}>(v).{field}); " +
+        w.Line($"internal readonly struct {name} : {Services}INinoMember {{ {names.Inline} public ref byte Ref(ref byte v) => " +
+               $"ref {Services}NinoMemberAccess.Bytes(ref {Services}NinoMemberAccess.As<{m.TypeName}>(ref v).{field}); " +
                $"public int Size => {size}; }}");
 
     /// <summary>The class one body is written and read through: the chain of fields where there is one.</summary>
