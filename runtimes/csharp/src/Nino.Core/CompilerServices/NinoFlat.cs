@@ -198,14 +198,28 @@ namespace Nino.Core.CompilerServices
         public static void Write<T, TFormatter>(NinoRun run, ref Writer writer, int depth)
             where T : struct
             where TFormatter : struct, INinoFormatter<T> =>
-            writer = NinoFlatRuns.WriteRun<T, TFormatter, TBody>(run, writer, depth);
+            // A chain no element leaves (a positional struct's, no class nested): the string kernels' write, which has
+            // no stop (through the flat kernels' loop ManagedStruct's runs wrote in 1.1 times step B's time). Here,
+            // not in NinoFlatRuns: its IL there kept the class runs' driver from inlining into their hooks (asm.py,
+            // TC=0: "too many il bytes", a call more per run).
+            writer = default(TBody).Leaves || depth != 0
+                ? NinoFlatRuns.WriteRun<T, TFormatter, TBody>(run, writer, depth)
+                : NinoStringRuns.Write(run, default(TBody), writer);
 
         /// <summary>Reads the values of <paramref name="run"/> (not empty, every one in use) in place.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void Read<T, TFormatter>(NinoRun run, ref Reader reader, int depth)
             where T : struct
-            where TFormatter : struct, INinoFormatter<T> =>
-            reader = NinoFlatRuns.ReadRun<T, TFormatter, TBody>(run, reader, depth);
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            // As Write: the string kernels' read loop, no stop (through the flat loop, with its index for a stop, a
+            // flat struct's runs read in 1.04 times step B's time; through this one 0.96).
+            if (default(TBody).Leaves || depth != 0)
+                reader = NinoFlatRuns.ReadRun<T, TFormatter, TBody>(run, reader, depth);
+            else
+                reader.UnsafeAdvance(NinoStringRuns.Read(run, default(TBody), ref reader.Peek(), reader.Remaining,
+                    default(NinoStringRuns.InPlace)));
+        }
     }
 
     /// <summary>

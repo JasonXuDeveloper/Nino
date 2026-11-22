@@ -43,10 +43,6 @@ namespace Nino.Core.Internal
             // element opens (its own and its nested members', a generator literal), the last at Depth + depth - 1.
             if (writer.Depth + depth > NinoDepth.Inline)
                 return NinoRuns.WriteEach<T, TFormatter>(run, NinoRuns.NoLength, writer);
-            // A chain no element leaves (a positional struct's): the string kernels' write, which has no stop
-            // (through this loop ManagedStruct's runs wrote in 1.1 times step B's time; Tier1, local, alternated).
-            if (!default(TItem).Leaves)
-                return NinoStringRuns.Write(run, default(TItem), writer);
             int next = 0, count = run.Count;
             while (true)
             {
@@ -118,16 +114,6 @@ namespace Nino.Core.Internal
             int count = run.Count, stride = run.Stride;
             if (reader.Depth + depth > NinoDepth.Inline)
                 return ReadEach<T, TFormatter>(ref run.First, count, stride, reader);
-
-            // A chain no element leaves (a positional struct's): the string kernels' read loop, which has no stop (it
-            // read a flat struct's runs in 0.93 of this loop's time: one count where this one keeps the index for a
-            // stop, Tier1, local, alternated).
-            if (!default(TItem).Leaves)
-            {
-                reader.UnsafeAdvance(NinoStringRuns.Read(run, default(TItem), ref reader.Peek(), reader.Remaining,
-                    default(NinoStringRuns.InPlace)));
-                return reader;
-            }
 
             int next = 0;
             while (true)
