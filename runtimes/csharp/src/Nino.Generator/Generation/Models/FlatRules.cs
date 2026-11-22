@@ -101,6 +101,10 @@ internal static class FlatRules
             return null;
 
         var offsets = PredictedOffsets(members, symbols);
+        var sizes = new int[members.Count];
+        var joinable = new bool[members.Count];
+        for (int i = 0; i < members.Count; i++)
+            joinable[i] = Joinable(members[i], symbols[i], out sizes[i]);
         var items = new List<FlatItem>(members.Count);
         int depth = 0, levels = 0, wrappers = positional ? 0 : format == NinoFormat.Keyed ? 2 : 1;
         for (int i = 0; i < members.Count;)
@@ -137,34 +141,34 @@ internal static class FlatRules
             }
 
             var raw = member.Raw!;
+            // A positional class's field whose memory is its bytes on the wire (a primitive, a bool, a raw struct
+            // without padding: #444) starts a block, which takes every next member that lies right after it in the
+            // object; the startup check proves the offsets, a read checks the bools in the block's bytes (NinoBlockAt's
+            // TCheck) and Untrusted mode's values through the chain of fields.
+            if (!property && !valueType && positional && joinable[i])
+            {
+                int end = i + 1;
+                while (end < members.Count && nested[end] == null && Continues(members, offsets, joinable, sizes, end))
+                    end++;
+                // A block of one: a struct copied as its bytes (proven at startup); a primitive's or a bool's own item.
+                var single = raw.Read == RawRead.Bool ? FlatItemKind.Bool
+                    : raw.IsConstant && raw.Read == RawRead.Plain ? FlatItemKind.Value
+                    : FlatItemKind.Block;
+                items.Add(new FlatItem(end - i > 1 ? FlatItemKind.Block : single, i, end - i));
+                i = end;
+                continue;
+            }
+
             if (raw.Read == RawRead.Bool)
             {
                 items.Add(new FlatItem(FlatItemKind.Bool, i++, 1, property));
                 continue;
             }
 
-            // A struct, or a value Untrusted mode checks (DateTime, decimal): copied as its bytes only where proven
-            // (a property's and a struct's never).
-            if (!raw.IsConstant || raw.Read != RawRead.Plain)
-            {
-                items.Add(new FlatItem(FlatItemKind.Struct, i++, 1, property));
-                continue;
-            }
-
-            // A property, a struct's member, or a member of a region (whose every member is its own item): its value
-            // alone.
-            if (property || valueType || !positional)
-            {
-                items.Add(new FlatItem(FlatItemKind.Value, i++, 1, property));
-                continue;
-            }
-
-            // Consecutive primitives laid out in the object as on the wire: one block.
-            int end = i + 1;
-            while (end < members.Count && nested[end] == null && Continues(members, offsets, end))
-                end++;
-            items.Add(new FlatItem(end - i > 1 ? FlatItemKind.Block : FlatItemKind.Value, i, end - i));
-            i = end;
+            // A struct with padding, or a value Untrusted mode checks (DateTime, decimal) where nothing proves its
+            // memory (a property's, a struct's, a region's): its own item, padding cleared and values checked.
+            items.Add(new FlatItem(!raw.IsConstant || raw.Read != RawRead.Plain ? FlatItemKind.Struct : FlatItemKind.Value,
+                i++, 1, property));
         }
 
         return levels <= MaxItems
@@ -220,22 +224,40 @@ internal static class FlatRules
     }
 
     /// <summary>
-    /// Whether member <paramref name="i"/> extends the block of the member before it: both primitives (not bools,
-    /// whose bytes a read checks), declared by the same class, and predicted next to each other in its memory.
+    /// Whether <paramref name="member"/> may lie in a block (#444): a field of raw memory that is its bytes on the wire
+    /// (<paramref name="bytes"/>, the canonical size): a primitive or enum, a bool (checked in the block's bytes on
+    /// read), or a raw struct without padding (a <c>DateTime</c>, a <c>NinoNullable&lt;T&gt;</c>, a user struct; Untrusted
+    /// mode's checks of it through the chain of fields). A struct with padding stays its own item (padding cleared).
     /// </summary>
-    private static bool Continues(IReadOnlyList<MemberModel> members, int[] offsets, int i)
+    private static bool Joinable(MemberModel member, ISymbol symbol, out int bytes)
     {
-        var previous = members[i - 1];
-        var member = members[i];
-        return !member.IsProperty && member.Raw is { IsConstant: true, Read: RawRead.Plain } && previous.Raw is { IsConstant: true, Read: RawRead.Plain } &&
-               offsets[i] >= 0 && offsets[i - 1] >= 0 && member.DeclaringType == previous.DeclaringType &&
-               offsets[i] == offsets[i - 1] + previous.Raw.Bytes;
+        bytes = 0;
+        if (member.IsProperty || member.Raw is not { } raw || symbol is not IFieldSymbol field)
+            return false;
+        if (raw.IsConstant && raw.Read != RawRead.Checked)
+        {
+            bytes = raw.Bytes;
+            return true;
+        }
+
+        return RawLayout.Canonical(field.Type, out bytes, out _, out bool padded) && !padded && bytes > 0 &&
+               (!raw.IsConstant || raw.Bytes == bytes);
     }
 
     /// <summary>
-    /// Where 64-bit CoreCLR places each primitive member among the instance fields of the class declaring it
-    /// (<c>NinoLayoutCore.PlacePrimitives</c>: its references first, then its primitives by size), relative to the
-    /// first primitive; -1 for the others. A prediction only: the generated startup check proves it on the runtime.
+    /// Whether member <paramref name="i"/> extends the block of the member before it: both may lie in a block,
+    /// declared by the same class, and predicted next to each other in its memory.
+    /// </summary>
+    private static bool Continues(IReadOnlyList<MemberModel> members, int[] offsets, bool[] joinable, int[] sizes, int i) =>
+        joinable[i] && joinable[i - 1] && offsets[i] >= 0 && offsets[i - 1] >= 0 &&
+        members[i].DeclaringType == members[i - 1].DeclaringType && offsets[i] == offsets[i - 1] + sizes[i - 1];
+
+    /// <summary>
+    /// Where 64-bit CoreCLR places each raw field member among the instance fields of the class declaring it, relative
+    /// to the first primitive: its references first, then its primitives by size (<c>NinoLayoutCore.PlacePrimitives</c>),
+    /// then its structs in declaration order, each aligned to its own alignment (the canonical layout's,
+    /// <see cref="RawLayout.Canonical"/>); -1 for the others, and for every struct after one whose layout is not known.
+    /// A prediction only: the generated startup check proves it on the runtime.
     /// </summary>
     private static int[] PredictedOffsets(IReadOnlyList<MemberModel> members, IReadOnlyList<ISymbol> symbols)
     {
@@ -245,7 +267,7 @@ internal static class FlatRules
         for (int i = 0; i < members.Count; i++)
         {
             offsets[i] = -1;
-            if (members[i].Raw is not { IsConstant: true } || symbols[i] is not IFieldSymbol field)
+            if (members[i].Raw == null || symbols[i] is not IFieldSymbol field)
                 continue;
             if (done.Add(field.ContainingType))
                 Place(field.ContainingType, placed);
@@ -256,11 +278,12 @@ internal static class FlatRules
         return offsets;
     }
 
-    /// <summary>The predicted offsets of the primitive instance fields <paramref name="type"/> declares.</summary>
+    /// <summary>The predicted offsets of the primitive and struct instance fields <paramref name="type"/> declares.</summary>
     private static void Place(INamedTypeSymbol type, Dictionary<IFieldSymbol, int> placed)
     {
         var fields = new List<IFieldSymbol>();
         var sizes = new List<int>();
+        var structs = new List<IFieldSymbol>();
         foreach (var member in type.GetMembers())
         {
             if (member is not IFieldSymbol { IsStatic: false, IsConst: false } field)
@@ -268,18 +291,34 @@ internal static class FlatRules
             if (field.Type.TypeKind == TypeKind.TypeParameter)
                 return; // A field of unknown kind: no prediction.
             int size = PrimitiveSize(field.Type);
-            if (size <= 0)
-                continue; // A reference, placed before the primitives, or a struct, placed after them.
+            if (size == 0)
+                continue; // A reference, placed before the primitives.
+            if (size < 0)
+            {
+                structs.Add(field); // A struct, placed after the primitives.
+                continue;
+            }
+
             fields.Add(field);
             sizes.Add(size);
         }
 
         var sizeArray = sizes.ToArray();
         var offsets = new int[sizeArray.Length];
-        NinoLayoutCore.PlacePrimitives(sizeArray, sizeArray, Enumerable.Repeat(true, sizeArray.Length).ToArray(),
+        int end = NinoLayoutCore.PlacePrimitives(sizeArray, sizeArray, Enumerable.Repeat(true, sizeArray.Length).ToArray(),
             offsets);
         for (int i = 0; i < fields.Count; i++)
             placed[fields[i]] = offsets[i];
+        foreach (var field in structs)
+        {
+            // The primitives start at an offset aligned to 8 (after the object's references), so an alignment of up
+            // to 8 holds relative to them too.
+            if (!RawLayout.Canonical(field.Type, out int size, out int align, out _) || align > 8 || align <= 0)
+                return;
+            end = (end + align - 1) / align * align;
+            placed[field] = end;
+            end += size;
+        }
     }
 
     /// <summary>The size of a primitive or enum field, 0 for a reference, -1 for anything else.</summary>

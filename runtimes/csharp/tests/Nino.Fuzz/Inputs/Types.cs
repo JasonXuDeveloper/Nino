@@ -152,6 +152,16 @@ namespace Nino.Fuzz
         public FlatKeyedFuzz Keyed; public FlatTolerantStruct Tolerant;
     }
 
+    // #444: blocks that hold bools, raw structs and NinoNullable members (checked in the block's bytes, Untrusted mode's
+    // values through the chain of fields), and a struct with padding as its own item.
+    public struct FlatPaddedFuzz { public byte A; public int B; }
+    [NinoType]
+    public sealed class FlatBlockFuzz
+    {
+        public long W; public int X; public bool B; public bool C; public DateTime D; public NinoNullable<int> N; public string S;
+        public NinoNullable<long> L; public Guid G; public FlatPaddedFuzz P;
+    }
+
     [NinoType]
     public sealed class FlatRoot
     {
@@ -159,7 +169,7 @@ namespace Nino.Fuzz
         public FlatProps[] Props; public List<FlatBareFuzz> Bares; public FlatStructFuzz[] Structs;
         public List<FlatGeneric<int>> Generics;
         public List<FlatKeyedFuzz> Keyeds; public FlatTolerantFuzz[] Tolerants; public FlatTolerantStruct[] TolerantStructs;
-        public FlatNest[] Nests;
+        public FlatNest[] Nests; public List<FlatBlockFuzz> Blocks;
     }
 
     [NinoType]

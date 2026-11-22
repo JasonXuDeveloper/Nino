@@ -465,15 +465,16 @@ internal sealed record TypeModel(
 /// <summary>How an item of a flat body (<see cref="FlatItem"/>) is written and read by Nino.Core's flat items.</summary>
 internal enum FlatItemKind
 {
-    /// <summary>Consecutive primitives predicted to lie in the object as on the wire: one copy (NinoBlockAt), only
-    /// where the startup check proves it; else each a <see cref="Value"/>.</summary>
+    /// <summary>Consecutive fields whose memory is their bytes (primitives, bools, raw structs without padding: #444),
+    /// predicted to lie in the object as on the wire, or one such struct: one copy (NinoBlockAt, its bools checked in
+    /// its bytes on read), only where the startup check proves it; else each member its own item.</summary>
     Block,
 
     /// <summary>One primitive or enum (NinoRawItem).</summary>
     Value,
 
-    /// <summary>A raw struct (NinoStructItem: padding cleared, Untrusted mode's checks); copied as its bytes (a block)
-    /// where the startup check proves its memory canonical without padding, and reads check nothing in it.</summary>
+    /// <summary>A raw struct (NinoStructItem: padding cleared, Untrusted mode's checks) that no block takes: a property,
+    /// a struct's or a region's member, or a struct with padding.</summary>
     Struct,
 
     /// <summary>A bool, checked on read (NinoBoolItem).</summary>
@@ -539,7 +540,7 @@ internal sealed record FlatModel(EquatableArray<FlatItem> Items, bool ValueType 
     /// <summary>Whether the body has a fallback chain and a startup check: a block or a struct among a positional
     /// class's items.</summary>
     public bool Checks => !ValueType && Format == NinoFormat.Positional &&
-                          Items.Any(static i => i.Kind == FlatItemKind.Block || i.Kind == FlatItemKind.Struct && !i.Property);
+                          Items.Any(static i => i.Kind == FlatItemKind.Block);
 
     /// <summary>The class bodies an element of a run opens: its own (a class's) and those nested in its chain.</summary>
     public int RunDepth => (ValueType ? 0 : 1) + Depth;

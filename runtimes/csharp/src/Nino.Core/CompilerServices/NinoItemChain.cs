@@ -213,13 +213,58 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// Consecutive raw members from <typeparamref name="TMember"/> on, laid out in the composite as on the wire: one copy
-    /// of <see cref="INinoMember.Size"/> bytes, the chain's raw item. Only where a startup check proved the layout, and
-    /// for reads only where nothing in it is checked (Untrusted mode).
+    /// What a block (<see cref="NinoBlockAt{TMember,TCheck,TNext}"/>) checks in its bytes before a read copies them
+    /// (generated code, #444): the bools in it, each 0 or 1, at constant offsets. Nothing is copied before the check, so a
+    /// rejected read leaves the element as it was.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public readonly struct NinoBlockAt<TMember, TNext> : INinoItem
+    public interface INinoBlockCheck
+    {
+        /// <summary>Throws <see cref="NinoDataException"/> where the block's bytes at <paramref name="source"/> hold a
+        /// value Nino never writes.</summary>
+        void Check(ref byte source);
+    }
+
+    /// <summary>The check of a block that holds no bool: nothing.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoUnchecked : INinoBlockCheck
+    {
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Check(ref byte source)
+        {
+        }
+    }
+
+    /// <summary>The pieces of a generated <see cref="INinoBlockCheck"/>.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static class NinoBlockCheck
+    {
+        /// <summary>The byte at <paramref name="offset"/> of the block at <paramref name="source"/> (a bool's).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Flag(ref byte source, int offset) => Unsafe.Add(ref source, offset);
+
+        /// <summary>Throws unless every bool or-ed into <paramref name="flags"/> is 0 or 1: one test for all of a
+        /// block's bools.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Bools(int flags)
+        {
+            if ((flags & ~1) != 0)
+                NinoThrow.InvalidBool(flags);
+        }
+    }
+
+    /// <summary>
+    /// Consecutive members from <typeparamref name="TMember"/> on whose memory is their bytes on the wire (primitives,
+    /// bools, raw structs without padding: #444), laid out in the composite as on the wire: one copy of
+    /// <see cref="INinoSize.Size"/> bytes, the chain's raw item, read after <typeparamref name="TCheck"/> checked its
+    /// bytes (the bools in it). Only where a startup check proved the layout, and for reads only where Untrusted mode
+    /// checks nothing in it.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoBlockAt<TMember, TCheck, TNext> : INinoItem
         where TMember : struct, INinoMember
+        where TCheck : struct, INinoBlockCheck
         where TNext : struct, INinoItem
     {
         /// <inheritdoc/>
@@ -260,14 +305,17 @@ namespace Nino.Core.CompilerServices
             int size = _member.Size;
             if ((uint)available < (uint)size)
                 NinoThrow.EndOfData();
+            default(TCheck).Check(ref source);
             NinoUnsafe.Copy(ref _member.Ref(ref item), ref source, (uint)size);
             return size + _next.ReadAt(ref Unsafe.Add(ref source, size), available - size, ref item, fresh);
         }
     }
 
-    /// <summary>As <see cref="NinoBlockAt{TMember,TNext}"/>, the last item of a chain.</summary>
+    /// <summary>As <see cref="NinoBlockAt{TMember,TCheck,TNext}"/>, the last item of a chain.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public readonly struct NinoBlockAt<TMember> : INinoItem where TMember : struct, INinoMember
+    public readonly struct NinoBlockAt<TMember, TCheck> : INinoItem
+        where TMember : struct, INinoMember
+        where TCheck : struct, INinoBlockCheck
     {
         /// <inheritdoc/>
         public bool Leaves
@@ -301,6 +349,7 @@ namespace Nino.Core.CompilerServices
             int size = _member.Size;
             if ((uint)available < (uint)size)
                 NinoThrow.EndOfData();
+            default(TCheck).Check(ref source);
             NinoUnsafe.Copy(ref _member.Ref(ref item), ref source, (uint)size);
             return size;
         }

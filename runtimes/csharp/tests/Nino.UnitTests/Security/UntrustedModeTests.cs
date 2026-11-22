@@ -228,10 +228,23 @@ public static partial class SettingsProbes
         var back = NinoDeserializer.Deserialize<Nino.UnitTests.Subset.Flat.FlatMany[]>(Run(one));
         if (back.Length != count || back[count - 1].At != when || back[0].Price != price)
             return "valid run";
+        // A NinoNullable<int> inside a block (#444): a presence other than 0 or 1, and a value where it is absent.
+        var blocks = new Nino.UnitTests.Subset.Flat.FlatBlocks { Count = new NinoNullable<int>(7), Name = "b" };
+        byte[] block = NinoSerializer.Serialize(blocks);
+        const int countAt = 1 + 8 + 4 + 2 + 1 + 1 + 8; // presence byte, Stamp, Id, Level, Flag, Done, At
+        byte[] badPresence = With(block, countAt, BitConverter.GetBytes(2));
+        byte[] badAbsent = With(block, countAt, BitConverter.GetBytes(0));
+        byte[] BlockRun(byte[] last) => BitConverter.GetBytes(count)
+            .Concat(Enumerable.Repeat(block, count - 1).SelectMany(x => x)).Concat(last).ToArray();
+        if (NinoDeserializer.Deserialize<Nino.UnitTests.Subset.Flat.FlatBlocks[]>(BlockRun(block))[count - 1].Count.Value != 7)
+            return "valid block run";
         return Fails<Nino.UnitTests.Subset.Flat.FlatMany>(badWhen, "one DateTime") ??
                Fails<Nino.UnitTests.Subset.Flat.FlatMany>(badPrice, "one decimal") ??
                Fails<Nino.UnitTests.Subset.Flat.FlatMany[]>(Run(badWhen), "run DateTime") ??
-               Fails<List<Nino.UnitTests.Subset.Flat.FlatMany>>(Run(badPrice), "run decimal") ?? "ok";
+               Fails<List<Nino.UnitTests.Subset.Flat.FlatMany>>(Run(badPrice), "run decimal") ??
+               Fails<Nino.UnitTests.Subset.Flat.FlatBlocks>(badPresence, "one presence") ??
+               Fails<Nino.UnitTests.Subset.Flat.FlatBlocks[]>(BlockRun(badPresence), "run presence") ??
+               Fails<Nino.UnitTests.Subset.Flat.FlatBlocks[]>(BlockRun(badAbsent), "run absent value") ?? "ok";
     }
 
     public static string UntrustedValues(byte[] _)

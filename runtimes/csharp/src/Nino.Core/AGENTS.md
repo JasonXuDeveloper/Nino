@@ -69,7 +69,10 @@ NinoItemChain.cs             the one item chain of #355, every composite's (a pa
                              element, a chain, a bottom item), INinoMember (where a member lies: a generated field
                              accessor, a constant offset, or NinoOffset, an offset as data for composites holding a
                              class), NinoMemberAccess, the nodes NinoItemAt<TMember, TItem, TNext> and NinoBlockAt
-                             (the raw item), the last item without a next (NinoItemAt<TMember, TItem>, NinoBlockAt<TMember>), and the bottom items, one per element kind
+                             (the raw item: primitives, bools and raw structs copied as one block, its bools checked
+                             in its bytes by a TCheck, INinoBlockCheck, NinoUnchecked, NinoBlockCheck: #444), the last
+                             item without a next (NinoItemAt<TMember, TItem>, NinoBlockAt<TMember, TCheck>), and the
+                             bottom items, one per element kind
                              (NinoUtf16Item, NinoUtf8Item, NinoRawItem, NinoStructItem, NinoBoolItem, NinoValueItem,
                              NinoSlotItem: a raw T?'s single value, its size a generator literal through INinoSize);
                              INinoProperty and NinoPropertyAt, a member reached through its accessors (the bottom item

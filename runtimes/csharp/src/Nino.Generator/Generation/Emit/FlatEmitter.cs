@@ -26,12 +26,14 @@ internal static class FlatEmitter
         w.Line("// the chain of items below.");
         foreach (var item in flat.Items)
         {
-            if (item.Kind == FlatItemKind.Block)
+            if (item.Kind == FlatItemKind.Block && item.Count > 1)
             {
                 var first = m.Members[item.Member];
-                int bytes = Enumerable.Range(item.Member, item.Count).Sum(i => m.Members[i].Raw!.Bytes);
-                Accessor(w, m, names, BlockName(m, item), first.SourceName, bytes.ToString(CultureInfo.InvariantCulture));
+                Accessor(w, m, names, BlockName(m, item), first.SourceName, BlockOffset(m, item, item.Count));
             }
+
+            if (item.Kind == FlatItemKind.Block)
+                BlockCheck(w, m, names, item);
 
             for (int i = item.Member; i < item.Member + item.Count; i++)
             {
@@ -163,10 +165,14 @@ internal static class FlatEmitter
     private static void EmitCheck(CodeWriter w, TypeModel m)
     {
         var flat = m.Flat!;
+        var blocks = flat.Items.Where(static i => i.Kind == FlatItemKind.Block).ToArray();
         w.Open("private static class __Check");
         w.Line("internal static readonly bool Write = Proves();");
-        var structs = flat.Items.Where(static i => i.Kind == FlatItemKind.Struct && !i.Property)
-            .Select(i => $"{Services}NinoFieldBlock.ReadsAsIs<{m.Members[i.Member].TypeName}>()").ToArray();
+        // A block read copies its values as their bytes: only where Untrusted mode checks none of them (the chain of
+        // fields checks them one by one); its bools are checked in the block's bytes (its TCheck).
+        var structs = blocks.SelectMany(i => Enumerable.Range(i.Member, i.Count))
+            .Where(i => m.Members[i].Raw!.Read == RawRead.Checked)
+            .Select(i => $"{Services}NinoFieldBlock.ReadsAsIs<{m.Members[i].TypeName}>()").Distinct().ToArray();
         w.Line(structs.Length == 0
             ? "internal static readonly bool Read = Write;"
             : $"internal static readonly bool Read = Write && {string.Join(" && ", structs)};");
@@ -174,25 +180,64 @@ internal static class FlatEmitter
         w.Open("private static bool Proves()");
         w.Line($"var value = {Services}NinoFieldBlock.Probe<{m.TypeName}>();");
         w.Line("return value != null");
-        var checks = flat.Items.Where(static i => i.Kind == FlatItemKind.Block || i.Kind == FlatItemKind.Struct && !i.Property).ToArray();
-        for (int c = 0; c < checks.Length; c++)
+        for (int c = 0; c < blocks.Length; c++)
         {
-            var item = checks[c];
+            var item = blocks[c];
             string first = m.Members[item.Member].SourceName;
-            int offset = 0;
             for (int i = item.Member; i < item.Member + item.Count; i++)
             {
                 var member = m.Members[i];
-                bool last = c == checks.Length - 1 && i == item.Member + item.Count - 1;
+                bool last = c == blocks.Length - 1 && i == item.Member + item.Count - 1;
                 w.Line($"    && {Services}NinoFieldBlock.IsAt(in value.{first}, in value.{member.SourceName}, " +
-                       $"{offset.ToString(CultureInfo.InvariantCulture)}, {member.Raw!.Expression}){(last ? ";" : "")}");
-                offset += member.Raw.Bytes;
+                       $"{BlockOffset(m, item, i - item.Member)}, {member.Raw!.Expression}){(last ? ";" : "")}");
             }
         }
 
         w.Close();
         w.Close();
     }
+
+    /// <summary>
+    /// The offset of member <paramref name="index"/> of a block in it (its first <paramref name="index"/> members'
+    /// bytes; all of them for the block's size): a literal, or a sum with the sizes of its structs
+    /// (<c>NinoUnsafe.SizeOf</c>, JIT-time constants).
+    /// </summary>
+    private static string BlockOffset(TypeModel m, FlatItem item, int index)
+    {
+        int constant = 0;
+        var parts = new System.Collections.Generic.List<string>();
+        for (int i = item.Member; i < item.Member + index; i++)
+        {
+            var raw = m.Members[i].Raw!;
+            if (raw.IsConstant)
+                constant += raw.Bytes;
+            else
+                parts.Add(raw.Expression);
+        }
+
+        if (constant != 0 || parts.Count == 0)
+            parts.Insert(0, constant.ToString(CultureInfo.InvariantCulture));
+        return string.Join(" + ", parts);
+    }
+
+    /// <summary>
+    /// A block's check of its bytes before a read copies them (<c>INinoBlockCheck</c>, NinoBlockAt's TCheck): its bools'
+    /// bytes, each 0 or 1, tested together. A block without a bool takes <c>NinoUnchecked</c>.
+    /// </summary>
+    private static void BlockCheck(CodeWriter w, TypeModel m, FormatterNames names, FlatItem item)
+    {
+        var flags = Enumerable.Range(item.Member, item.Count).Where(i => m.Members[i].Raw!.Read == RawRead.Bool)
+            .Select(i => $"{Services}NinoBlockCheck.Flag(ref source, {BlockOffset(m, item, i - item.Member)})").ToArray();
+        if (flags.Length == 0)
+            return;
+        w.Line($"internal readonly struct {CheckName(m, item)} : {Services}INinoBlockCheck {{ {names.Inline} " +
+               $"public void Check(ref byte source) => {Services}NinoBlockCheck.Bools({string.Join(" | ", flags)}); }}");
+    }
+
+    private static string CheckName(TypeModel m, FlatItem item) =>
+        Enumerable.Range(item.Member, item.Count).Any(i => m.Members[i].Raw!.Read == RawRead.Bool)
+            ? "__C_" + m.Members[item.Member].Name
+            : Services + "NinoUnchecked";
 
     /// <summary>
     /// The items as nested type arguments in wire order: blocks and struct members copied whole (<c>NinoBlockAt</c>), or
@@ -209,17 +254,21 @@ internal static class FlatEmitter
         var nodes = new System.Collections.Generic.List<string>();
         foreach (var item in m.Flat!.Items)
         {
-            if (!fields && (item.Kind == FlatItemKind.Block || item.Kind == FlatItemKind.Struct && !item.Property))
+            if (!fields && item.Kind == FlatItemKind.Block)
             {
-                string member = item.Kind == FlatItemKind.Block ? BlockName(m, item) : MemberName(m.Members[item.Member]);
-                nodes.Add($"{Services}NinoBlockAt<{member}");
+                nodes.Add($"{Services}NinoBlockAt<{BlockName(m, item)}, {CheckName(m, item)}");
                 continue;
             }
 
             for (int i = item.Member; i < item.Member + item.Count; i++)
             {
                 var member = m.Members[i];
-                string bottom = item.Kind switch
+                // A block's members one by one: each by its own kind.
+                var kind = item.Kind != FlatItemKind.Block ? item.Kind
+                    : member.Raw!.Read == RawRead.Bool ? FlatItemKind.Bool
+                    : member.Raw.IsConstant && member.Raw.Read == RawRead.Plain ? FlatItemKind.Value
+                    : FlatItemKind.Struct;
+                string bottom = kind switch
                 {
                     FlatItemKind.String => Services + "NinoUtf16Item",
                     FlatItemKind.Utf8 => Services + "NinoUtf8Item",
@@ -296,5 +345,7 @@ internal static class FlatEmitter
 
     private static string MemberName(MemberModel member) => "__M_" + member.Name; // never __F_: a generic formatter's parameters
 
-    private static string BlockName(TypeModel m, FlatItem item) => "__B_" + m.Members[item.Member].Name;
+    /// <summary>A block's accessor: its first member's where it is the only one (a struct).</summary>
+    private static string BlockName(TypeModel m, FlatItem item) =>
+        item.Count > 1 ? "__B_" + m.Members[item.Member].Name : MemberName(m.Members[item.Member]);
 }

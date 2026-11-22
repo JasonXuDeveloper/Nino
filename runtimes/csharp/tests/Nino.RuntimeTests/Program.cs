@@ -57,6 +57,14 @@ public class RtFlat
 }
 [NinoType]
 public sealed class RtFlatSub : RtFlat { public short Y; }
+// Blocks holding bools, raw structs and NinoNullable members (#444), checked at startup ("# flat blocks") and the chain of
+// fields where this runtime lays them out otherwise (Mono, IL2CPP, 32-bit).
+[NinoType]
+public sealed class RtFlatBlocks
+{
+    public long W; public int X; public short L; public bool B; public bool C; public DateTime At; public NinoNullable<int> N;
+    public string S; public NinoNullable<long> M; public Guid G; public decimal P;
+}
 [NinoType]
 public class EventLog { public HoldsDateTime First; public List<HoldsDateTimes> Rest; public StampedEvent Last; }
 
@@ -424,6 +432,18 @@ public static class Program
         Case("List<RtFlat>", Enumerable.Range(0, 40).Select(Flat).ToList());
         Case("Dictionary<int,RtFlat>", Enumerable.Range(0, 40).ToDictionary(i => i, Flat));
         Case("RtFlat", Flat(3));
+        var blocksCheck = typeof(RtFlatBlocks).Assembly.GetTypes().FirstOrDefault(t => t.Name == "__Check" &&
+            t.DeclaringType?.Name.EndsWith("RtFlatBlocksFormatter", StringComparison.Ordinal) == true);
+        Console.WriteLine("# flat blocks: " + (blocksCheck?.GetField("Write", BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null) ?? "none"));
+        RtFlatBlocks Blocks(int i) => i % 8 == 3 ? null : new RtFlatBlocks
+        {
+            W = (long)i << 33, X = -i, L = (short)i, B = i % 2 == 0, C = i % 3 == 0,
+            At = new DateTime(637000000000000000L + i, (DateTimeKind)(i % 3)), N = i % 4 == 0 ? default : new NinoNullable<int>(i),
+            S = i % 5 == 0 ? null : "b" + i, M = i % 3 == 1 ? default : new NinoNullable<long>(-i),
+            G = new Guid(i, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10), P = i / 7m,
+        };
+        Case("RtFlatBlocks[]", Enumerable.Range(0, 40).Select(Blocks).ToArray());
+        Case("List<RtFlatBlocks>", Enumerable.Range(0, 40).Select(Blocks).ToList());
         Case("List<Shape>", Enumerable.Range(0, 50).Select(Shape).ToList());
         Case("Dictionary<int,Shape>", Enumerable.Range(0, 50).ToDictionary(i => i * 3, Shape));
         Case("Dictionary<str,Shape>", Enumerable.Range(0, 50).ToDictionary(i => "k" + i, Shape));

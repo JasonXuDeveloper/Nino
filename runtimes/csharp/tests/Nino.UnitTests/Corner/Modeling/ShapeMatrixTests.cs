@@ -390,6 +390,10 @@ namespace Other
                 // Flat bodies nested in a flat body (#355 step C): a sealed one and one that is not, each its chain as
                 // one item, in every format (keyed and version-tolerant bodies as leaves of the chain).
                 leaves.Append($"{Attribute()} public sealed {Keyword} {N("FNest")} : {parent} {{ public {N("FLeaf")} NL; public int W; public {N("FOpen")} NO;{cb} }}\n");
+                // Blocks holding bools, a raw struct and a NinoNullable (#444): one block from W to N where the shape is
+                // positional and the layout as predicted, each its own item otherwise.
+                leaves.Append($"{Attribute()} public sealed {Keyword} {N("FBlock")} : {parent} {{ public long W; public int X; public bool B; public bool C; " +
+                              $"public System.DateTime D; public NinoNullable<int> N; public string S;{cb} }}\n");
                 if (!_middle && _arity > 0)
                     leaves.Append($"{Attribute()} public sealed {Keyword} {N("GLeaf")}{Parameters(_arity)} : {near}{N("Base")}{Parameters(_arity)} {{ public int W; }}\n");
                 else
@@ -447,6 +451,8 @@ namespace Other
                         $"q.W == 7 && q.X == 8 && q.S == \"open\"{checks}"),
                     (N("FProp"), $"new {leafPrefix}{N("FProp")} {{ {Join(inits, "W = 7, FP = 9, FQ = null")} }}",
                         $"q.W == 7 && q.FP == 9 && q.FQ == null{checks}"),
+                    (N("FBlock"), $"new {leafPrefix}{N("FBlock")} {{ {Join(inits, "W = 7, X = 8, B = true, D = new System.DateTime(2020, 1, 2), N = 9, S = \"blk\"")} }}",
+                        $"q.W == 7 && q.X == 8 && q.B && !q.C && q.D == new System.DateTime(2020, 1, 2) && q.N.Value == 9 && q.S == \"blk\"{checks}"),
                     (N("FNest"), $"new {leafPrefix}{N("FNest")} {{ {Join(inits, $"W = 7, NL = new {leafPrefix}{N("FLeaf")} {{ {Join(inits, "W = 5, S = \"in\"")} }}, NO = null")} }}",
                         $"q.W == 7 && q.NL.W == 5 && q.NL.S == \"in\" && q.NO == null{checks}"),
                 };

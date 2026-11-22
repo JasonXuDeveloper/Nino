@@ -87,7 +87,8 @@ ModelBuilder.cs              turns a [NinoType] symbol into a TypeModel (reports
                              its construction, dispatch and registrations
 ModelBuilder.Members.cs      the MemberModel of each serialized member, and whether members start at their defaults
 FlatRules.cs                 whether a class's or struct's body is flat (#355) and its items (FlatModel): blocks of
-                             primitives the CoreCLR auto layout places as on the wire (NinoLayoutCore.PlacePrimitives),
+                             primitives, bools and raw structs without padding (#444) the CoreCLR auto layout places as
+                             on the wire (NinoLayoutCore.PlacePrimitives, then the structs in declaration order),
                              values, structs, bools, raw T?s (slots) and strings, fields or properties, and flat bodies
                              of other generated types nested as one item each; positional, version-tolerant and keyed
                              bodies; the levels within the JIT's inline depth (MaxItems) and the depth literal of the
@@ -120,7 +121,8 @@ TypeNames.cs                 type names as generated code and the runtime spell 
 
 ```
 LayoutTypes.cs               unmanaged structs whose layout the runtime measures ([DynamicDependency] for NativeAOT)
-RawLayout.cs                 whether a struct's memory is the same on every runtime (the canonical layout)
+RawLayout.cs                 whether a struct's memory is the same on every runtime (the canonical layout); its
+                             canonical size, alignment and padding (Canonical, for the flat blocks of #444)
 SplitLayouts.cs              generic structs IL2CPP lays out in two ways (Pack; Nino.Core's IsSplitGeneric over symbols):
                              the registry registers their compiled offsets, top-level calls their raw formatters
 RawRules.cs                  which values are written as raw bytes, memoized per compilation

@@ -190,6 +190,13 @@ namespace Nino.Fuzz
                 Keyed = i % 7 == 0 ? null : new FlatKeyedFuzz { Id = i, S = "nk", L = i },
                 Tolerant = new FlatTolerantStruct { K = "nt", V = i },
             }).ToArray(),
+            Blocks = Enumerable.Range(0, 20).Select(i => i == 6 ? null : new FlatBlockFuzz
+            {
+                W = i * 77L, X = -i, B = i % 2 == 0, C = i % 3 == 0, D = new DateTime(2024, 5, 6, 0, 0, 0, (DateTimeKind)(i % 3)).AddHours(i),
+                N = i % 4 == 0 ? default : new Nino.Core.NinoNullable<int>(i), S = i % 5 == 0 ? null : "b" + i,
+                L = i % 3 == 1 ? default : new Nino.Core.NinoNullable<long>(-i), G = new Guid(i, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+                P = new FlatPaddedFuzz { A = (byte)i, B = i * 3 },
+            }).ToList(),
         };
 
         public static Holder Holder()
