@@ -332,10 +332,15 @@ says which CPUs and cases moved.
   (local, alternated). Read the run's startup check (`__Check`, block placement and Untrusted's `ReadsAsIs`) once per
   call in the hook and pick a chain there, never per element. Keep runs under `NinoFlatRuns.MinRun` (16) element by
   element: a run's fixed cost (about 30 ns: entry, the check, the loop's setup) made a 2-element array 2.2 times as
-  long to write and WorkloadTest's `MediaContent` 1.64. One body never takes the block chain (a block's copy pays off
-  in runs) and keeps the sealed class's `__WriteTop`/`__ReadTop` twin, with a `ReadNew` that stores strings without
-  a look at the field: without them one value wrote in 1.11 and read in 1.07-1.10 times the base's time, with them
-  0.88 and 1.01. What did not move: reads of long runs stay on par (0.99-1.00 at 1,000 elements; the read is bound by
+  long to write and WorkloadTest's `MediaContent` 1.64. One body's write never takes the block chain (a block's copy
+  pays off in runs) and keeps the sealed class's `__WriteTop` twin: without it one value wrote in 1.11 times the
+  base's time, with it 0.88. Read one body member by member (`BodyEmitter`), never through the chain: through it a
+  body inlined into a polymorphic dispatch kept more on the stack (ChatMessage's `ReadBody` 14 to 33 stack accesses,
+  UnionItem 8 to 13), and after three fixes to the chain UnionArray still read in 1.03-1.16 times the base's time;
+  member by member the listings match the base's. Keep the flat branch out of the value-type read loop
+  (`NinoRuns.ReadEach`): folded away for a struct, it still made the JIT stop inlining a union's `ReadBody` there
+  (TaggedUnionArray, with no flat class at all, read in 1.06-1.09); classes go to `ReadClasses` on a constant `typeof`
+  test, and both union reads came back to 1.00-1.03 (local, alternated). What did not move: reads of long runs stay on par (0.99-1.00 at 1,000 elements; the read is bound by
   the string allocations, which the member-by-member body pays too), while writes of 1,000 elements took 0.46
   (array) and 0.68 (list) for a class of four primitives and two strings. Six traps `asm.py compare` found in the
   full suite, each fixed: (1) an element that already held an object left the run, two out-of-line calls each:
@@ -345,7 +350,7 @@ says which CPUs and cases moved.
   string): one body inlined into a polymorphic dispatch went 14 to 61 stack accesses; compare out of line
   (`Reader.ReadStringAt`, as `ReadString(current)` does). (4) Passing the reader by value, then by reference, to the
   run hook from `NinoRuns.Read`, inlined into every collection, kept it in memory even for short runs (8 to 27);
-  put the branch in `ReadEach`, the out-of-line call those runs already make. On the write side the branch goes after the block, run-loop and string branches (read first, `NinoKind<TFormatter>.Flat` in code shared over classes is no constant: a string array's write 4 to 29 stack accesses, a polymorphic base's `WriteRun` 86 to 234) but before `WritesOnLocal`, which sealed flat classes take too (behind it the kernels went unused, the same bytes: ScatteredTest's write 1.33x); `FlatTests` checks bytes, not which path ran, so read the listing. (5) The chain inlined as one body into
+  put the branch in `ReadEach`, the out-of-line call those runs already make. On the write side the branch goes after the block, run-loop and string branches (read first, `NinoKind<TFormatter>.Flat` in code shared over classes is no constant: a string array's write 4 to 29 stack accesses, a polymorphic base's `WriteRun` 86 to 234) but before `WritesOnLocal`, which sealed flat classes take too (behind it the kernels went unused, the same bytes: ScatteredTest's write 1.33x); bytes cannot tell which path ran: `FlatTests.RunsGoThroughTheKernels` looks for the kernels' drivers on the stack (a pool behind a one-byte buffer records each growth; a cut run's exception), and failed with the branch moved back. (5) The chain inlined as one body into
   a union's or a base's dispatch took the caller's budget and left the accessors as calls (UnionArray write 1.08x);
   one body's write is always out of line, a small one's read inline (out of line it read 1.13x). (6) A string item
   kept the field's address and old value live across the string's allocation (UnionItem's inline read 7 to 29 stack
