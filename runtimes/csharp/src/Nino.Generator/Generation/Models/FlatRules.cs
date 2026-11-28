@@ -97,7 +97,10 @@ internal static class FlatRules
             holdsReference = needsChain = true;
         }
 
-        if (valueType ? !holdsReference : !needsChain)
+        // A positional class of raw members alone is one block already (TypeModel.RawBody): flat only to be nested in
+        // other flat bodies (#452), a non-generic one.
+        bool nestOnly = !valueType && !needsChain;
+        if (valueType ? !holdsReference : nestOnly && generic)
             return null;
 
         var offsets = PredictedOffsets(members, symbols);
@@ -106,27 +109,21 @@ internal static class FlatRules
         for (int i = 0; i < members.Count; i++)
             joinable[i] = Joinable(members[i], symbols[i], out sizes[i]);
         var items = new List<FlatItem>(members.Count);
-        int depth = 0, levels = 0, wrappers = positional ? 0 : format == NinoFormat.Keyed ? 2 : 1;
+        int depth = 0;
         for (int i = 0; i < members.Count;)
         {
             var member = members[i];
             bool property = member.IsProperty;
-            // The levels of this item's node: the nodes before it, its own, and its bottom item's wrapper.
-            int level = wrappers + items.Count + 1 + (positional ? 0 : 1);
             if (nested[i] is { } inner)
             {
-                // Its item (a level), its element item for a class (another), then its chain.
+                // The type's generated Nested (its chain as one item, a type without arguments: #451).
                 depth = System.Math.Max(depth, inner.RunDepth);
-                levels = System.Math.Max(levels, level + 1 + (inner.ValueType ? 0 : 1) + inner.Levels);
-                // The chain of fields (no startup check), as one item: NinoFlat's Sealed or Typed, NinoFlatValues' Item.
-                string body = inner.ValueType ? "__Flat.Item"
-                    : (inner.Checks ? "__Fields." : "__Flat.") + (inner.Sealed ? "Sealed" : "Typed");
-                items.Add(new FlatItem(FlatItemKind.Nested, i, 1, property, member.Formatter.Name + "." + body, !inner.ValueType));
+                items.Add(new FlatItem(FlatItemKind.Nested, i, 1, property, member.Formatter.Name, !inner.ValueType,
+                    inner.Checks));
                 i++;
                 continue;
             }
 
-            levels = System.Math.Max(levels, level);
             if (member.IsString)
             {
                 bool utf8 = (member.Traits & FormatterTraits.Utf8String) != 0;
@@ -171,10 +168,64 @@ internal static class FlatRules
                 i++, 1, property));
         }
 
+        int levels = Levels(items, members, nested, format);
         return levels <= MaxItems
             ? new FlatModel(new EquatableArray<FlatItem>(items.ToArray()), valueType, generic, format, depth, levels,
-                kind == FormatterKind.SealedClass)
+                kind == FormatterKind.SealedClass, nestOnly)
             : null;
+    }
+
+    /// <summary>The most parts of a group of a chain (Nino.Core's NinoGroup of two to four).</summary>
+    public const int Fanout = 4;
+
+    /// <summary>
+    /// The chain of <paramref name="count"/> parts as a tree (#452): parts in order, under groups of at most
+    /// <see cref="Fanout"/> (NinoGroup), as even as can be; <paramref name="part"/> gets each part's index and its
+    /// groups above it, <paramref name="open"/> and <paramref name="close"/> each group with its parts' count. One part
+    /// is the chain itself. The levels of inlining grow with the logarithm of the parts: a right-nested chain took one
+    /// per part, and the class nesting two classes nesting a raw one (Comment, ShallowUser, BadgeCount) went past
+    /// <see cref="MaxItems"/>.
+    /// </summary>
+    public static void Tree(int count, System.Action<int, int> part, System.Action<int>? open = null,
+        System.Action? close = null) => Tree(0, count, 0, part, open, close);
+
+    private static void Tree(int from, int to, int groups, System.Action<int, int> part, System.Action<int>? open,
+        System.Action? close)
+    {
+        int count = to - from;
+        if (count == 1)
+        {
+            part(from, groups);
+            return;
+        }
+
+        int size = (count + Fanout - 1) / Fanout;
+        open?.Invoke((count + size - 1) / size);
+        for (int at = from; at < to; at += size)
+            Tree(at, System.Math.Min(at + size, to), groups + 1, part, open, close);
+        close?.Invoke();
+    }
+
+    /// <summary>
+    /// The levels of inlining a chain of <paramref name="items"/> takes (<see cref="FlatModel.Levels"/>): over both
+    /// chains (the blocks', and the fields' with a block's members one by one), each part's groups and its own node,
+    /// a region (and a keyed body's entries) around them and a wrapper of each member in one, and a nested body's
+    /// <c>Nested</c>, its element item (a class's) and its own levels.
+    /// </summary>
+    private static int Levels(List<FlatItem> items, IReadOnlyList<MemberModel> members, FlatModel?[] nested,
+        NinoFormat format)
+    {
+        bool positional = format == NinoFormat.Positional;
+        int wrappers = positional ? 0 : format == NinoFormat.Keyed ? 2 : 1;
+        int levels = 0;
+        Tree(items.Count, (i, groups) => levels = System.Math.Max(levels, wrappers + groups + 1 +
+            (positional ? 0 : 1) + (nested[items[i].Member] is { } inner ? 2 + inner.Levels : 0)));
+        // The chain of fields: the members of a block one by one.
+        var parts = items.SelectMany(static i => i.Kind == FlatItemKind.Block ? Enumerable.Range(i.Member, i.Count)
+            : new[] { i.Member }).ToArray();
+        Tree(parts.Length, (i, groups) => levels = System.Math.Max(levels, wrappers + groups + 1 +
+            (positional ? 0 : 1) + (nested[parts[i]] is { } inner ? 2 + inner.Levels : 0)));
+        return levels;
     }
 
     /// <summary>
