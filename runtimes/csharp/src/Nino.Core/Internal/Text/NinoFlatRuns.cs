@@ -74,7 +74,7 @@ namespace Nino.Core.Internal
         /// <see cref="MixedGrace"/> / <see cref="MixedRun"/> leaves) takes the rest element by element
         /// (<see cref="WriteRun{T,TFormatter,TItem}"/>).
         /// </summary>
-        private const int MixedRun = 8, MixedGrace = 16;
+        private const int MixedRun = 8, MixedGrace = 8;
 
         /// <summary>The rest of a run whose elements leave often, element by element through the formatter, out of line.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]

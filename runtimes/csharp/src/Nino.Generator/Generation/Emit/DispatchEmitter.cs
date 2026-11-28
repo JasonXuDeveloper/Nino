@@ -25,7 +25,7 @@ internal static class DispatchEmitter
     private const int MaxInlinedRunLoop = 8;
 
     /// <summary>The fewest values of a flat root's run its run loop hands to the flat kernels (EmitRunSplit).</summary>
-    private const int FlatRunLength = 2;
+    private const int FlatRunLength = 4;
 
     /// <summary>
     /// A bucket of at most this many subtypes with distinct ids compares the ids directly, without the collision
