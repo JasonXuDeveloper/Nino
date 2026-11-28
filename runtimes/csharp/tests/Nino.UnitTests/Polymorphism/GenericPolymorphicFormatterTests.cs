@@ -380,6 +380,46 @@ namespace Nino.UnitTests.GenericPolymorphism
         }
 
         [TestMethod]
+        public void RunsOfAClosedInstanceOverAClassReadInTheirDispatch()
+        {
+            // An array of a closed instance over a type argument holding a class is read by the loop of its dispatch
+            // (HasReadRun, #441): every subtype, null, a slot holding the same subtype (read into) or another one
+            // (replaced), and an id of another closed instance (rejected).
+            var values = new ArgBox<(OpenArg, int)>[40];
+            for (int i = 0; i < values.Length; i++)
+                values[i] = (i % 4) switch
+                {
+                    0 => new OpenTupleArg { Value = (new OpenArgChild { O = i, C = -i }, i), A = i },
+                    1 => new OpenTupleArgChild { Value = (new OpenArg { O = i }, i), C = i },
+                    2 => null,
+                    _ => new OpenTupleArg { Value = (null, i), A = -i },
+                };
+            byte[] bytes = NinoSerializer.Serialize(values);
+            var result = NinoDeserializer.Deserialize<ArgBox<(OpenArg, int)>[]>(bytes);
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(result));
+            for (int i = 0; i < values.Length; i++)
+                Assert.AreEqual(values[i]?.GetType(), result[i]?.GetType());
+            Assert.AreEqual(-4, ((OpenArgChild)result[4].Value.Item1).C);
+            Assert.AreEqual(5, ((OpenTupleArgChild)result[5]).C);
+            Assert.IsNull(result[7].Value.Item1);
+
+            var existing = new ArgBox<(OpenArg, int)>[values.Length];
+            var kept = new OpenTupleArg();
+            existing[0] = kept;
+            existing[1] = new OpenTupleArg();
+            NinoDeserializer.Deserialize(bytes, ref existing);
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(existing));
+            Assert.IsInstanceOfType<OpenTupleArgChild>(existing[1]);
+            Assert.AreEqual(0, existing[0].Value.Item2);
+
+            byte[] other = NinoSerializer.Serialize(new ArgBox<(int, long)>[] { new UnmanagedTupleArg { A = 1 } });
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ArgBox<(OpenArg, int)>[]>(other));
+            var sealedTuples = NinoDeserializer.Deserialize<List<ArgBox<(SealedArg, int)>>>(NinoSerializer.Serialize(
+                new List<ArgBox<(SealedArg, int)>> { new SealedTupleArg { Value = (new SealedArg { S = 1 }, 2), A = 3 } }));
+            Assert.AreEqual(1, sealedTuples[0].Value.Item1.S);
+        }
+
+        [TestMethod]
         public void DataOfAnotherClosedInstanceIsRejected()
         {
             byte[] sealedArg = NinoSerializer.Serialize<ArgBox<SealedArg>>(new SealedArgA { A = 1 });

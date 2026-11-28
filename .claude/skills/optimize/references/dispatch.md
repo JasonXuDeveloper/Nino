@@ -236,7 +236,17 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   `ProbeBox<T>` over a tuple holding a class is compiled once for every reference type argument, so `NinoRuns.ReadEach`
   calls the formatter's `Deserialize` through a runtime lookup (`call rax`) and `__ReadSubtype` picks the closed
   dispatch through the method's generic context per element, before the case's `ReadBody` call (four calls per
-  element against one for a non-generic base).
+  element against one for a non-generic base). Read such a run in the closed instance's own dispatch class instead
+  (#441): `INinoFormatter.HasReadRun` / `ReadRun` (non-generic, as `WriteRun`), asked once per collection by
+  `NinoRuns.ReadClasses`; the generic base's formatter selects `__NinoDispatch<n>.__ReadRun` by `typeof` once, and that
+  loop, in a non-generic class, reads each id and runs the switch with every case's `NinoObject.ReadExactShallow`
+  inline, so a value costs one call, its body's `ReadBody`. Local x64, Tier1, LuminPack 2.0.0-rc.2 in the same
+  processes, Nino and LuminPack sampled alternately, base `feat/storage-layer` 1d74935d and head alternated, 8 rounds:
+  GenericSealedClassTupleBase read LuminPack/Nino 0.84 to 0.99 (Nino 29.6 to 24.1 us), GenericOpenClassTupleBase 0.82
+  to 1.00 (29.3 to 23.7 us), GenericManagedTupleBase 1.07 to 1.20; GenericIntBase (1.03, 1.04), GenericUnmanagedTupleBase
+  (0.97, 0.95; value type arguments, whose code was never shared and now take the same loop) and NonGenericBase on par. The same loop
+  calling the generated `__ReadSubtype` per value (each non-flat case then a `__ReadExactN` call: two calls a value)
+  reached only 0.93 and 0.95 (3 to 6 rounds).
   Give each case the subtype's body and nothing else (`NinoObject.ReadExactShallow` in `__ReadExactN`, each case a
   tail call), the depth checked once before the switch (`NinoObject.IsDeep(ref Reader)`), and leave a body too deep,
   null and an unknown id (after the switch) and a slot holding another subtype (from the case) to the registry
