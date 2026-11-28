@@ -27,7 +27,10 @@ internal static class DispatchEmitter
     /// <summary>The fewest values of a flat root's run its run loop hands to the flat kernels (EmitWriteFlat).</summary>
     private const int FlatRunLength = 16;
 
-    /// <summary>The values of a flat root's run looked at for subtypes before it goes to the kernels (EmitWriteFlat).</summary>
+    /// <summary>
+    /// The values of a flat root's run looked at for subtypes before it goes to the kernels (EmitWriteFlat): fewer than
+    /// <see cref="FlatRunLength"/>.
+    /// </summary>
     private const int FlatRunProbe = 8;
 
     /// <summary>
@@ -443,22 +446,23 @@ internal static class DispatchEmitter
         EmitRunLoop(w, t, root, subtypes, services, entries: false);
         w.Close();
         w.Line();
-        if (flat)
-            EmitWriteFlat(w, t, root!.Self, services);
         w.Line(GeneratedCode.NoInline);
         w.Open($"private static void __WriteEntries({run} run, ref {Core}Writer target)");
         EmitRunLoop(w, t, root, subtypes, services, entries: true);
         w.Close();
+        if (flat)
+            EmitWriteFlat(w, t, root!.Self, services);
     }
 
     /// <summary>
-    /// <c>__WriteFlat</c>: a flat root's run through its flat kernels unless more than one of its first
-    /// <see cref="FlatRunProbe"/> values is a subtype, which leaves the kernels for the dispatch; returns whether it wrote.
-    /// Out of line on a copy of the run: the call inline in <c>WriteRun</c>, with the run passed by <c>in</c>, put the run
-    /// in memory and made runs of one to three values, which keep the loop, 1.08 to 1.27 times as long. Against the
-    /// loop (local x64, alternated): a run of the root's own objects wrote in 0.68 (8), 0.56 (32) and 0.77 (1,000) of the
-    /// time, one in 13 a subtype in 0.67, 0.68 and 0.85; every other one a subtype took 1.6 to 2.3 times the loop's time
-    /// at 4 to 32 values (each subtype leaves the kernels and enters them again), so such a run keeps the loop.
+    /// <c>__WriteFlat</c>: a flat root's run of <see cref="FlatRunLength"/> values or more through its flat kernels,
+    /// unless more than one of its first <see cref="FlatRunProbe"/> values is a subtype (each leaves the kernels for the
+    /// dispatch and enters them again); returns whether it wrote (#440). Against the loop (local x64, alternated): a run
+    /// of the root's own objects wrote in 0.69, 0.60 and 0.84 of its time at 16, 32 and 1,000 values, one in 13 a subtype
+    /// in 0.85, 0.78 and 0.90, every other one on par. Out of line on a copy of the run: inline, with the run passed by
+    /// <c>in</c>, runs of one to three values, which keep the loop, took 1.08 to 1.27 times as long; from four values a
+    /// four-value run took 1.5 (the copy and the probe), and without the probe a run alternating with subtypes took 1.6
+    /// to 2.3.
     /// </summary>
     private static void EmitWriteFlat(CodeWriter w, string t, string self, string services)
     {
@@ -468,7 +472,8 @@ internal static class DispatchEmitter
         w.Open($"private static bool __WriteFlat({run} run, ref {Core}Writer target)");
         w.Line("ref byte entry = ref run.First;");
         w.Line("int subtypes = 0;");
-        w.Line($"for (int i = System.Math.Min(run.Count, {FlatRunProbe}); i > 0; i--, entry = ref {run}.Next(ref entry, run.Stride))");
+        // The run has at least FlatRunLength values, more than the probe looks at.
+        w.Line($"for (int i = {FlatRunProbe}; i > 0; i--, entry = ref {run}.Next(ref entry, run.Stride))");
         w.Open();
         w.Line($"var value = {run}.Value<{t}>(ref entry);");
         w.Line($"if (value != null && value.GetType() != typeof({t}) && ++subtypes > 1)");

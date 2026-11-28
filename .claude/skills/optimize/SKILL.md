@@ -377,7 +377,25 @@ says which CPUs and cases moved.
   With both by value through each level, a run's fixed cost made a 2-element array 2.2 times as long to write and
   WorkloadTest's `MediaContent` 1.64, so runs under 16 (`MinRun`, now a flat struct's only, rule (6) below) went
   element by element; by reference a `List<Image>` of 1, 3, 16 and 32 wrote in 1.05, 1.02, 0.90 and 0.95 times the
-  time element by element and read in 1.04, 0.99, 0.94 and 0.95 (local, alternated, #355). Short runs reaching the
+  time element by element and read in 1.04, 0.99, 0.94 and 0.95 (local, alternated, #355). Forward a run, never a
+  value, where a formatter wraps another (#440): `CachedFormatter<T>` (another assembly's types, whose generated
+  formatter is internal there) forwarded only Serialize/Deserialize, so their runs went element by element with a
+  virtual call each; it now reports and forwards the registered struct formatter's `HasFlat`/`WriteFlat`/`ReadFlat`
+  and `HasRunLoop`/`WriteRun` (`StructFormatterBase`), one virtual call per run. Against main through it, at 1 to 1,000
+  elements: a sealed flat class wrote in 0.76-0.88 from 4 (1.06 at one), a flat base 0.44-0.84 and read 0.80-0.93
+  from 4, a non-flat polymorphic base's run loop wrote in 0.18-0.59 from 4; a single value is read as one there
+  (`NinoKind.Forwards`): the run's call and the kernels' entry on top of the forward read it in 1.10-1.15. Send a
+  flat base's runs to its kernels, not its run loop, through the forward (`HasRunLoop => Runs && !Flat`): through the
+  loop a run of one to three wrote in 1.5-2.0 times the time value by value. A flat base's own run loop hands a run
+  to the kernels from 16 values (`DispatchEmitter.EmitWriteFlat`) unless more than one of the first eight is a
+  subtype, out of line on a copy of the run: against the loop, 0.69/0.60/0.84 at 16/32/1,000 for its own objects,
+  0.85/0.78/0.90 with one in 13 a subtype, on par below 16 and for runs alternating with subtypes. Three ways this
+  lost first: from four values with the call inline (the run passed by `in` from the loop's method) runs of one to
+  three took 1.08-1.27; out of line from four, a four-value run took 1.5 (the copy and the probe); and with no probe,
+  each subtype leaving and entering the kernels again, every other value a subtype took 1.6-2.3 times the loop.
+  The kernels themselves hand the rest of a run to the value-by-value loop once more than one in eight left
+  (`NinoFlatRuns.WriteLeaving`, out of line: inline, the test grew every flat class's run driver by 220 bytes and 10
+  stack accesses, asm.py). Short runs reaching the
   kernels showed that a class nested in a generic one wrote type id 0 in the typed kernels (its layout printed the
   model's id, not `s_typeId`). One body's write never takes the block chain (a block's copy
   pays off in runs) and keeps the sealed class's `__WriteTop` twin: without it one value wrote in 1.11 times the

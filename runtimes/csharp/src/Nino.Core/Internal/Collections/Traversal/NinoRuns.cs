@@ -533,9 +533,7 @@ namespace Nino.Core.Internal
         private static Reader ReadClasses<T, TFormatter>(scoped ref T item, int count, Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
-            // A single value reached through CachedFormatter is read as one (a run's call and the kernels' entry on top of
-            // the forward read one flat class in 1.10 to 1.15 times the time; local, alternated, #440).
-            if (NinoKind<TFormatter>.Flat && (count > 1 || !NinoKind<TFormatter>.Forwards))
+            if (NinoKind<TFormatter>.Flat)
             {
                 default(TFormatter).ReadFlat(NinoRun.Unscoped(new NinoRun(ref Unsafe.As<T, byte>(ref item), count,
                     Unsafe.SizeOf<T>(), NinoRun.NoKey, NinoRun.AllInUse)), ref reader);
