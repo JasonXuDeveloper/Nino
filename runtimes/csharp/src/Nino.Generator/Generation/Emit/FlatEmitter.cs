@@ -200,7 +200,9 @@ internal static class FlatEmitter
         var inner = flat.Items.Where(static i => i.NestedChecks).Select(static i => i.Nested + ".__Check").Distinct()
             .ToArray();
         w.Open("internal static class __Check");
-        var write = (blocks.Length != 0 ? new[] { "Proves()" } : new string[0]).Concat(inner.Select(static c => c + ".Write"));
+        var write = inner.Select(static c => c + ".Write");
+        if (blocks.Length != 0)
+            write = write.Prepend("Proves()");
         w.Line($"internal static readonly bool Write = {string.Join(" && ", write)};");
         // A block read copies its values as their bytes: only where Untrusted mode checks none of them (the chain of
         // fields checks them one by one); its bools are checked in the block's bytes (its TCheck).

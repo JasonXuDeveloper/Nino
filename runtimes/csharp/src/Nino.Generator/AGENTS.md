@@ -90,8 +90,10 @@ FlatRules.cs                 whether a class's or struct's body is flat (#355) a
                              primitives, bools and raw structs without padding (#444) the CoreCLR auto layout places as
                              on the wire (NinoLayoutCore.PlacePrimitives, then the structs in declaration order),
                              values, structs, bools, raw T?s (slots) and strings, fields or properties, and flat bodies
-                             of other generated types nested as one item each; positional, version-tolerant and keyed
-                             bodies; the levels within the JIT's inline depth (MaxItems) and the depth literal of the
+                             of other generated types nested as one item each (a raw-only class too, which then has no
+                             hooks of its own: FlatModel.NestOnly, #452); positional, version-tolerant and keyed
+                             bodies; the chain as a balanced tree of groups (Tree, Fanout); the levels within the
+                             JIT's inline depth (MaxItems) and the depth literal of the
                              class bodies an element opens; runs only for a struct, a generic type, a body that is not
                              positional or nests one (FlatModel.RunsOnly)
 PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoFormatter.PrefetchBytes):
@@ -158,7 +160,9 @@ FlatEmitter.cs               a flat type's formatter members (#355): an accessor
                              property's), the layout, the chains of items (__Flat, and __Fields with the startup check
                              __Check; a struct's NinoFlatValues), the run hooks (a generic type's over value-type
                              arguments only, with the depth literal) and bodies; keyed and version-tolerant chains (a
-                             region around them, a key item or a tolerant item per member) and the nested types' items
+                             region around them, a key item or a tolerant item per member) and the nested types' items,
+                             reached through each chain class's non-generic Nested struct (#451: a node whose type
+                             arguments hold a whole nested chain was refused as a "recursive" inline)
 RawBlock.cs                  consecutive raw members in one reservation (offsets as expressions)
 MemberCode.cs                expressions and statements reading or assigning a member, whatever its accessibility
 AccessorEmitter.cs           non-public member access: [UnsafeAccessor] (.NET 8+, generic .NET 9+) or a partial class

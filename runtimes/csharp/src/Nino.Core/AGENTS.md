@@ -71,7 +71,8 @@ NinoItemChain.cs             the one item chain of #355, every composite's (a pa
                              class), NinoMemberAccess, the nodes NinoItemAt<TMember, TItem, TNext> and NinoBlockAt
                              (the raw item: primitives, bools and raw structs copied as one block, its bools checked
                              in its bytes by a TCheck, INinoBlockCheck, NinoUnchecked, NinoBlockCheck: #444), the last
-                             item without a next (NinoItemAt<TMember, TItem>, NinoBlockAt<TMember, TCheck>), and the
+                             item without a next (NinoItemAt<TMember, TItem>, NinoBlockAt<TMember, TCheck>), the
+                             groups that balance a long chain into a tree (NinoGroup of two to four parts: #451), and the
                              bottom items, one per element kind
                              (NinoUtf16Item, NinoUtf8Item, NinoRawItem, NinoStructItem, NinoBoolItem, NinoValueItem,
                              NinoSlotItem: a raw T?'s single value, its size a generator literal through INinoSize);
@@ -84,9 +85,9 @@ NinoFlat.cs                  the generator seam of #355: INinoFlatLayout (constr
                              NinoFlat<TLayout, TBody>, which a generated flat class derives over its chain of items: runs
                              (Write/ReadSealed, Write/ReadTyped) and one body's write (WriteBody out of line, WriteInline);
                              NinoFlatValues<TBody>, a generated flat struct's runs, each element in place (Write, Read);
-                             the element items of a class (NinoFlatSealedItem: presence byte, NinoFlatTypedItem: type id
+                             the element items of a class (NinoFlat.Sealed: presence byte, NinoFlat.Typed: type id
                              and exact type), which also make a flat body nested in another one item of its chain
-                             (NinoFlat.Sealed / Typed, NinoFlatValues.Item)
+                             (through the generated non-generic Nested struct; NinoFlatValues.Item for a struct)
 NinoFieldBlock.cs            generated raw bodies of classes: whether the fields lie in the object as the body lays them
                              out (checked once on an uninitialized instance), then one block copy
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;

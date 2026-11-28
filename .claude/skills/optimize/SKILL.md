@@ -345,7 +345,7 @@ says which CPUs and cases moved.
   `ref byte Ref(ref byte item)` returns the field (`NinoMemberAccess.Bytes(ref NinoMemberAccess.As<T>(ref item).Field)`:
   the struct in place, or for a class a reference to the object) and whose `Size` is a literal, so the field is a
   constant offset once inlined. Hand a class's chain the object as `ref Unsafe.As<object, byte>(ref local)` (the element
-  item's local, `NinoFlatSealedItem`): once inlined the JIT turns the indirections back into the local, and the flat
+  item's local, `NinoFlat.Sealed`): once inlined the JIT turns the indirections back into the local, and the flat
   kernels' listings matched `object`-based items' (asm.py, ScatteredTest: read 1,066/64 to 1,051/57 bytes/stack
   accesses, write loop 462/12 to 443/12). The members' empty accessor structs as fields of the nodes cost nothing. Give a member generated code cannot reach by reference (a property) a node of its own that runs the same bottom
   item over a local copy (`NinoPropertyAt`, #355 step B), never a second bottom item per kind. Gate a generic flat

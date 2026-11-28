@@ -394,6 +394,9 @@ namespace Other
                 // positional and the layout as predicted, each its own item otherwise.
                 leaves.Append($"{Attribute()} public sealed {Keyword} {N("FBlock")} : {parent} {{ public long W; public int X; public bool B; public bool C; " +
                               $"public System.DateTime D; public NinoNullable<int> N; public string S;{cb} }}\n");
+                // A raw-only class nested in a flat body (#452): a presence byte and one block, no hooks of its own.
+                leaves.Append($"{Attribute()} public sealed {Keyword} {N("FRaw")} {{ public long W; public int X; }}\n");
+                leaves.Append($"{Attribute()} public sealed {Keyword} {N("FUser")} : {parent} {{ public {N("FRaw")} R; public int W; public {N("FRaw")} Q; public string S;{cb} }}\n");
                 if (!_middle && _arity > 0)
                     leaves.Append($"{Attribute()} public sealed {Keyword} {N("GLeaf")}{Parameters(_arity)} : {near}{N("Base")}{Parameters(_arity)} {{ public int W; }}\n");
                 else
@@ -453,6 +456,8 @@ namespace Other
                         $"q.W == 7 && q.FP == 9 && q.FQ == null{checks}"),
                     (N("FBlock"), $"new {leafPrefix}{N("FBlock")} {{ {Join(inits, "W = 7, X = 8, B = true, D = new System.DateTime(2020, 1, 2), N = 9, S = \"blk\"")} }}",
                         $"q.W == 7 && q.X == 8 && q.B && !q.C && q.D == new System.DateTime(2020, 1, 2) && q.N.Value == 9 && q.S == \"blk\"{checks}"),
+                    (N("FUser"), $"new {leafPrefix}{N("FUser")} {{ {Join(inits, $"W = 7, R = new {leafPrefix}{N("FRaw")} {{ W = 5, X = 6 }}, S = \"u\"")} }}",
+                        $"q.W == 7 && q.R.W == 5 && q.R.X == 6 && q.Q == null && q.S == \"u\"{checks}"),
                     (N("FNest"), $"new {leafPrefix}{N("FNest")} {{ {Join(inits, $"W = 7, NL = new {leafPrefix}{N("FLeaf")} {{ {Join(inits, "W = 5, S = \"in\"")} }}, NO = null")} }}",
                         $"q.W == 7 && q.NL.W == 5 && q.NL.S == \"in\" && q.NO == null{checks}"),
                 };

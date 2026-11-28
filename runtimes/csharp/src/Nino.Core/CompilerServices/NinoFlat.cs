@@ -4,12 +4,15 @@ using Nino.Core.Internal;
 
 namespace Nino.Core.CompilerServices
 {
-    // The generator seam of #355: a class whose generated body is flat (raw members, bools and strings, nothing nested)
-    // is a chain of items at its members (NinoItemChain.cs, the one chain every composite is), moved by the run
+    // The generator seam of #355: a class whose generated body is flat (raw members, bools, strings and the flat bodies
+    // of other generated types) is a chain of items at its members (NinoItemChain.cs, the one chain every composite is), moved by the run
     // kernels. The generator emits a member accessor per member, a layout struct (INinoFlatLayout: construction, the
     // exact type test, the type id) and a class deriving NinoFlat<TLayout, TBody> whose static members it calls. The one
     // fact only the process knows (whether consecutive raw members lie in the object as on the wire) is read by the
-    // generated hooks once per call (#436).
+    // generated hooks once per call (#436). A body nested in another chain is one item there, named through a
+    // non-generic struct the generator emits beside each chain class (Nested), never through the chain's own type: a
+    // node whose type arguments hold a whole chain passes the JIT's generic-context limit and is refused as a
+    // "recursive" inline (#451).
 
     /// <summary>The layout of a type whose body is flat (generated code): its construction and its header's facts.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

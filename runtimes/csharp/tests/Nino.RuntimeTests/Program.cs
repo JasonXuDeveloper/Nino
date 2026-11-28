@@ -65,6 +65,11 @@ public sealed class RtFlatBlocks
     public long W; public int X; public short L; public bool B; public bool C; public DateTime At; public NinoNullable<int> N;
     public string S; public NinoNullable<long> M; public Guid G; public decimal P;
 }
+// A raw-only class nested in a flat body (#452): a presence byte and one block, its own startup check behind the outer's.
+[NinoType]
+public sealed class RtFlatBadge { public long W; public int X; public short Y; }
+[NinoType]
+public sealed class RtFlatUser { public int? Id; public RtFlatBadge Badge; public string Name; public int W; public RtFlatBadge Other; }
 [NinoType]
 public class EventLog { public HoldsDateTime First; public List<HoldsDateTimes> Rest; public StampedEvent Last; }
 
@@ -188,7 +193,20 @@ public static class Program
                    .Select(f => f.Name + "=" + Contents(f.GetValue(value)))
                    .Concat(t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                        .Where(p => p.CanRead && p.GetIndexParameters().Length == 0)
-                       .Select(p => p.Name + "=" + Contents(p.GetValue(value))))) + "}";
+                       .Select(p => p.Name + "=" + Property(p, value)))) + "}";
+    }
+
+    /// <summary>A property's contents, or "!" where its getter throws (NinoNullable's Value without a value).</summary>
+    private static string Property(PropertyInfo p, object value)
+    {
+        try
+        {
+            return Contents(p.GetValue(value));
+        }
+        catch (TargetInvocationException)
+        {
+            return "!";
+        }
     }
 
     /// <summary>
@@ -444,6 +462,13 @@ public static class Program
         };
         Case("RtFlatBlocks[]", Enumerable.Range(0, 40).Select(Blocks).ToArray());
         Case("List<RtFlatBlocks>", Enumerable.Range(0, 40).Select(Blocks).ToList());
+        RtFlatUser User(int i) => i % 9 == 4 ? null : new RtFlatUser
+        {
+            Id = i % 3 == 0 ? null : i, Badge = i % 5 == 1 ? null : new RtFlatBadge { W = (long)i << 34, X = -i, Y = (short)i },
+            Name = i % 4 == 2 ? null : "u" + i, W = i, Other = i % 2 == 0 ? null : new RtFlatBadge { W = -i },
+        };
+        Case("RtFlatUser[]", Enumerable.Range(0, 40).Select(User).ToArray());
+        Case("List<RtFlatUser>", Enumerable.Range(0, 40).Select(User).ToList());
         Case("List<Shape>", Enumerable.Range(0, 50).Select(Shape).ToList());
         Case("Dictionary<int,Shape>", Enumerable.Range(0, 50).ToDictionary(i => i * 3, Shape));
         Case("Dictionary<str,Shape>", Enumerable.Range(0, 50).ToDictionary(i => "k" + i, Shape));

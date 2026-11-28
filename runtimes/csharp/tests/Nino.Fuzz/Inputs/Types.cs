@@ -162,6 +162,12 @@ namespace Nino.Fuzz
         public NinoNullable<long> L; public Guid G; public FlatPaddedFuzz P;
     }
 
+    // #452: a raw-only class nested in a flat body as a presence byte and one block.
+    [NinoType]
+    public sealed class FlatRawFuzz { public long W; public int X; public short Y; }
+    [NinoType]
+    public sealed class FlatUserFuzz { public int? Id; public FlatRawFuzz R; public string S; public int W; public FlatRawFuzz Q; }
+
     [NinoType]
     public sealed class FlatRoot
     {
@@ -169,7 +175,7 @@ namespace Nino.Fuzz
         public FlatProps[] Props; public List<FlatBareFuzz> Bares; public FlatStructFuzz[] Structs;
         public List<FlatGeneric<int>> Generics;
         public List<FlatKeyedFuzz> Keyeds; public FlatTolerantFuzz[] Tolerants; public FlatTolerantStruct[] TolerantStructs;
-        public FlatNest[] Nests; public List<FlatBlockFuzz> Blocks;
+        public FlatNest[] Nests; public List<FlatBlockFuzz> Blocks; public List<FlatUserFuzz> Users;
     }
 
     [NinoType]
