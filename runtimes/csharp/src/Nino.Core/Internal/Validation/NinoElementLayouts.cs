@@ -32,7 +32,7 @@ namespace Nino.Core.Internal
 
         private static int Measure()
         {
-            if (!NinoReflection.IsIl2Cpp || NinoUnsafe.IsReferenceOrContainsReferences<T>() ||
+            if (!NinoReflection.IsIl2Cpp || RuntimeHelpers.IsReferenceOrContainsReferences<T>() ||
                 NinoReflection.SplitLayoutIn(typeof(T), null) == null)
                 return 0;
             try

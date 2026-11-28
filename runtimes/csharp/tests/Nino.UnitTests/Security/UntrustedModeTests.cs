@@ -212,7 +212,7 @@ public static partial class SettingsProbes
     public static string UntrustedFlatRuns(byte[] _)
     {
         // A flat class's struct members (DateTime, decimal) are checked in runs too: the startup check sends Untrusted
-        // mode to the chain of fields (#355), one value and runs past NinoFlatRuns.MinRun alike.
+        // mode to the chain of fields (#355), one value and runs alike.
         NinoSettings.Untrusted = true;
         var when = new DateTime(0x0123456789ABCDEF, DateTimeKind.Utc);
         var price = new decimal(0x11223344, 0x55667788, 0x0A0B0C0D, false, 3);

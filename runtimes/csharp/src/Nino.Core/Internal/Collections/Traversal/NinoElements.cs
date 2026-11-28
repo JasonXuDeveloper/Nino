@@ -27,7 +27,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool CopiedWhole<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoKind<T, TFormatter>.CopiedWhole;
+            !RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoKind<T, TFormatter>.CopiedWhole;
 
         /// <summary>
         /// Whether a loop that writes elements one at a time goes through a local copy of the writer, whose cursor then
@@ -37,7 +37,7 @@ namespace Nino.Core.Internal
         /// serialized 30 to 40% slower, on x64 and Arm64). A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool WritesOnLocal<T>() => !NinoUnsafe.IsReferenceOrContainsReferences<T>();
+        public static bool WritesOnLocal<T>() => !RuntimeHelpers.IsReferenceOrContainsReferences<T>();
 
         /// <summary>
         /// <see cref="WritesOnLocal{T}"/>, and also for sealed classes whose generated body opens no class body
@@ -57,7 +57,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ReadOverwrites<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoKind<T, TFormatter>.ReadOverwrites;
+            !RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoKind<T, TFormatter>.ReadOverwrites;
 
         /// <summary>
         /// The fewest bytes an element takes on the wire, to check a length against the bytes left before allocating:
@@ -70,7 +70,7 @@ namespace Nino.Core.Internal
         public static int MinWireSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             // Elements with references are never one block: 1 without the static field (a shared generic's runtime
             // lookup).
-            NinoUnsafe.IsReferenceOrContainsReferences<T>() ? 1 : NinoKind<T, TFormatter>.MinWire;
+            RuntimeHelpers.IsReferenceOrContainsReferences<T>() ? 1 : NinoKind<T, TFormatter>.MinWire;
 
         /// <summary>
         /// <see cref="MinWireSize{T,TFormatter}"/> of a value written through its formatter rather than as an element
@@ -358,7 +358,7 @@ namespace Nino.Core.Internal
             int keep = overwritten ? 0 : Math.Min(old.Length, length);
             Array.Copy(old, result, keep);
             NinoRecycler.DiscardAll<T, TFormatter>(old.AsSpan(keep));
-            if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 Array.Clear(old, 0, old.Length);
             return result;
         }

@@ -163,14 +163,9 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int Hash<TKey>(object table, TKey key, int mask, bool set)
         {
-            if (key == null)
-            {
-                if (!set)
-                    NinoThrow.NullKey(table);
-                return 0;
-            }
-
-            return EqualityComparer<TKey>.Default.GetHashCode(key) & mask;
+            if (!set && key == null)
+                NinoThrow.NullKey(table);
+            return EqualityComparer<TKey>.Default.GetHashCode(key!) & mask;
         }
 
         /// <summary>
@@ -183,13 +178,13 @@ namespace Nino.Core.Internal
         {
             /// <summary>Whether keys may be added by <see cref="Insert{TKey,TValue}"/>.</summary>
             public static readonly bool Inserts = Decides(false, typeof(TKey) == typeof(string),
-                NinoUnsafe.IsReferenceOrContainsReferences<TKey>() ||
-                NinoUnsafe.IsReferenceOrContainsReferences<TValue>(), walks: false);
+                RuntimeHelpers.IsReferenceOrContainsReferences<TKey>() ||
+                RuntimeHelpers.IsReferenceOrContainsReferences<TValue>(), walks: false);
 
             /// <summary>Whether a key the dictionary added has its bucket walked (<see cref="Walk{TKey,TValue}"/>).</summary>
             public static readonly bool Walks = Decides(false, typeof(TKey) == typeof(string),
-                NinoUnsafe.IsReferenceOrContainsReferences<TKey>() ||
-                NinoUnsafe.IsReferenceOrContainsReferences<TValue>(), walks: true);
+                RuntimeHelpers.IsReferenceOrContainsReferences<TKey>() ||
+                RuntimeHelpers.IsReferenceOrContainsReferences<TValue>(), walks: true);
         }
 
         /// <summary>As <see cref="Plan{TKey,TValue}"/>, for a set.</summary>
@@ -197,11 +192,11 @@ namespace Nino.Core.Internal
         {
             /// <summary>Whether elements may be added by <see cref="Insert{T}"/>.</summary>
             public static readonly bool Inserts = Decides(true, typeof(T) == typeof(string),
-                NinoUnsafe.IsReferenceOrContainsReferences<T>(), walks: false);
+                RuntimeHelpers.IsReferenceOrContainsReferences<T>(), walks: false);
 
             /// <summary>Whether an element the set added has its bucket walked (<see cref="Walk{T}"/>).</summary>
             public static readonly bool Walks = Decides(true, typeof(T) == typeof(string),
-                NinoUnsafe.IsReferenceOrContainsReferences<T>(), walks: true);
+                RuntimeHelpers.IsReferenceOrContainsReferences<T>(), walks: true);
         }
 
         // The plan of a set's or a dictionary's entries: string keys of a table that protects itself (GuardsString*) are
