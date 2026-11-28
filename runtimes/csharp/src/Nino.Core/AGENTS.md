@@ -148,7 +148,8 @@ NinoFormatter.cs             INinoFormatter<T> (Serialize, Deserialize; capabili
                              HasSizedWrite, HasExternalWrite, HasCursor with WriteStrings, ReadStrings: a run of pairs
                              holding strings through the string run kernels; RecyclesItems);
                              NinoFormatterBase<T> and its struct wrappers (StructFormatter, FixedStructFormatter,
-                             TopStructFormatter, NestingFormatter), RawFormatter, NinoSized, INinoRawArrayFormatter, CachedFormatter<T>
+                             TopStructFormatter, NestingFormatter), RawFormatter, NinoSized, INinoRawArrayFormatter,
+                             CachedFormatter<T> (which forwards the wrapped formatter's run hooks, a call per run)
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
                              NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields;
                              NinoMissingFormatter<T> (the never-null stand-in of a type without one)

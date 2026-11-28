@@ -24,6 +24,15 @@ internal static class DispatchEmitter
     /// <summary>The most types a run loop tests that is marked to inline into the collection's write.</summary>
     private const int MaxInlinedRunLoop = 8;
 
+    /// <summary>The fewest values of a flat root's run its run loop hands to the flat kernels (EmitWriteFlat).</summary>
+    private const int FlatRunLength = 16;
+
+    /// <summary>
+    /// The values of a flat root's run looked at for subtypes before it goes to the kernels (EmitWriteFlat): fewer than
+    /// <see cref="FlatRunLength"/>.
+    /// </summary>
+    private const int FlatRunProbe = 8;
+
     /// <summary>
     /// A bucket of at most this many subtypes with distinct ids compares the ids directly, without the collision
     /// filter larger buckets need (5cf67a6d).
@@ -462,12 +471,54 @@ internal static class DispatchEmitter
         w.Line("return;");
         w.Close();
         w.Line();
+        // A flat root (#440): an array's or a list's run through its flat kernels (__WriteFlat).
+        bool flat = root is { FlatRuns: true, IsTarget: true };
+        if (flat)
+        {
+            w.Line($"if (run.Count >= {FlatRunLength} && __WriteFlat(run, ref target))");
+            w.Line("    return;");
+            w.Line();
+        }
+
         EmitRunLoop(w, t, root, subtypes, services, entries: false);
         w.Close();
         w.Line();
         w.Line(GeneratedCode.NoInline);
         w.Open($"private static void __WriteEntries({run} run, ref {Core}Writer target)");
         EmitRunLoop(w, t, root, subtypes, services, entries: true);
+        w.Close();
+        if (flat)
+            EmitWriteFlat(w, t, root!.Self, services);
+    }
+
+    /// <summary>
+    /// <c>__WriteFlat</c>: a flat root's run of <see cref="FlatRunLength"/> values or more through its flat kernels,
+    /// unless more than one of its first <see cref="FlatRunProbe"/> values is a subtype (each leaves the kernels for the
+    /// dispatch and enters them again); returns whether it wrote (#440). Against the loop (local x64, alternated): a run
+    /// of the root's own objects wrote in 0.63, 0.56 and 0.80 of its time at 16, 32 and 1,000 values, one in 13 a subtype
+    /// in 0.85, 0.75 and 0.77, every other one on par. Out of line on a copy of the run: inline, with the run passed by
+    /// <c>in</c>, runs of one to three values, which keep the loop, took 1.08 to 1.27 times as long; from four values a
+    /// four-value run took 1.5 (the copy and the probe), and without the probe a run alternating with subtypes took 1.6
+    /// to 2.3.
+    /// </summary>
+    private static void EmitWriteFlat(CodeWriter w, string t, string self, string services)
+    {
+        string run = $"{services}NinoRun";
+        w.Line();
+        w.Line(GeneratedCode.NoInline);
+        w.Open($"private static bool __WriteFlat({run} run, ref {Core}Writer target)");
+        w.Line("ref byte entry = ref run.First;");
+        w.Line("int subtypes = 0;");
+        // The run has at least FlatRunLength values, more than the probe looks at.
+        w.Line($"for (int i = {FlatRunProbe}; i > 0; i--, entry = ref {run}.Next(ref entry, run.Stride))");
+        w.Open();
+        w.Line($"var value = {run}.Value<{t}>(ref entry);");
+        w.Line($"if (value != null && value.GetType() != typeof({t}) && ++subtypes > 1)");
+        w.Line("    return false;");
+        w.Close();
+        w.Line();
+        w.Line($"default({self}).WriteFlat(in run, ref target);");
+        w.Line("return true;");
         w.Close();
     }
 
