@@ -246,7 +246,16 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   to 1.00 (29.3 to 23.7 us), GenericManagedTupleBase 1.07 to 1.20; GenericIntBase (1.03, 1.04), GenericUnmanagedTupleBase
   (0.97, 0.95; value type arguments, whose code was never shared and now take the same loop) and NonGenericBase on par. The same loop
   calling the generated `__ReadSubtype` per value (each non-flat case then a `__ReadExactN` call: two calls a value)
-  reached only 0.93 and 0.95 (3 to 6 rounds).
+  reached only 0.93 and 0.95 (3 to 6 rounds). A non-generic root takes the same loop (`EmitReadRun`, its own type
+  first where it is a class of its own; #305): through Nino.Core's loop each value paid `Deserialize`'s id read and the
+  switch apart. Local x64, quiet machine, alternated with LuminPack 2.0.0-rc.2, 3 rounds: PolymorphicClass read 20.1 to
+  18.5 us (LuminPack/Nino 0.90 to 0.95), NonGenericBase 17.4 to 16.9 (1.02 to 1.09), PolymorphicFooArray and
+  PolymorphicClassArray on par (#305's earlier "about 2 %" for this form, before the switch step). Not done, and why:
+  a fresh-storage flag skipping the old slot's load in `ReadExactShallow` (whether the storage is new is not known at
+  `NinoRuns.Read`, which reads into reused and resized arrays alike, and on a new slot the load and the null test are
+  all that would go: the `GetType` compare never runs; plumbing a flag through every run read buys two instructions a
+  value), and one length check per value (the id's check would fold into the body's only by reserving four bytes per
+  value left in the reader's end, a Reader change for the same few instructions).
   Give each case the subtype's body and nothing else (`NinoObject.ReadExactShallow` in `__ReadExactN`, each case a
   tail call), the depth checked once before the switch (`NinoObject.IsDeep(ref Reader)`), and leave a body too deep,
   null and an unknown id (after the switch) and a slot holding another subtype (from the case) to the registry
@@ -306,10 +315,22 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   other key goes value by value, since a generic member would trip Unity 2022.3's IL2CPP (#405). The inline-body step
   for hierarchies of up to 3-4 subtypes (on par or faster above) is not emitted: one member serves every hierarchy
   until the landing A/B says otherwise.
-- Keep the writer's cursor and free bytes in two locals in the generated run loop (`Writer.UnsafeCursor`, given back
-  with `UnsafeSetCursor` around anything else that writes: a key, a body that is not one raw block, the registry;
-  `UnsafeGrowAt` out of line where a raw body or a null does not fit), each raw subtype's id and block written at the
-  cursor after one check of the free bytes; and give an array's or a list's run, which has no keys and no free
+- Keep the writer's cursor and free bytes in two locals in the generated run loop, as one `NinoWriteCursor` local
+  (Nino.Core, #460: taken from the writer once, given back by its pieces around anything else that writes: a key, a
+  body that is not one raw block, the registry; the grow out of line where a raw body or a null does not fit), each
+  raw subtype's id and block written at the cursor after one check of the free bytes; generate the loop and
+  `__WriteSubtype` as calls of its pieces only (`Null`, `Raw`, `Body`, `Other`, `Key`; `__WriteSubtype` takes the
+  forms over the writer alone), one text per subtype for both, never the hand-offs, grows and raw writes as emitted
+  statements. Why the pieces: one place for the cursor's protocol and any later per-CPU choice (#342), and less text
+  (the benchmark project's `NinoGen.Dispatch.g.cs` 243 to 192 KB) at the same machine code: every piece is
+  `AggressiveInlining`, the cursor's address reaches no call that is not inlined (the grow takes its values), and
+  `ref struct` fields promote at Tier1 and FullOpts alike (#460, `asm.py compare` against `feat/storage-layer`
+  79e607a0: every `WriteRun` and `__WriteSubtype` within a few bytes, stack accesses equal; TC=0 PolymorphicFooBase's
+  `WriteRun` 56,321 to 52,331 bytes and 1,872 to 1,656 stack accesses; write times on par locally). Smaller IL let the
+  JIT inline PolymorphicFooBase's 20-subtype `WriteRun` into `ArrayFormatter.Serialize` and the dictionary's pair run
+  (314 to 1,961 bytes), with no change in time measured. The cursor is a `ref struct` with a reference field on
+  .NET 8+ and an empty span over the next byte on netstandard2.1 (no reference fields before .NET 7); its constructor
+  takes the writer `scoped`, or C# rejects passing the cursor and the writer together (CS8350); and give an array's or a list's run, which has no keys and no free
   entries, a loop without either test, a set's or a dictionary's entries a loop of their own (`__WriteEntries`,
   `NoInlining`, selected once per run). Why: a writer copied into the loop's local (`target.CopyTo(ref writer)`) stays
   in memory once its address reaches a call (the registry's fallback), so every element stored the cursor and the

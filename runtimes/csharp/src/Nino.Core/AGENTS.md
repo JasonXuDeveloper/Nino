@@ -101,6 +101,9 @@ NinoRun.cs                   NinoRun: the run cursor over any contiguous storage
                              the pieces of a loop over it (Next, Skips, WriteKey, Value, Slot; WriteEach, the deep path,
                              through NinoRuns.WriteLoop);
                              what INinoFormatter.WriteRun and ReadRun take
+NinoWriteCursor.cs           NinoWriteCursor: the writer's cursor and free bytes a generated subtype dispatch holds in a
+                             local (taken once, given back around any other write), and the pieces its run loop and
+                             __WriteSubtype compose (Null, Raw, Body, Other, Key; #460)
 NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory, built item by item (Item)
 NinoBlocks.cs                NinoBlocks: the items of composites (ItemSize, WriteItem, ReadItem: raw, or a block through
                              constrained calls), and the offsets NinoBlockMap is built from
