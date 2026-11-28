@@ -33,16 +33,31 @@ namespace Nino.Core.Internal
         /// </summary>
         public static int Fill<T>(SortedSet<T> set, T[] items, int count)
         {
-            if (SortedSetNodes.Layout != 0 && count != 0 && Increasing(items, count, set.Comparer))
+            if (SortedSetNodes.Layout != 0 && count != 0)
             {
-                // In order and none twice (as Nino writes them): the tree is built from them as they are.
-                CollectionFields.Root(set) = SortedSetNodes<T>.Build(items, count);
-                CollectionFields.Count(set) = count;
-                CollectionFields.Version(set)++;
-                return count;
+                var comparer = set.Comparer;
+                bool ordered = Increasing(items, count, comparer);
+                if (!ordered)
+                {
+                    // Out of order (another comparer wrote them): sorted here, as the set's constructor would sort a
+                    // copy. None is dropped, so a caller that reads the items again still sees every one twice that
+                    // was (a dictionary's repeated key is invalid data).
+                    Array.Sort(items, 0, count, comparer);
+                    ordered = Increasing(items, count, comparer);
+                }
+
+                if (ordered)
+                {
+                    // In order and none twice (as Nino writes them): the tree is built from them as they are.
+                    CollectionFields.Root(set) = SortedSetNodes<T>.Build(items, count);
+                    CollectionFields.Count(set) = count;
+                    CollectionFields.Version(set)++;
+                    return count;
+                }
             }
 
-            var built = new SortedSet<T>(new ArraySegment<T>(items, 0, count), set.Comparer);
+            // Some twice, or nodes of an unknown layout: the set's constructor drops the repeats.
+            var built = new SortedSet<T>(new RentedItems<T>(items, count), set.Comparer);
             CollectionFields.Root(set) = CollectionFields.Root(built);
             CollectionFields.Count(set) = built.Count;
             CollectionFields.Version(set)++;

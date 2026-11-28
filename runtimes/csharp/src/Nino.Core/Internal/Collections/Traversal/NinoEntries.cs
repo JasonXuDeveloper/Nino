@@ -307,7 +307,7 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            if (key == null)
+            if (NinoUnsafe.IsNull(key))
                 NinoThrow.NullKey(dictionary);
             NinoCollections.AddUnique(dictionary, key, value);
             if (walk)

@@ -532,6 +532,18 @@ python3 runtimes/csharp/benchmarks/asm/asm.py compare --inline origin/main
 DOTNET_TieredCompilation=0 python3 runtimes/csharp/benchmarks/asm/asm.py dump --inline --runs 1 fullopts.json
 ```
 
+Where a box is: `dump --boxes` lists, per method, every value type the listings box, and exits with 1 when there is
+one (Nino boxes nothing on a read or write path: `optimize`, "Never box"). The JIT calls a helper for a `T?`
+(`CORINFO_HELP_BOX_NULLABLE`) but expands any other box inline, as an allocation (`CORINFO_HELP_NEWSFAST`) of the value
+type's method table, which in a listing looks like any `new` of a class: the startup hook names the type behind each
+address in the process (`NINO_JIT_BOXES`; x64 only). With `DOTNET_TieredCompilation=0` it checks the FullOpts code,
+where a field a branch tests is not folded yet: a box there may sit on a branch never taken.
+
+```sh
+python3 runtimes/csharp/benchmarks/asm/asm.py dump --boxes --runs 1 tier1.json
+DOTNET_TieredCompilation=0 python3 runtimes/csharp/benchmarks/asm/asm.py dump --boxes --runs 1 fullopts.json
+```
+
 ## Runtimes outside .NET
 
 Each runtime is benchmarked with its language's standard tool on this suite's cases (`--write-data`, above), against
