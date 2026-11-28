@@ -188,7 +188,20 @@ public static class Program
                    .Select(f => f.Name + "=" + Contents(f.GetValue(value)))
                    .Concat(t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                        .Where(p => p.CanRead && p.GetIndexParameters().Length == 0)
-                       .Select(p => p.Name + "=" + Contents(p.GetValue(value))))) + "}";
+                       .Select(p => p.Name + "=" + Property(p, value)))) + "}";
+    }
+
+    /// <summary>A property's contents, or "!" where its getter throws (NinoNullable's Value without a value).</summary>
+    private static string Property(PropertyInfo p, object value)
+    {
+        try
+        {
+            return Contents(p.GetValue(value));
+        }
+        catch (TargetInvocationException)
+        {
+            return "!";
+        }
     }
 
     /// <summary>
