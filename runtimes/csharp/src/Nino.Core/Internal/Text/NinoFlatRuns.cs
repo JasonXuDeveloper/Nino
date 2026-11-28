@@ -54,7 +54,9 @@ namespace Nino.Core.Internal
                 Write<TItem>(run, ref next, ref writer);
                 if (next >= count)
                     return;
-                writer = WriteLeaving<T, TFormatter>(in run, ref next, ref left, writer);
+                long state = WriteLeaving<T, TFormatter>(in run, next, left, ref writer);
+                next = (int)state;
+                left = (int)(state >> 32);
                 if (next >= count)
                     return;
             }
@@ -68,18 +70,17 @@ namespace Nino.Core.Internal
         private const int MixedRun = 8, MixedGrace = 8;
 
         /// <summary>
-        /// Writes the element at <paramref name="next"/>, which the items leave, through its formatter, and moves
-        /// <paramref name="next"/> past it; where elements leave often (a base's run mixed with its subtypes, counted in
-        /// <paramref name="left"/>), the rest of the run too, element by element, and <paramref name="next"/> to the
-        /// end. Entering the kernels again after each one, a run of a flat base, every other element a subtype, wrote in
-        /// 1.6 to 2.3 times the time of the base's run loop at 4 to 1,000 elements, where one in 13 took 0.67 to 0.83
-        /// (local, alternated, #440). Out of line, with the count of leaves: the test inline in
+        /// Writes the element at <paramref name="next"/>, which the items leave, through its formatter; where elements
+        /// leave often (a base's run mixed with its subtypes, <paramref name="left"/> of them so far), the rest of the run
+        /// too, element by element. Returns the next element (the count when the run is done) and, in the upper half, the
+        /// leaves counted. Entering the kernels again after each one, a run of a flat base, every other element a
+        /// subtype, wrote in 1.6 to 2.3 times the time of the base's run loop at 4 to 1,000 elements, where one in 13
+        /// took 0.67 to 0.83 (local, alternated, #440). Out of line, its state returned in one value: the test inline in
         /// <see cref="WriteRun{T,TFormatter,TItem}"/> grew the driver of every flat class's runs by 220 bytes and 10
-        /// stack accesses (asm.py).
+        /// stack accesses, and the counts passed by reference kept them in memory (6 more, asm.py).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteLeaving<T, TFormatter>(scoped in NinoRun run, scoped ref int next, scoped ref int left,
-            Writer writer)
+        private static long WriteLeaving<T, TFormatter>(scoped in NinoRun run, int next, int left, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
             int stride = run.Stride, count = run.Count;
@@ -92,7 +93,7 @@ namespace Nino.Core.Internal
                 next = count;
             }
 
-            return writer;
+            return ((long)left << 32) | (uint)next;
         }
 
         /// <summary>
