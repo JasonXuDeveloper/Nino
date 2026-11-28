@@ -411,16 +411,26 @@ namespace Nino.Core.CompilerServices
         /// it. <c>value == null</c> on a type parameter is a box the JIT removes only where it can tell the boxed
         /// value has no side effects: on a <c>T?</c> read through a reference in an inlined call .NET 11 allocated the
         /// box whenever the value was present (#449: a <c>HashSet&lt;int?&gt;</c> read, one per element; the reuse read
-        /// of a <c>T?</c> of a struct with a reference). A value type is null only as a <c>T?</c> whose presence byte
-        /// is 0 (<see cref="NinoPresence{T}"/>: a field the JIT folds, then one load); <c>Nullable&lt;T&gt;.Equals
-        /// (object)</c> boxed nothing either but stayed a call. A class is compared as a reference.
+        /// of a <c>T?</c> of a struct with a reference). A value type is null only as a <c>T?</c> (<c>default(T) ==
+        /// null</c>, which the JIT folds for every value type) whose presence byte is 0 (<see cref="NinoPresence{T}"/>:
+        /// one load of a static the class needs no initialization for, then one load of the byte);
+        /// <c>Nullable&lt;T&gt;.Equals(object)</c> boxed nothing either but stayed a call, and a <c>static readonly</c>
+        /// offset folded only where the class was already initialized when the caller compiled, a helper call and
+        /// twice the spills everywhere else (the hash chain walk of a <c>Dictionary&lt;int?, V&gt;</c>). A class is
+        /// compared as a reference.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool IsNull<T>(scoped in T value) =>
-            typeof(T).IsValueType
-                ? NinoPresence<T>.Offset >= 0 && Unsafe.AddByteOffset(
-                    ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), (nint)NinoPresence<T>.Offset) == 0
-                : value == null;
+        internal static bool IsNull<T>(scoped in T value)
+        {
+            if (!typeof(T).IsValueType)
+                return value == null;
+            if (default(T) != null)
+                return false;
+            int at = NinoPresence<T>.At;
+            if (at == 0)
+                at = NinoPresence<T>.Find();
+            return Unsafe.AddByteOffset(ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), (nint)(at - 1)) == 0;
+        }
 
         /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its
         /// layout).</summary>
@@ -448,29 +458,29 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// Where a <typeparamref name="T"/> that is a <c>T?</c> keeps its presence (HasValue), or -1 for any other type:
+    /// Where a <typeparamref name="T"/> that is a <c>T?</c> keeps its presence (HasValue), plus one (0 until found):
     /// found once by comparing a present value (an unboxed zeroed value of the underlying type) with
     /// <c>default</c>, so <see cref="NinoUnsafe.IsNull{T}"/> reads one byte on every runtime, whatever its layout of
-    /// <c>Nullable&lt;T&gt;</c> (CoreCLR's presence first, Mono's after the value).
+    /// <c>Nullable&lt;T&gt;</c> (CoreCLR's presence first unless the value holds references, Mono's after the value).
+    /// No initializer on purpose: a class without one needs no initialization check where the field is read.
     /// </summary>
     internal static class NinoPresence<T>
     {
-        public static readonly int Offset = Find();
+        public static int At;
 
-        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2067",
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2087",
             Justification = "A value type: its zeroed instance runs no constructor, and the type is kept as T's argument.")]
-        private static int Find()
+        public static int Find()
         {
-            if (!typeof(T).IsValueType || Nullable.GetUnderlyingType(typeof(T)) is not { } underlying)
-                return -1;
-            T present = (T)RuntimeHelpers.GetUninitializedObject(underlying);
+            T present = (T)RuntimeHelpers.GetUninitializedObject(Nullable.GetUnderlyingType(typeof(T))!);
             T absent = default;
             ref byte a = ref Unsafe.As<T, byte>(ref absent);
             ref byte p = ref Unsafe.As<T, byte>(ref present);
-            for (int i = 0; i < Unsafe.SizeOf<T>(); i++)
-                if (Unsafe.Add(ref a, i) != Unsafe.Add(ref p, i))
-                    return i;
-            return -1;
+            int i = 0;
+            while (Unsafe.Add(ref a, i) == Unsafe.Add(ref p, i))
+                i++;
+            return At = i + 1;
         }
     }
 }

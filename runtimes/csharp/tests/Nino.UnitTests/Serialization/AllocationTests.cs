@@ -40,6 +40,15 @@ public struct AllocRefStruct
     public long B;
 }
 
+/// <summary>A struct with a reference that fits 16 bytes: its <c>T?</c> took another path in a read over present
+/// values than <see cref="AllocRefStruct"/>'s on .NET 11.</summary>
+[NinoType(format: NinoFormat.VersionTolerant)]
+public struct AllocSmallRefStruct
+{
+    public int A;
+    public string S;
+}
+
 [NinoType(format: NinoFormat.VersionTolerant)]
 public struct AllocGenericStruct<T>
 {
@@ -420,6 +429,15 @@ public class AllocationTests
             new AllocGenericStruct<AllocRefStruct?> { Value = present[0] }, default, default,
             v => NinoSerializer.Serialize(v, Buffer),
             (byte[] b, ref AllocGenericStruct<AllocRefStruct?> v) => NinoDeserializer.Deserialize(b, ref v));
+        // On .NET 11, cc8f4132 boxed each of these values a null replaced (32 bytes each).
+        var small = new AllocSmallRefStruct?[] { new AllocSmallRefStruct { A = 1, S = "a" }, new AllocSmallRefStruct { A = 2 } };
+        Alternating("small struct with a reference?[]", small, new AllocSmallRefStruct?[2], new AllocSmallRefStruct?[2],
+            v => NinoSerializer.Serialize(v, Buffer),
+            (byte[] b, ref AllocSmallRefStruct?[] v) => NinoDeserializer.Deserialize(b, ref v));
+        Alternating("List<small struct with a reference?>", new List<AllocSmallRefStruct?>(small),
+            new List<AllocSmallRefStruct?> { null, null }, new List<AllocSmallRefStruct?> { null, null },
+            v => NinoSerializer.Serialize(v, Buffer),
+            (byte[] b, ref List<AllocSmallRefStruct?> v) => NinoDeserializer.Deserialize(b, ref v));
         Alternating("int?[]", Nullables(10), new int?[10], new int?[10], v => NinoSerializer.Serialize(v, Buffer),
             (byte[] b, ref int?[] v) => NinoDeserializer.Deserialize(b, ref v));
         Alternating("Dictionary<int, struct with a reference?>",
