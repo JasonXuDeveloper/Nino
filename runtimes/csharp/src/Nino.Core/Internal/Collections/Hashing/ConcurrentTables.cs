@@ -206,8 +206,8 @@ namespace Nino.Core.Internal
             /// its buckets (<see cref="Pairs{TKey,TValue}"/>).
             /// </summary>
             public static readonly bool Chained = ElementsAt != 0 &&
-                (NinoUnsafe.IsReferenceOrContainsReferences<TKey>() ||
-                 NinoUnsafe.IsReferenceOrContainsReferences<TValue>()
+                (RuntimeHelpers.IsReferenceOrContainsReferences<TKey>() ||
+                 RuntimeHelpers.IsReferenceOrContainsReferences<TValue>()
                     ? ReferenceChains
                     : Chains);
 

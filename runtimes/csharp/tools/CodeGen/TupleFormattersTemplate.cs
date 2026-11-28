@@ -147,7 +147,7 @@ namespace Nino.CodeGen
             sb.Append($"    public struct ValueTupleFormatter<{s.TypeParameters}> : INinoFormatter<{type}>\n");
             AppendConstraints(sb, s);
             sb.Append("    {\n");
-            AppendSizes(sb, s, $"!NinoUnsafe.IsReferenceOrContainsReferences<{type}>()");
+            AppendSizes(sb, s, $"!RuntimeHelpers.IsReferenceOrContainsReferences<{type}>()");
             AppendBodyTraits(sb, s);
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
             sb.Append($"        public void Serialize({type} value, ref Writer writer)\n");
@@ -330,7 +330,7 @@ namespace Nino.CodeGen
             string type = $"Tuple<{s.Types}>";
             string formatter = $"TupleFormatter<{s.TypeParameters}>";
             string noReferences = string.Join(" && ",
-                s.Items.Select(i => $"!NinoUnsafe.IsReferenceOrContainsReferences<{s.Type(i)}>()"));
+                s.Items.Select(i => $"!RuntimeHelpers.IsReferenceOrContainsReferences<{s.Type(i)}>()"));
             sb.Append($"    /// <summary><c>Tuple&lt;{s.Types}&gt;</c>: a presence byte, then the items in order (one block where every item\n");
             sb.Append("    /// is raw or a block).</summary>\n");
             sb.Append($"    public struct TupleFormatter<{s.TypeParameters}> : INinoFormatter<{type}>\n");

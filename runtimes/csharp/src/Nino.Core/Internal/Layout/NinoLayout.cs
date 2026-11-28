@@ -573,7 +573,7 @@ namespace Nino.Core.Internal
     /// </summary>
     internal static class NinoLayout<T>
     {
-        internal static readonly NinoLayout.Info Info = NinoUnsafe.IsReferenceOrContainsReferences<T>()
+        internal static readonly NinoLayout.Info Info = RuntimeHelpers.IsReferenceOrContainsReferences<T>()
             ? new NinoLayout.Info { Size = 0 }
             : NinoLayout.Get(typeof(T), Unsafe.SizeOf<T>());
 
@@ -602,7 +602,7 @@ namespace Nino.Core.Internal
         /// type without such fields. Declared before <see cref="CopiesAsIs"/>, which reads it.
         /// </summary>
         internal static readonly NinoValueChecks Checks = NinoLimits.Untrusted && typeof(T) != typeof(bool) &&
-                                                !NinoUnsafe.IsReferenceOrContainsReferences<T>()
+                                                !RuntimeHelpers.IsReferenceOrContainsReferences<T>()
             ? NinoLayout.ValueChecks(typeof(T), Unsafe.SizeOf<T>())
             : null;
 

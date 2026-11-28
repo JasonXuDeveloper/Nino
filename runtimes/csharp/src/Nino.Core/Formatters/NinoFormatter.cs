@@ -489,7 +489,7 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is<T, TFormatter>() where TFormatter : INinoFormatter<T> =>
-            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && RawFormatter<T, TFormatter>.Is;
+            !RuntimeHelpers.IsReferenceOrContainsReferences<T>() && RawFormatter<T, TFormatter>.Is;
     }
 
     /// <summary>

@@ -38,7 +38,7 @@ namespace Nino.Core.Internal
         {
 #if !NET8_0_OR_GREATER
             // IL2CPP runs this build only (NinoElementLayouts).
-            if (typeof(TList) == typeof(List<T>) && !NinoUnsafe.IsReferenceOrContainsReferences<T>() &&
+            if (typeof(TList) == typeof(List<T>) && !RuntimeHelpers.IsReferenceOrContainsReferences<T>() &&
                 !RuntimeFeature.IsDynamicCodeSupported && NinoReflection.IsIl2Cpp && NinoElementLayouts<T>.Oversized &&
                 CollectionViews.List && capacity > 0)
             {
@@ -117,9 +117,9 @@ namespace Nino.Core.Internal
                 list.Capacity = count;
             var items = CollectionFields.Items(list);
             ref int size = ref CollectionFields.Size(list);
-            if (count < size && NinoUnsafe.IsReferenceOrContainsReferences<T>())
+            if (count < size && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 Array.Clear(items, count, size - count);
-            else if (count > size && !overwritten && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
+            else if (count > size && !overwritten && !RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 Array.Clear(items, size, count - size);
             size = count;
             return new Span<T>(items, 0, count);

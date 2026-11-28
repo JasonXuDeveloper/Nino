@@ -64,12 +64,20 @@ namespace Nino.Core
         private void SetBuffer(byte[] buffer, int pos)
         {
 #if NET8_0_OR_GREATER
-            Span<byte> span = buffer;
-            // Through a local: a writer in memory would store a field and load it back.
-            ref byte start = ref MemoryMarshal.GetReference(span);
+            // Through a local: a writer in memory would store a field and load it back. The array's data directly, not
+            // through a Span (its conversion and GetReference were two inline levels under every Grow, which the JIT
+            // gave up as "too deep" in collections' writes: AppData Lookups, Events).
+            ref byte start = ref Unsafe.NullRef<byte>();
+            int length = 0;
+            if (buffer != null)
+            {
+                start = ref MemoryMarshal.GetArrayDataReference(buffer);
+                length = buffer.Length;
+            }
+
             _start = ref start;
             _cur = ref Unsafe.Add(ref start, (nuint)(uint)pos);
-            _avail = span.Length - pos;
+            _avail = length - pos;
 #else
             _buffer = buffer;
             _pos = pos;

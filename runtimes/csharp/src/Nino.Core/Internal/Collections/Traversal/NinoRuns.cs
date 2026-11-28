@@ -309,7 +309,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int KeyOf<TKey, TKeyFormatter>() where TKeyFormatter : struct, INinoFormatter<TKey> =>
             NinoKind<TKeyFormatter>.IsString ? NinoRun.KeyAt(0, -1)
-            : NinoUnsafe.IsReferenceOrContainsReferences<TKey>() ? NinoRun.NoKey
+            : RuntimeHelpers.IsReferenceOrContainsReferences<TKey>() ? NinoRun.NoKey
             : Keys<TKey, TKeyFormatter>.Key;
 
         private static class Keys<TKey, TKeyFormatter> where TKeyFormatter : struct, INinoFormatter<TKey>
