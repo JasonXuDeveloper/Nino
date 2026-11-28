@@ -255,7 +255,7 @@ namespace Nino.Core.Internal
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ReturnRented<T>(T[] array) =>
-            ArrayPool<T>.Shared.Return(array, NinoUnsafe.IsReferenceOrContainsReferences<T>());
+            ArrayPool<T>.Shared.Return(array, RuntimeHelpers.IsReferenceOrContainsReferences<T>());
 
         /// <summary>Writes a span as a <c>T[]</c> of its elements is written: length, then the elements.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -29,7 +29,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int FixedSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            !NinoUnsafe.IsReferenceOrContainsReferences<T>() ? NinoBlockPlan<T, TFormatter>.Size : -1;
+            !RuntimeHelpers.IsReferenceOrContainsReferences<T>() ? NinoBlockPlan<T, TFormatter>.Size : -1;
 
         /// <summary>
         /// <see cref="FixedSize{T, TFormatter}"/> for reads: -1 in <see cref="NinoSettings.Untrusted"/> mode for values
@@ -38,7 +38,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ReadSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            !NinoUnsafe.IsReferenceOrContainsReferences<T>() ? NinoBlockPlan<T, TFormatter>.ReadSize : -1;
+            !RuntimeHelpers.IsReferenceOrContainsReferences<T>() ? NinoBlockPlan<T, TFormatter>.ReadSize : -1;
 
         /// <summary>Writes <paramref name="count"/> values at <paramref name="destination"/>, <paramref name="size"/>
         /// bytes apart.</summary>

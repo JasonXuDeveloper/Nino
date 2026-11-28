@@ -228,9 +228,9 @@ bottom item per member, `NinoRawItem`, `NinoStructItem`, `NinoBoolItem`, `NinoUt
 field through a one-line accessor struct (`INinoMember.Ref(ref byte item)`: `NinoMemberAccess.As<T>(ref item).Field`, the
 struct in place or, for a class, a reference to the object, which the element item hands the chain from a local; a constant offset into the
 object once inlined, and a literal `Size`) and the layout struct (`INinoFlatLayout`: create, exact type, type id).
-`HasFlat` (read once per formatter into `NinoKind<TFormatter>.Flat`) sends a run of at least 16 such elements
-(`NinoFlatRuns.MinRun`: below it the run's fixed cost, about 30 ns, outweighs what it saves) to
-`WriteFlat`/`ReadFlat`, which run the string kernels' write loop and a read loop over the chain: one check of an
+`HasFlat` (read once per formatter into `NinoKind<TFormatter>.Flat`) sends every run of such elements, one included,
+to `WriteFlat`/`ReadFlat` (the run by `in`, the writer or reader by reference: an entry as cheap as the loop element by
+element at one element), which run the string kernels' write loop and a read loop over the chain: one check of an
 element's longest form against the bytes left, then every member straight into the buffer; a read goes into the object
 an element holds (of exactly the type, its strings kept where unchanged) or a new one. A subtype, another type id, or
 a run nested past `NinoDepth.Inline` goes through the formatter, out of line (an element holding an object once left

@@ -60,7 +60,7 @@ internal static class FlatEmitter
         w.Line(m.Kind == FormatterKind.SealedClass
             ? $"{names.Inline} public bool IsExact(object value) => true;"
             : $"{names.Inline} public bool IsExact(object value) => value.GetType() == typeof({t});");
-        w.Line($"public int TypeId => {m.TypeId.ToString(CultureInfo.InvariantCulture)};");
+        w.Line($"public int TypeId => {FormatterEmitter.TypeIdValue(m)};"); // a generic class's from its formatter
         w.Close();
         w.Line();
         w.Line($"internal sealed class __Flat : {Services}NinoFlat<__Layout, {Chain(m, fields: false)}> {{ }}");
@@ -98,16 +98,16 @@ internal static class FlatEmitter
         if (flat.ValueType)
         {
             w.Line(names.Inline);
-            w.Line($"public void WriteFlat({Services}NinoRun run, ref {Core}Writer writer) => __Flat.Write<{t}, {formatter}>(run, ref writer, {depth});");
+            w.Line($"public void WriteFlat(in {Services}NinoRun run, ref {Core}Writer writer) => __Flat.Write<{t}, {formatter}>(in run, ref writer, {depth});");
             w.Line(names.Inline);
-            w.Line($"public void ReadFlat({Services}NinoRun run, ref {Core}Reader reader) => __Flat.Read<{t}, {formatter}>(run, ref reader, {depth});");
+            w.Line($"public void ReadFlat(in {Services}NinoRun run, ref {Core}Reader reader) => __Flat.Read<{t}, {formatter}>(in run, ref reader, {depth});");
             return;
         }
 
-        Hook(w, names, flat.Checks, $"public void WriteFlat({Services}NinoRun run, ref {Core}Writer writer)",
-            "__Check.Write", $"Write{kind}<{t}, {formatter}>(run, ref writer, {depth})");
-        Hook(w, names, flat.Checks, $"public void ReadFlat({Services}NinoRun run, ref {Core}Reader reader)",
-            "__Check.Read", $"Read{kind}<{t}, {formatter}>(run, ref reader, {depth})");
+        Hook(w, names, flat.Checks, $"public void WriteFlat(in {Services}NinoRun run, ref {Core}Writer writer)",
+            "__Check.Write", $"Write{kind}<{t}, {formatter}>(in run, ref writer, {depth})");
+        Hook(w, names, flat.Checks, $"public void ReadFlat(in {Services}NinoRun run, ref {Core}Reader reader)",
+            "__Check.Read", $"Read{kind}<{t}, {formatter}>(in run, ref reader, {depth})");
     }
 
     private static void Hook(CodeWriter w, FormatterNames names, bool checks, string signature, string check,

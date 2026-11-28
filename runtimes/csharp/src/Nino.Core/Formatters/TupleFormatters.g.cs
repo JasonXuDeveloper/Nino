@@ -25,7 +25,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1>>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<ValueTuple<T1>>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -117,7 +117,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<T1>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -193,7 +193,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2>>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<ValueTuple<T1, T2>>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -303,8 +303,8 @@ namespace Nino.Core
         // polymorphic second item's run loop, the first written by it.
         bool INinoFormatter.HasCursor => NinoItems.Cursor<T1, T2, TF1, TF2>(Offset1, Offset2);
 
-        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoItems.Write<T1, T2, TF1, TF2>(run, Offset1, Offset2, writer);
+        void INinoFormatter.WriteStrings(scoped in NinoRun run, ref Writer writer) =>
+            NinoItems.Write<T1, T2, TF1, TF2>(run, Offset1, Offset2, ref writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
             NinoItems.Read<T1, T2, TF1, TF2>(run, Offset1, Offset2, ref data, end);
@@ -332,7 +332,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<T1>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T2>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -418,7 +418,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3>>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3>>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -555,8 +555,8 @@ namespace Nino.Core
             NinoItems.Part<T2, TF2>() &&
             NinoItems.Part<T3, TF3>();
 
-        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoItems.Write(run, Items, writer);
+        void INinoFormatter.WriteStrings(scoped in NinoRun run, ref Writer writer) =>
+            NinoItems.Write(run, Items, ref writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
             NinoItems.Read(run, Items, ref data, end);
@@ -581,7 +581,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<T1>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T2>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T3>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -677,7 +677,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4>>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4>>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -832,8 +832,8 @@ namespace Nino.Core
             NinoItems.Part<T3, TF3>() &&
             NinoItems.Part<T4, TF4>();
 
-        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoItems.Write(run, Items, writer);
+        void INinoFormatter.WriteStrings(scoped in NinoRun run, ref Writer writer) =>
+            NinoItems.Write(run, Items, ref writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
             NinoItems.Read(run, Items, ref data, end);
@@ -861,7 +861,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<T1>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T2>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T3>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T4>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -967,7 +967,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5>>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5>>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -1140,8 +1140,8 @@ namespace Nino.Core
             NinoItems.Part<T4, TF4>() &&
             NinoItems.Part<T5, TF5>();
 
-        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoItems.Write(run, Items, writer);
+        void INinoFormatter.WriteStrings(scoped in NinoRun run, ref Writer writer) =>
+            NinoItems.Write(run, Items, ref writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
             NinoItems.Read(run, Items, ref data, end);
@@ -1172,7 +1172,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && !NinoUnsafe.IsReferenceOrContainsReferences<T5>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<T1>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T2>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T3>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T4>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T5>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -1288,7 +1288,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6>>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6>>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -1479,8 +1479,8 @@ namespace Nino.Core
             NinoItems.Part<T5, TF5>() &&
             NinoItems.Part<T6, TF6>();
 
-        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoItems.Write(run, Items, writer);
+        void INinoFormatter.WriteStrings(scoped in NinoRun run, ref Writer writer) =>
+            NinoItems.Write(run, Items, ref writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
             NinoItems.Read(run, Items, ref data, end);
@@ -1514,7 +1514,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && !NinoUnsafe.IsReferenceOrContainsReferences<T5>() && !NinoUnsafe.IsReferenceOrContainsReferences<T6>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<T1>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T2>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T3>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T4>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T5>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T6>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -1640,7 +1640,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -1849,8 +1849,8 @@ namespace Nino.Core
             NinoItems.Part<T6, TF6>() &&
             NinoItems.Part<T7, TF7>();
 
-        Writer INinoFormatter.WriteStrings(scoped NinoRun run, Writer writer) =>
-            NinoItems.Write(run, Items, writer);
+        void INinoFormatter.WriteStrings(scoped in NinoRun run, ref Writer writer) =>
+            NinoItems.Write(run, Items, ref writer);
 
         int INinoFormatter.ReadStrings(scoped NinoRun run, ref byte data, int end) =>
             NinoItems.Read(run, Items, ref data, end);
@@ -1887,7 +1887,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && !NinoUnsafe.IsReferenceOrContainsReferences<T5>() && !NinoUnsafe.IsReferenceOrContainsReferences<T6>() && !NinoUnsafe.IsReferenceOrContainsReferences<T7>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<T1>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T2>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T3>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T4>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T5>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T6>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T7>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).
@@ -2024,7 +2024,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>() && Size > 0;
         }
 
         // A tuple whose item dispatches subtypes dispatches them too (its items' bits).

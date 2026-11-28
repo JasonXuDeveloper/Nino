@@ -418,14 +418,16 @@ internal static class FormatterEmitter
     private static void EmitTypeId(CodeWriter w, TypeModel m)
     {
         if (m.IsGeneric)
-        {
             w.Line($"private static readonly int s_typeId = {Core}NinoTypeId.Of(typeof({m.TypeName}));");
-            w.Line("public int TypeId => s_typeId;");
-            return;
-        }
-
-        w.Line($"public int TypeId => {m.TypeId.ToString(CultureInfo.InvariantCulture)};");
+        w.Line($"public int TypeId => {TypeIdValue(m)};");
     }
+
+    /// <summary>
+    /// The type id of <paramref name="m"/> as generated code reads it inside its formatter: a constant, or for a
+    /// generic type the formatter's <c>s_typeId</c>, computed from the closed type at run time (the model's id is 0).
+    /// </summary>
+    internal static string TypeIdValue(TypeModel m) =>
+        m.IsGeneric ? "s_typeId" : m.TypeId.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     /// <c>BodyTraits</c>: NinoBodyTraits.Nests, Deferrable and Dispatches (a formatter that dispatches its subtypes,

@@ -58,16 +58,17 @@ namespace Nino.Core
 
         /// <summary>
         /// Writes the values of <paramref name="run"/> (not empty, every one in use; the count is the caller's) through
-        /// the flat kernels. Called only where <see cref="HasFlat"/> is true. By reference, as <see cref="WriteRun"/>:
-        /// the kernels copy the writer out of line, so the collection that calls this keeps its own in registers.
+        /// the flat kernels. Called only where <see cref="HasFlat"/> is true. The writer by reference, as
+        /// <see cref="WriteRun"/>, and the run by <c>in</c>: a run passed by value is copied with loads wider than the
+        /// stores that just built it, which the CPU cannot forward.
         /// </summary>
-        void WriteFlat(NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(GetType(), nameof(WriteFlat));
+        void WriteFlat(in NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(GetType(), nameof(WriteFlat));
 
         /// <summary>
         /// Reads the values of <paramref name="run"/> (not empty, values in a row) in place through the flat kernels,
         /// as <see cref="WriteFlat"/>. Called only where <see cref="HasFlat"/> is true.
         /// </summary>
-        void ReadFlat(NinoRun run, ref Reader reader) => NinoThrow.MissingCapability(GetType(), nameof(ReadFlat));
+        void ReadFlat(in NinoRun run, ref Reader reader) => NinoThrow.MissingCapability(GetType(), nameof(ReadFlat));
 
         /// <summary>
         /// The bytes an element of a long array or list brings into the cache (a constant: its object, and a line of
@@ -124,14 +125,11 @@ namespace Nino.Core
         /// <summary>
         /// Writes the values of <paramref name="run"/> (not empty; the count is the caller's) through the string run
         /// kernels (<see cref="NinoItems"/>): one call per run, so in
-        /// code shared over a class only the call is indirect, never a value. The writer by value and returned. Called
+        /// code shared over a class only the call is indirect, never a value. The writer by reference. Called
         /// only where <see cref="HasCursor"/> is true.
         /// </summary>
-        internal Writer WriteStrings(scoped NinoRun run, Writer writer)
-        {
+        internal void WriteStrings(scoped in NinoRun run, ref Writer writer) =>
             NinoThrow.MissingCapability(GetType(), nameof(WriteStrings));
-            return writer;
-        }
 
         /// <summary>
         /// Reads the values of <paramref name="run"/> (not empty, every one in use) in place from the data at
@@ -488,7 +486,7 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is<T, TFormatter>() where TFormatter : INinoFormatter<T> =>
-            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && RawFormatter<T, TFormatter>.Is;
+            !RuntimeHelpers.IsReferenceOrContainsReferences<T>() && RawFormatter<T, TFormatter>.Is;
     }
 
     /// <summary>

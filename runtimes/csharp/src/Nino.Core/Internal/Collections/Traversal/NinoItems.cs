@@ -16,7 +16,7 @@ namespace Nino.Core.Internal
     /// per run by JIT-time constants (a string by its formatter's type, a slot's value, a value read as one), outside the
     /// loop: a pair in static methods (<see cref="Write{TA,TB,TFormatterA,TFormatterB}"/>), which code shared over a
     /// class inlines whole, a composite of three items or more through a plan of its items
-    /// (<see cref="NinoItemPlan{T,TFormatter,TNext}"/> ... <see cref="NinoItemPlanEnd"/>, <see cref="Write{T,TFormatter,TNext}(NinoRun, NinoItemPlan{T,TFormatter,TNext}, Writer)"/>),
+    /// (<see cref="NinoItemPlan{T,TFormatter,TNext}"/> ... <see cref="NinoItemPlanEnd"/>, <see cref="Write{T,TFormatter,TNext}(NinoRun, NinoItemPlan{T,TFormatter,TNext}, ref Writer)"/>),
     /// one call per node and run where code is shared over a class: the one place items are picked twice;</item>
     /// <item>the run loop of a polymorphic item (<see cref="RunLoop{TA,TB,TFormatterA,TFormatterB}"/>): a composite of
     /// two items whose second is a polymorphic base's with a run loop, the first written by that loop as a key
@@ -62,39 +62,41 @@ namespace Nino.Core.Internal
         /// constants in static methods, which code shared over a class item inlines whole.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Writer Write<TA, TB, TFormatterA, TFormatterB>(scoped NinoRun run, int a, int b, Writer writer)
+        public static void Write<TA, TB, TFormatterA, TFormatterB>(scoped in NinoRun run, int a, int b, ref Writer writer)
             where TFormatterA : struct, INinoFormatter<TA>
             where TFormatterB : struct, INinoFormatter<TB>
         {
             if (typeof(TFormatterA) == typeof(StringFormatter))
-                return WriteSecond<NinoUtf16Item, TB, TFormatterB>(run, a, b, writer);
-            if (typeof(TFormatterA) == typeof(Utf8StringFormatter))
-                return WriteSecond<NinoUtf8Item, TB, TFormatterB>(run, a, b, writer);
-            if (NinoKind.Of<TA, TFormatterA>() == NinoElementKind.Slot)
-                return WriteSecond<NinoSlotItem<TA, TFormatterA, NinoMemorySize<TA>>, TB, TFormatterB>(run, a, b, writer);
-            if (NinoKind.Of<TA, TFormatterA>() == NinoElementKind.Block)
-                return WriteSecond<NinoValueItem<TA, TFormatterA>, TB, TFormatterB>(run, a, b, writer);
-            if (typeof(TA) == typeof(bool))
-                return WriteSecond<NinoBoolItem, TB, TFormatterB>(run, a, b, writer);
-            return WriteSecond<NinoStructItem<TA>, TB, TFormatterB>(run, a, b, writer);
+                WriteSecond<NinoUtf16Item, TB, TFormatterB>(run, a, b, ref writer);
+            else if (typeof(TFormatterA) == typeof(Utf8StringFormatter))
+                WriteSecond<NinoUtf8Item, TB, TFormatterB>(run, a, b, ref writer);
+            else if (NinoKind.Of<TA, TFormatterA>() == NinoElementKind.Slot)
+                WriteSecond<NinoSlotItem<TA, TFormatterA, NinoMemorySize<TA>>, TB, TFormatterB>(run, a, b, ref writer);
+            else if (NinoKind.Of<TA, TFormatterA>() == NinoElementKind.Block)
+                WriteSecond<NinoValueItem<TA, TFormatterA>, TB, TFormatterB>(run, a, b, ref writer);
+            else if (typeof(TA) == typeof(bool))
+                WriteSecond<NinoBoolItem, TB, TFormatterB>(run, a, b, ref writer);
+            else
+                WriteSecond<NinoStructItem<TA>, TB, TFormatterB>(run, a, b, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Writer WriteSecond<TItemA, TB, TFormatterB>(scoped NinoRun run, int a, int b, Writer writer)
+        private static void WriteSecond<TItemA, TB, TFormatterB>(scoped in NinoRun run, int a, int b, ref Writer writer)
             where TItemA : struct, INinoItem
             where TFormatterB : struct, INinoFormatter<TB>
         {
             if (typeof(TFormatterB) == typeof(StringFormatter))
-                return NinoStringRuns.Write(run, Of<TItemA, NinoUtf16Item>(a, b), writer);
-            if (typeof(TFormatterB) == typeof(Utf8StringFormatter))
-                return NinoStringRuns.Write(run, Of<TItemA, NinoUtf8Item>(a, b), writer);
-            if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Slot)
-                return NinoStringRuns.Write(run, Of<TItemA, NinoSlotItem<TB, TFormatterB, NinoMemorySize<TB>>>(a, b), writer);
-            if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Block)
-                return NinoStringRuns.Write(run, Of<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), writer);
-            if (typeof(TB) == typeof(bool))
-                return NinoStringRuns.Write(run, Of<TItemA, NinoBoolItem>(a, b), writer);
-            return NinoStringRuns.Write(run, Of<TItemA, NinoStructItem<TB>>(a, b), writer);
+                NinoStringRuns.Write(run, Of<TItemA, NinoUtf16Item>(a, b), ref writer);
+            else if (typeof(TFormatterB) == typeof(Utf8StringFormatter))
+                NinoStringRuns.Write(run, Of<TItemA, NinoUtf8Item>(a, b), ref writer);
+            else if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Slot)
+                NinoStringRuns.Write(run, Of<TItemA, NinoSlotItem<TB, TFormatterB, NinoMemorySize<TB>>>(a, b), ref writer);
+            else if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Block)
+                NinoStringRuns.Write(run, Of<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), ref writer);
+            else if (typeof(TB) == typeof(bool))
+                NinoStringRuns.Write(run, Of<TItemA, NinoBoolItem>(a, b), ref writer);
+            else
+                NinoStringRuns.Write(run, Of<TItemA, NinoStructItem<TB>>(a, b), ref writer);
         }
 
         /// <summary>
@@ -165,13 +167,13 @@ namespace Nino.Core.Internal
         /// <see cref="INinoFormatter.WriteStrings"/> of a value tuple of three items or more.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Writer Write<T, TFormatter, TNext>(scoped NinoRun run, NinoItemPlan<T, TFormatter, TNext> plan,
-            Writer writer)
+        public static void Write<T, TFormatter, TNext>(scoped in NinoRun run, NinoItemPlan<T, TFormatter, TNext> plan,
+            ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
             where TNext : struct, INinoItemPlan =>
-            plan.WriteLast(run, writer);
+            plan.WriteLast(run, ref writer);
 
-        /// <summary>As <see cref="Write{T,TFormatter,TNext}(NinoRun, NinoItemPlan{T,TFormatter,TNext}, Writer)"/>, the read in place: <see cref="INinoFormatter.ReadStrings"/>.</summary>
+        /// <summary>As <see cref="Write{T,TFormatter,TNext}(NinoRun, NinoItemPlan{T,TFormatter,TNext}, ref Writer)"/>, the read in place: <see cref="INinoFormatter.ReadStrings"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Read<T, TFormatter, TNext>(scoped NinoRun run, NinoItemPlan<T, TFormatter, TNext> plan,
             ref byte data, int end)
@@ -210,7 +212,7 @@ namespace Nino.Core.Internal
     internal interface INinoItemPlan
     {
         /// <summary>Writes the run, each element this plan's items then <paramref name="tail"/>.</summary>
-        Writer Write<TTail>(scoped NinoRun run, TTail tail, Writer writer) where TTail : struct, INinoItem;
+        void Write<TTail>(scoped in NinoRun run, TTail tail, ref Writer writer) where TTail : struct, INinoItem;
 
         /// <summary>Reads the run in place, each element this plan's items then <paramref name="tail"/>; returns the
         /// bytes read. Not generic over a store: a second type parameter of a node's method cost an instantiating stub
@@ -225,8 +227,8 @@ namespace Nino.Core.Internal
     internal readonly struct NinoItemPlanEnd : INinoItemPlan
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Writer Write<TTail>(scoped NinoRun run, TTail tail, Writer writer) where TTail : struct, INinoItem =>
-            NinoStringRuns.Write(run, tail, writer);
+        public void Write<TTail>(scoped in NinoRun run, TTail tail, ref Writer writer) where TTail : struct, INinoItem =>
+            NinoStringRuns.Write(run, tail, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Read<TTail>(scoped NinoRun run, TTail tail, ref byte data, int end)
@@ -258,39 +260,41 @@ namespace Nino.Core.Internal
         // call per node and run (asm.py: List<(string, int, string)>'s first node 225 to 371 bytes, an instantiating
         // stub).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Writer Write<TTail>(scoped NinoRun run, TTail tail, Writer writer) where TTail : struct, INinoItem
+        public void Write<TTail>(scoped in NinoRun run, TTail tail, ref Writer writer) where TTail : struct, INinoItem
         {
             var at = new NinoOffset(_at);
             if (typeof(TFormatter) == typeof(StringFormatter))
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoUtf16Item, TTail>(at, tail), writer);
-            if (typeof(TFormatter) == typeof(Utf8StringFormatter))
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoUtf8Item, TTail>(at, tail), writer);
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter, NinoMemorySize<T>>, TTail>(at, tail),
-                    writer);
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Block)
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>, TTail>(at, tail), writer);
-            if (typeof(T) == typeof(bool))
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoBoolItem, TTail>(at, tail), writer);
-            return _next.Write(run, new NinoItemAt<NinoOffset, NinoStructItem<T>, TTail>(at, tail), writer);
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoUtf16Item, TTail>(at, tail), ref writer);
+            else if (typeof(TFormatter) == typeof(Utf8StringFormatter))
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoUtf8Item, TTail>(at, tail), ref writer);
+            else if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter, NinoMemorySize<T>>, TTail>(at, tail),
+                    ref writer);
+            else if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Block)
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>, TTail>(at, tail), ref writer);
+            else if (typeof(T) == typeof(bool))
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoBoolItem, TTail>(at, tail), ref writer);
+            else
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoStructItem<T>, TTail>(at, tail), ref writer);
         }
 
         /// <summary>The composite's last item (the plan's first node): the chain's last item, which has no next.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Writer WriteLast(scoped NinoRun run, Writer writer)
+        public void WriteLast(scoped in NinoRun run, ref Writer writer)
         {
             var at = new NinoOffset(_at);
             if (typeof(TFormatter) == typeof(StringFormatter))
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoUtf16Item>(at), writer);
-            if (typeof(TFormatter) == typeof(Utf8StringFormatter))
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoUtf8Item>(at), writer);
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter, NinoMemorySize<T>>>(at), writer);
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Block)
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>>(at), writer);
-            if (typeof(T) == typeof(bool))
-                return _next.Write(run, new NinoItemAt<NinoOffset, NinoBoolItem>(at), writer);
-            return _next.Write(run, new NinoItemAt<NinoOffset, NinoStructItem<T>>(at), writer);
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoUtf16Item>(at), ref writer);
+            else if (typeof(TFormatter) == typeof(Utf8StringFormatter))
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoUtf8Item>(at), ref writer);
+            else if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoSlotItem<T, TFormatter, NinoMemorySize<T>>>(at), ref writer);
+            else if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Block)
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoValueItem<T, TFormatter>>(at), ref writer);
+            else if (typeof(T) == typeof(bool))
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoBoolItem>(at), ref writer);
+            else
+                _next.Write(run, new NinoItemAt<NinoOffset, NinoStructItem<T>>(at), ref writer);
         }
 
         /// <summary>As <see cref="WriteLast"/>, the read in place.</summary>

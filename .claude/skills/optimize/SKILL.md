@@ -170,10 +170,10 @@ says which CPUs and cases moved.
   `INinoAdder` of `NinoGather.Adds`; the string kernels keep their own inline adds (`SetAdds`, `KeyAdds`, ...: a store
   generic over the table is an indirect call per entry in code shared over a class, and the set's measured 1.1 times
   as long through one). The dictionary's
-  out-of-line write computes the key and value offsets from `MapEntry` and calls the by-value loops
-  (`NinoRuns.WriteEach`, `NinoItems.Write`, writer by value and returned): the shared `NinoRuns.WriteEntries`
-  inlined its loop on that method's writer parameter, which then lived in memory (`Dictionary<string, int>` WriteEntries
-  36 to 54 stack accesses; by value 36 to 30). Compute an in-use test from the entry's own fields' distances
+  out-of-line write computes the key and value offsets from `MapEntry` and calls the loops on its own writer, a
+  copy of the caller's cursor (`CopyCursorTo` in and out; the store-forwarding rule below): the shared
+  `NinoRuns.WriteEntries` inlined its loop on that method's writer parameter, which then lived in memory
+  (`Dictionary<string, int>` WriteEntries 36 to 54 stack accesses; by value 36 to 30). Compute an in-use test from the entry's own fields' distances
   (`CollectionFields.InUse`), never from a static of a generic class: one not initialized when Tier1 compiles the caller
   is a helper call that spilled the set's write (`HashSet<int>` serialize 958 to 1,120 bytes, 40 to 57 stack accesses).
   Decide the string run kernels' path in the caller from the item
@@ -182,13 +182,13 @@ says which CPUs and cases moved.
   and 86; reverted). In the read, a shared entry formatter's block test costs nothing more: `NinoKind.Of` is behind
   the no-references guard; the `Dictionary<int, Base>` read shim grew 92 to 167 bytes (a reader copied into the
   out-of-line `NinoEntries.ReadEach`, plus the method's generic lookup) with one copy of the reader instead of two.
-  The entries' write (`NinoDictionary.WriteEntries`: the run, then the loop) is out of line with the writer by value,
+  The entries' write (`NinoDictionary.WriteEntries`: the run, then the loop) is out of line on a copy of the cursor,
   one call per dictionary: inlined, its tests (`NinoItems.RunLoop`, the cursor pair test, the run) spent the budget of a
   generated body holding two dictionaries, which then called it with the writer by ref and compiled both loops of the
   other (asm.py: a `Lookup`'s top-level write 107 to 189 stack accesses, 149 out of line, in 27 % less code). Entries
-  without references (raw or block items) stay inline; with them smaller, a `Lookup`'s whole top-level write is
-  inlined into both loops of `NinoRuns.Write` (1,231 to 2,010 bytes, 94 to 103 stack accesses, no call per element;
-  the case 138 to 112). Compose recycling as the cursor form is: a collection that drops elements recycles them with
+  without references (raw or block items) take the same call (#355's fix: inline they spent generated bodies' budgets,
+  SimpleClass's `__WriteTop` 112 to 159 stack accesses with a class-init helper call); `BclTypesTest.NinoSerializeLookup`
+  wrote in 0.86 times main's time, `IntDictionary` 0.995 (local, alternated). Compose recycling as the cursor form is: a collection that drops elements recycles them with
   `NinoRecycler.MayRecycle<T, TFormatter>` / `Recycle` / `DiscardAll<T, TFormatter>`, and a composite's items through
   its formatter's internal `RecyclesItems` / `ItemsMayRecycle` / `RecycleItems` (pairs, value tuples, entries), never a
   per-collection pair walk (`DiscardPairs` went). Keep the walk over dropped elements and a composite's may-recycle test
@@ -339,6 +339,20 @@ says which CPUs and cases moved.
   writer (through `NinoGather.Write`'s call, the writer's copies made 1,000 pairs 1.1 to 1.15 times as long to write),
   as four lines of its own: that step as a helper inlined into `NinoGather.Write` too kept every enumerated gather's
   source in memory (asm.py: 57 to 65 stack accesses by value, 60 to 65 by reference).
+- **Pass a run by `in` and a writer or reader by `ref`; never copy a struct by value right after storing its fields.**
+  A `NinoRun` (a ref and four ints) or a `Writer` passed or returned by value is copied with 16- to 32-byte loads just
+  after the narrow stores that built it, which the CPU cannot forward: each copy waits for those stores to retire (a
+  store-forwarding stall). #423's string run and dictionary paths did that at every level (`NinoStringRuns`,
+  `NinoItems`, `NinoDictionary.WriteEntries`, the flat hooks): Players serialized in 2.03 times main's time, SimpleClass
+  1.29, MediaContent 1.48, a top-level `Dictionary<int, string>` of 1 entry 1.51; with the run by `in`, the inline
+  entry on the caller's `ref Writer` and a copy of the cursor alone (`CopyCursorTo` in and out) around the one call out
+  of line, 1.16, 1.12, 1.05 and 0.87 (local x64, alternated). Copy the cursor, not the whole writer (`CopyTo` of both
+  took SimpleClass's `__WriteTop` from 78 to 194 stack accesses). Find it with `perf script -F ip,sym,symoff` against
+  `DOTNET_JitDisasmWithCodeBytes` offsets: a hot wide load at a method's entry right after the caller's stores.
+- **Never compare a generic `T` with `null` where `T` may be a `Nullable<U>` on a hot path.** The JIT boxed it per call
+  in `HashTables.Hash` (inlined into every set's fill): NullableHashSetInts deserialized in 15 times main's time; testing
+  the constant first (`!set && key == null`: a set hashes its null through the comparer, as 0) removed the box. The no-boxing rule
+  is the owner's: no box anywhere.
 - **Reach a generated class's members from a kernel through one accessor struct per member, never through a static
   field or table** (#355, the generator seam; `FlatEmitter`, `NinoFlat<TLayout, TBody>`). A flat class (raw members,
   bools, strings) is one chain of items nested in type arguments, each item's member a `readonly struct` whose
@@ -361,9 +375,15 @@ says which CPUs and cases moved.
   `NinoMemorySize<T>` in Nino.Core's composites), never `NinoKind<T, TFormatter>.Stride` read per element, which folds
   only where Tier1 compiles the loop after the class was initialized (838cf84c: at TC=0 NullableFields' `MaxSize` became
   the literal 74; what still calls helpers there is `UnmanagedNullableFormatter`'s reads of `NinoLayout<T>` statics). Read the run's startup check (`__Check`, block placement and Untrusted's `ReadsAsIs`) once per
-  call in the hook and pick a chain there, never per element. Keep runs under `NinoFlatRuns.MinRun` (16) element by
-  element: a run's fixed cost (about 30 ns: entry, the check, the loop's setup) made a 2-element array 2.2 times as
-  long to write and WorkloadTest's `MediaContent` 1.64. One body's write never takes the block chain (a block's copy
+  call in the hook and pick a chain there, never per element. Send every class's run to the kernels, one element
+  included, with an entry as cheap as the loop: the run by `in` and the writer or reader by `ref` from the hook
+  (`WriteFlat`/`ReadFlat`) through `NinoFlat` to `NinoFlatRuns.WriteRun`/`ReadRun` (inlined there), never by value.
+  With both by value through each level, a run's fixed cost made a 2-element array 2.2 times as long to write and
+  WorkloadTest's `MediaContent` 1.64, so runs under 16 (`MinRun`, now a flat struct's only, rule (6) below) went
+  element by element; by reference a `List<Image>` of 1, 3, 16 and 32 wrote in 1.05, 1.02, 0.90 and 0.95 times the
+  time element by element and read in 1.04, 0.99, 0.94 and 0.95 (local, alternated, #355). Short runs reaching the
+  kernels showed that a class nested in a generic one wrote type id 0 in the typed kernels (its layout printed the
+  model's id, not `s_typeId`). One body's write never takes the block chain (a block's copy
   pays off in runs) and keeps the sealed class's `__WriteTop` twin: without it one value wrote in 1.11 times the
   base's time, with it 0.88. Read one body member by member (`BodyEmitter`), never through the chain: through it a
   body inlined into a polymorphic dispatch kept more on the stack (ChatMessage's `ReadBody` 14 to 33 stack accesses,

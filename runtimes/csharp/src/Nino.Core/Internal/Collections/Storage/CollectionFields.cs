@@ -116,12 +116,12 @@ namespace Nino.Core.Internal
         {
             private static PairMirror<TKey, TValue> s_pair;
 
-            public static readonly int Key = !NinoUnsafe.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
+            public static readonly int Key = !RuntimeHelpers.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
                 ? NinoBlocks.Find(Unsafe.SizeOf<TKey>(),
                     () => new KeyValuePair<TKey, TValue>(NinoBlocks.Marked<TKey>(), default))
                 : PairLayout.Mirrors ? NinoBlocks.Offset(ref s_pair, ref s_pair.Key) : -1;
 
-            public static readonly int Value = !NinoUnsafe.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
+            public static readonly int Value = !RuntimeHelpers.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>()
                 ? NinoBlocks.Find(Unsafe.SizeOf<TValue>(),
                     () => new KeyValuePair<TKey, TValue>(default, NinoBlocks.Marked<TValue>()))
                 : PairLayout.Mirrors ? NinoBlocks.Offset(ref s_pair, ref s_pair.Value) : -1;
