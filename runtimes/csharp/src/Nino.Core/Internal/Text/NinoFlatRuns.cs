@@ -127,7 +127,7 @@ namespace Nino.Core.Internal
                 from = run.Count - entries;
                 if (entries == 0)
                     break;
-                int room = NinoStringRuns.RoomFor(run, default(TItem), from);
+                int room = NinoStringRuns.RoomFor(default(TItem), ref Unsafe.Add(ref run.First, (nint)from * run.Stride));
                 if (room == int.MinValue)
                     break; // Leave
                 writer.Ensure(room);
@@ -140,14 +140,16 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ulong WriteFitting<TItem>(scoped in NinoRun run, int next, ref byte destination, int available)
             where TItem : struct, INinoItem =>
-            NinoStringRuns.WriteFitting(run, default(TItem), next, ref destination, available, NinoRun.AllInUse);
+            NinoStringRuns.WriteFitting(ref run.First, run.Count, run.Stride, NinoRun.AllInUse, default(TItem), next,
+                ref destination, available);
 
         /// <summary>As <see cref="WriteFitting{TItem}"/>, skipping free entries (a set's or a dictionary's structs).
         /// Its own copy of the loop, compiled only where such a run is written.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ulong WriteSkipping<TItem>(scoped in NinoRun run, int next, ref byte destination, int available)
             where TItem : struct, INinoItem =>
-            NinoStringRuns.WriteFitting(run, default(TItem), next, ref destination, available, run.InUse);
+            NinoStringRuns.WriteFitting(ref run.First, run.Count, run.Stride, run.InUse, default(TItem), next,
+                ref destination, available);
 
         /// <summary>As <see cref="WriteRun{T,TFormatter,TItem}"/>, the read in place (values in a row).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

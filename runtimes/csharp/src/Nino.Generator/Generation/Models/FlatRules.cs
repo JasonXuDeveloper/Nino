@@ -168,11 +168,62 @@ internal static class FlatRules
                 i++, 1, property));
         }
 
+        // Past the JIT's locals, the heaviest nested bodies read out of line, one at a time (#456).
+        int locals = Locals(items, nested, format);
+        while (locals > MaxLocals)
+        {
+            int heaviest = -1;
+            for (int i = 0; i < items.Count; i++)
+                if (items[i].Kind == FlatItemKind.Nested && !items[i].Called &&
+                    (heaviest < 0 || nested[items[i].Member]!.Locals > nested[items[heaviest].Member]!.Locals))
+                    heaviest = i;
+            if (heaviest < 0)
+                break;
+            items[heaviest] = items[heaviest] with { Called = true };
+            locals = Locals(items, nested, format);
+        }
+
         int levels = Levels(items, members, nested, format);
         return levels <= MaxItems
             ? new FlatModel(new EquatableArray<FlatItem>(items.ToArray()), valueType, generic, format, depth, levels,
-                kind == FormatterKind.SealedClass, nestOnly)
+                kind == FormatterKind.SealedClass, nestOnly, locals)
             : null;
+    }
+
+    /// <summary>
+    /// The most locals a chain's read inlined whole may take (<see cref="FlatModel.Locals"/>), in the units of
+    /// <see cref="Locals"/>: past it, nested bodies read out of line (Nino.Core's NinoReadCall), each its own root for
+    /// the JIT. The JIT stops inlining into a root once its locals, every inlinee's temporaries included, reach its
+    /// limit (MAX_LV_NUM_COUNT_FOR_INLINING), and the rest of each element was calls: Comment (two ShallowUsers each
+    /// nesting BadgeCount, about 98 here) failed 12 inlines in NinoFlatRuns.Read at Tier1, ShallowUser (36) none.
+    /// </summary>
+    public const int MaxLocals = 64;
+
+    /// <summary>
+    /// The locals a chain of <paramref name="items"/> takes once its read is inlined whole, roughly in proportion to
+    /// what the JIT counts: a string's read the most (its lengths, its allocation and the transcoding), a raw
+    /// <c>T?</c>'s less, a raw value or a block least, a nested body its element item's and its own (or a call's,
+    /// read out of line), and a wrapper per member in a version-tolerant or keyed body; over both chains (the blocks',
+    /// and the fields' with a block's members one by one), the larger.
+    /// </summary>
+    private static int Locals(List<FlatItem> items, FlatModel?[] nested, NinoFormat format)
+    {
+        int wrapper = format == NinoFormat.Positional ? 0 : 2;
+        int blocks = 0, fields = 0;
+        foreach (var item in items)
+        {
+            int weight = item.Kind switch
+            {
+                FlatItemKind.String or FlatItemKind.Utf8 => 6,
+                FlatItemKind.Slot => 4,
+                FlatItemKind.Nested => item.Called ? 2 : 4 + nested[item.Member]!.Locals,
+                _ => 2,
+            };
+            blocks += weight + wrapper;
+            fields += (item.Kind == FlatItemKind.Block ? item.Count * 2 : weight) + wrapper;
+        }
+
+        return System.Math.Max(blocks, fields);
     }
 
     /// <summary>The most parts of a group of a chain (Nino.Core's NinoGroup of two to four).</summary>

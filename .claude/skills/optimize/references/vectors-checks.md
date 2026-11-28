@@ -147,7 +147,17 @@ ranges](#value-ranges).
   loops. The copy loop is 204 B on Arm64 and 222/225/262 B offline x64 at 128/256/512 bits. Four focused M4 pairs
   improved fresh DateTime, DateOnly and a 12-byte mixed record at equal allocation. DateTime near 64 KiB took 9–29%
   less time across offsets zero and seven. Reuse varied. All 120 wire samples and three generated files matched; the
-  guarded and stale-memory probes passed (`a5812f25`).
+  guarded and stale-memory probes passed (`a5812f25`). Give every collection that kernel, never one formatter: it
+  is `NinoChecks.CopyValues` (bools through `TryCopyBools`, the rest through `NinoValueChecks.TryCopy`), reached from
+  `NinoRuns.Read`'s raw branch, `Reader.ReadUnmanagedRaw` and the raw array and list formatters, with `fresh` passed
+  by the caller that knows its storage is unpublished (a new array or list, an empty Queue's or Stack's slots past
+  its count, rented and gathered chunks); existing values keep the check-then-copy, so a rejected read leaves them
+  as they were. Why: only `T[]` had it, and `List<T>` paid two passes. Evidence (#462): UntrustedTest's
+  `List<CheckedSample>` of 1,000 (24 bytes, one pass) read in 2,244-2,795 ns (median 2,423) against the base's
+  2,847-3,328 (median 3,014), MemoryPack 2,410-2,886 in the same processes: 1.20 times MemoryPack's time before,
+  0.97 after (local Xeon Emerald Rapids, six alternated processes a side, server GC, in-process loop). It gained on
+  this Intel CPU too, where Memmove's line writes beat vector stores into a new array for a plain copy
+  (`NinoUnsafe.CopyToNew`): the second pass over the data cost more than the stores' line reads.
 - Fold a sign-only pass into a preceding pass of the same lane width after the original density check. Reopening
   vector eligibility for formerly scalar TimeOnly layouts regressed first use. On x64, bound the low bits and OR the
   masked value to preserve its sign test. On Arm64, use the native unsigned `cmhi` for every wider lane and keep a run

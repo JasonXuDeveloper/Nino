@@ -336,6 +336,48 @@ namespace Nino.Core.Internal
             }
         }
 
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// The fewest bytes of a run of new storage that <see cref="CopyValues{T}"/> checks while it copies: below, a
+        /// check pass and a copy cost no more than building and dispatching the vector loop.
+        /// </summary>
+        internal const int MinFusedBytes = 4096;
+#endif
+
+        /// <summary>
+        /// The raw-run kernel of values Nino checks (<see cref="NinoLayout{T}.CopiesAsIs"/> false, a canonical layout:
+        /// bools, and Untrusted mode's fields): copies the <paramref name="count"/> values (not 0) at
+        /// <paramref name="source"/> to <paramref name="destination"/>, and throws <see cref="NinoDataException"/> where
+        /// one is invalid. Every collection that reads raw values reads them here (<see cref="NinoRuns"/>' raw branch,
+        /// <see cref="Reader.ReadUnmanagedRaw{T}(Span{T})"/>, the raw array and list formatters).
+        /// Into <paramref name="fresh"/> storage (new, and published by the caller only once the read returns), runs of
+        /// at least <see cref="MinFusedBytes"/> are checked while they are copied, one pass over the data where it has
+        /// a vector form (bools; <see cref="NinoValueChecks.TryCopy"/>): what a rejected run left there is never seen.
+        /// Into storage that holds values (a reused array or list), the data is checked first and then copied, so a
+        /// rejected read leaves those values as they were. Out of line: rare, and the checks are large.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static void CopyValues<T>(ref byte destination, ref byte source, int count, bool fresh)
+        {
+            uint bytes = (uint)count * (uint)Unsafe.SizeOf<T>();
+#if NET8_0_OR_GREATER
+            // A failed fused copy (invalid data, or a layout without one vector pass) falls through: the check below
+            // finds and names the invalid value.
+            if (fresh && bytes >= MinFusedBytes && (typeof(T) == typeof(bool)
+                    ? Vector128.IsHardwareAccelerated && TryCopyBools(ref destination, ref source, (int)bytes)
+                    : NinoLayout<T>.Checks is { } checks &&
+                      checks.TryCopy(ref source, ref destination, (int)bytes, Unsafe.SizeOf<T>())))
+                return;
+#endif
+            Values<T>(ref source, count, Unsafe.SizeOf<T>());
+#if NET8_0_OR_GREATER
+            if (Unsafe.SizeOf<T>() == 1 && NinoUnsafe.IsArm64Short(bytes))
+                NinoUnsafe.CopyArm64ShortMayOverlap(ref destination, ref source, bytes);
+            else
+#endif
+                NinoUnsafe.CopyToNew(ref destination, ref source, bytes);
+        }
+
         /// <summary>
         /// <paramref name="value"/>, after its fields of <see cref="NinoLayout{T}.Checks"/> are checked (generated code,
         /// in <see cref="NinoSettings.Untrusted"/> mode). By value: the caller's copy never has its address taken.

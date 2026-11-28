@@ -172,14 +172,22 @@ public class StrictReadTests
         foreach (byte b in new byte[] { 2, 0x80, 0xFF })
         {
             Invalid<bool>(new[] { b });
-            // In a block, at the start, in the middle (past the first 8 and 16) and at the end.
-            foreach (int length in new[] { 1, 9, 33, 100, 4097 })
+            // In a block, at the start, in the middle (past the first 8 and 16) and at the end; from 4,096 bytes new
+            // storage is checked while copied (NinoChecks.CopyValues), an existing list's checked first.
+            foreach (int length in new[] { 1, 9, 33, 100, 4096, 4097 })
             foreach (int at in new[] { 0, length / 2, length - 1 })
             {
                 var block = new byte[length];
                 block[at] = b;
-                Invalid<bool[]>(Concat(Ints(length), block));
-                Invalid<List<bool>>(Concat(Ints(length), block));
+                var data = Concat(Ints(length), block);
+                Invalid<bool[]>(data);
+                Invalid<List<bool>>(data);
+                Invalid<Queue<bool>>(data);
+                Invalid<Stack<bool>>(data);
+                Invalid<ArraySegment<bool>>(data);
+                var existing = Enumerable.Repeat(true, length).ToList();
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(data, ref existing));
+                Assert.IsTrue(existing.TrueForAll(v => v), "a rejected read changed an existing list");
             }
 
             Invalid<Dictionary<int, bool>>(Concat(Ints(1, 5), new[] { b }));
