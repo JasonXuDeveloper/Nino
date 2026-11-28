@@ -487,8 +487,9 @@ says which CPUs and cases moved.
   constant once the class is initialized (a static found on first use instead kept a load, a call and the recycling
   of a value known to be default in every top-level read of a `ManagedStruct?`, 657 -> 932 bytes, and
   `Nullable<T>.Equals(object)` boxed nothing but stayed a call, `HashTables.Hash<int?>` 1 -> 6 stack accesses); where the
-  class is not yet initialized when the caller compiles, a class-init helper remains (`HashTables.Link<int?>`'s cold
-  hashed walk, 24 -> 57 stack accesses). In a Debug build, which CI's tests run, `default(T) != null` is a real box
+  class is not yet initialized when the caller compiles, a class-init helper remains, so a null test on a branch that
+  may not run at Tier0 gets a read of `NinoPresence<T>.Offset` on one that does (`HashTables.Hash`: without it
+  `Link<int?>` went 24 -> 59 stack accesses). In a Debug build, which CI's tests run, `default(T) != null` is a real box
   (24 B per `int` key of a `Dictionary<int, int?>` read), so Debug asks the offset (-1 for any other type) instead.
   `== null`: on a `T?` the JIT
   removes that box only where the boxed value has no side effects, and .NET 11's JIT kept it in an inlined call (#449: `HashTables.Hash` boxed every non-null `int?` of a
