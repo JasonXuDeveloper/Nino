@@ -465,6 +465,13 @@ namespace Nino.Core
         internal virtual void WriteRun(NinoRun run, ref Writer writer) =>
             NinoThrow.MissingCapability(typeof(T), nameof(WriteRun));
 
+        /// <summary><see cref="INinoFormatter.HasReadRun"/> of the wrapped struct formatter, as <see cref="HasRunLoop"/>.</summary>
+        internal virtual bool HasReadRun => false;
+
+        /// <summary><see cref="INinoFormatter.ReadRun"/> of the wrapped struct formatter, as <see cref="HasRunLoop"/>.</summary>
+        internal virtual void ReadRun(in NinoRun run, ref Reader reader) =>
+            NinoThrow.MissingCapability(typeof(T), nameof(ReadRun));
+
         /// <summary><see cref="INinoFormatter.HasFlat"/> of the wrapped struct formatter, as <see cref="HasRunLoop"/>.</summary>
         internal virtual bool HasFlat => false;
 
@@ -563,6 +570,11 @@ namespace Nino.Core
 
         internal sealed override void WriteRun(NinoRun run, ref Writer writer) =>
             default(TFormatter).WriteRun(run, ref writer);
+
+        internal sealed override bool HasReadRun => NinoKind<TFormatter>.ReadRuns;
+
+        internal sealed override void ReadRun(in NinoRun run, ref Reader reader) =>
+            default(TFormatter).ReadRun(in run, ref reader);
 
         internal sealed override bool HasFlat => NinoKind<TFormatter>.Flat;
 
@@ -693,8 +705,8 @@ namespace Nino.Core
     /// for type parameters and types whose formatter is only known at run time. Tier1 code calls (and inlines) the
     /// formatter directly where <typeparamref name="T"/> is exact (<see cref="NinoTopFormatter{T}"/>); shared generic
     /// code and AOT runtimes make one virtual call. A run of a collection's values goes to the formatter's run hooks
-    /// where it has them (a polymorphic base's loop, a flat type's kernels: <see cref="INinoFormatter.HasRunLoop"/>,
-    /// <see cref="INinoFormatter.HasFlat"/>), one virtual call per run (#440).
+    /// where it has them (a polymorphic base's loops, a flat type's kernels: <see cref="INinoFormatter.HasRunLoop"/>,
+    /// <see cref="INinoFormatter.HasReadRun"/>, <see cref="INinoFormatter.HasFlat"/>), one virtual call per run (#440).
     /// </summary>
     public struct CachedFormatter<T> : INinoFormatter<T>
     {
@@ -712,6 +724,11 @@ namespace Nino.Core
 
         void INinoFormatter.WriteRun(NinoRun run, ref Writer writer) =>
             NinoTopFormatter<T>.Formatter.WriteRun(run, ref writer);
+
+        bool INinoFormatter.HasReadRun => NinoTopFormatter<T>.Formatter.HasReadRun;
+
+        void INinoFormatter.ReadRun(in NinoRun run, ref Reader reader) =>
+            NinoTopFormatter<T>.Formatter.ReadRun(in run, ref reader);
 
         bool INinoFormatter.HasFlat => NinoTopFormatter<T>.Formatter.HasFlat;
 
