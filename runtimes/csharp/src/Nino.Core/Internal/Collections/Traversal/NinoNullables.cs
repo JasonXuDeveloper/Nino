@@ -442,7 +442,8 @@ namespace Nino.Core
         /// runs Nino writes after a count are 4 bytes off the grid, and a quarter of their 16-byte stores split a line.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void CopySpreadRealigned(ref byte destination, ref byte source, nuint total, byte head)
+        private static void CopySpreadRealigned(ref byte destination, ref byte source, nuint total,
+            [System.Diagnostics.CodeAnalysis.ConstantExpected(Min = 1, Max = 15)] byte head)
         {
             var spread = SpreadFlags;
             ref byte start = ref destination;
