@@ -369,7 +369,10 @@ internal static class DispatchEmitter
     /// read as <c>Deserialize</c> reads one, in a loop of this non-generic class with the switch inline. Over a type
     /// argument holding a class the base formatter is shared generic code, where each value took a runtime lookup for
     /// <c>Deserialize</c>, the selection of this class through the generic context, then the case's calls (#441); the
-    /// base formatter's <c>ReadRun</c> selects this loop once per collection instead.
+    /// base formatter's <c>ReadRun</c> selects this loop once per collection instead. Each case reads the subtype's
+    /// body inline (<c>NinoObject.ReadExactShallow</c>: one call per value, the body's), not through
+    /// <c>__ReadExactN</c>: the loop calling <c>__ReadSubtype</c> per value read 1,000 ProbeBox&lt;(ProbeOpenItem,
+    /// int)&gt; in LuminPack/Nino 0.95 against 0.99 inline (base 0.82; local x64, Tier1, 6 rounds).
     /// </summary>
     private static void EmitReadRun(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
     {
