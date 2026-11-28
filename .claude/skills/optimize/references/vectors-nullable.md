@@ -202,6 +202,21 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   same uops and reads a flag byte above 1 as absent where the copy reads it as present; masked stores
   (`vmovdqu8 {k}`) cannot skip absent lanes, the destination holds garbage that must become zeros. The JIT does
   not fold `Equals(x & m, 0)` into a two-operand `vptestmq x, m`. Arm64 timing: runners only (listings under qemu).
+  Measured again and not kept (#270 stream, kernel harness, Xeon Emerald Rapids, 1,000 `long?` at a destination 4
+  bytes past an 8-byte boundary, minimum of five): the current `CopyRealigned` 174-195 ns against a plain copy's
+  118-119; the GFNI multiply with unaligned 64-byte stores 244-257, 32-byte vectors 302-336, the vector loaded 8
+  bytes earlier with `vpternlogq` 323-345, destination-aligned stores with the flags permuted from two source loads
+  (`vpermt2b`, the next step's load reused) 314-320, general registers a word at a time 658-692. `int?` 86 against
+  71 for a copy. Do not retry these on x64: the split loads and stores cost more than the shuffle saves.
+- On Arm64, put the results of a raw `T?` run on the destination's 16-byte grid when it is 4, 8 or 12 bytes off
+  (`CopySpreadRealigned`: each vector cleared where its elements start, two results joined by `ext` with the phase
+  as a constant, `stp` aligned; the first and last two vectors as they lie). Why (a hypothesis, #270): Neoverse-N2
+  wrote `long?[1000]` 2.8 times as slowly as MemoryPack's copy with structure loads (`ld2`/`st2`, before rc.10), with
+  `tbl`, `cmtst` and an AND (7f945a91) and with `tbl` and `mul` alike, so the arithmetic is not the bound, while
+  every form stored 16 bytes 4 or 12 bytes off the grid (a run after its count), a quarter of them across a line.
+  Evidence so far: the FullOpts listing under qemu (`ldp`, `tbl`/`mul` twice, `ext` twice, `stp` a step) and the
+  bytes over dirty memory; the runner A/B against the base and the `ld2`/`st2` halves (6048d09f, rewritten as
+  b614ce78) decides, and this bullet is corrected with its numbers.
 - Clear raw `T?` runs by multiplying each byte by its flag spread over its element, two operations a vector, at
   every width: GFNI's `vgf2p8mulb`, else SSSE3/AVX2's `psignb` (a byte keeps its value where the spread byte is 1 and
   becomes 0 where it is 0; the spread is `pshufb` with zero in the padding), where a lane test took three (AVX-512:

@@ -116,6 +116,9 @@ public class UntrustedModeTests
     public void RunsOfValuesAreChecked() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedValueRuns));
 
     [TestMethod]
+    public void SetsOfValuesAreChecked() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedSetRuns));
+
+    [TestMethod]
     public void RawPairsAreCheckedWithinTheData() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedPairsAtTheEnd));
 
     [TestMethod]
@@ -368,17 +371,75 @@ public static partial class SettingsProbes
                 ref System.Runtime.CompilerServices.Unsafe.As<TValue, byte>(ref value),
                 ref System.Runtime.CompilerServices.Unsafe.As<TField, byte>(ref field));
 
+        // Every collection of raw values reads the run through one checked copy (NinoChecks.CopyValues): into new
+        // storage checked while copied from 4,096 bytes, into an existing list checked first, which a rejected read
+        // leaves as it was.
         static string Run<T>(int n, T value, int offset, byte[] bad, string what) where T : unmanaged
         {
             var data = NinoSerializer.Serialize(Enumerable.Repeat(value, n).ToArray());
             var back = NinoDeserializer.Deserialize<T[]>(data);
-            if (back.Length != n || back.Any(v => !EqualityComparer<T>.Default.Equals(v, value)))
+            if (back.Length != n || back.Any(v => !EqualityComparer<T>.Default.Equals(v, value)) ||
+                !Same(NinoDeserializer.Deserialize<List<T>>(data)) || !Same(NinoDeserializer.Deserialize<Queue<T>>(data)) ||
+                !Same(NinoDeserializer.Deserialize<Stack<T>>(data)))
                 return what + ": valid values";
             foreach (int i in new[] { 0, n / 2, n - 1 })
-                if (Fails<T[]>(With(data, 4 + i * sizeof(T) + offset, bad), what + " at " + i) is { } failure)
+            {
+                var invalid = With(data, 4 + i * sizeof(T) + offset, bad);
+                string at = what + " at " + i;
+                if ((Fails<T[]>(invalid, at) ?? Fails<List<T>>(invalid, "List " + at) ??
+                        Fails<Queue<T>>(invalid, "Queue " + at) ?? Fails<Stack<T>>(invalid, "Stack " + at)) is { } failure)
                     return failure;
+                var existing = Enumerable.Repeat(value, n).ToList();
+                try
+                {
+                    NinoDeserializer.Deserialize(invalid, ref existing);
+                    return "existing List " + at + ": read";
+                }
+                catch (NinoDataException)
+                {
+                }
+
+                if (!Same(existing))
+                    return "existing List " + at + ": changed by a rejected read";
+            }
+
             return null;
+
+            bool Same(IEnumerable<T> values) =>
+                values.Count() == n && values.All(v => EqualityComparer<T>.Default.Equals(v, value));
         }
+    }
+
+    /// <summary>
+    /// Sets of raw values Untrusted mode checks (distinct values, read through the set's entries): an invalid field in
+    /// the first, a middle or the last value fails, around the vector widths and past the fused copy's 4,096 bytes.
+    /// </summary>
+    public static unsafe string UntrustedSetRuns(byte[] _)
+    {
+        NinoSettings.Untrusted = true;
+        var badTicks = BitConverter.GetBytes(BadTicks);
+        foreach (int n in new[] { 1, 2, 3, 31, 33, 100, 513, 1000 })
+        {
+            var times = Enumerable.Range(0, n).Select(i => DateTime.MaxValue.AddTicks(-i)).ToHashSet();
+            var laned = Enumerable.Range(0, n).Select(i => new UntrustedLaned { When = DateTime.MinValue.AddDays(i), Id = i, Valid = true })
+                .ToHashSet();
+            var timesData = NinoSerializer.Serialize(times);
+            var lanedData = NinoSerializer.Serialize(laned);
+            if (!NinoDeserializer.Deserialize<HashSet<DateTime>>(timesData).SetEquals(times) ||
+                !NinoDeserializer.Deserialize<HashSet<UntrustedLaned>>(lanedData).SetEquals(laned))
+                return n + ": valid values";
+            UntrustedLaned probe = default;
+            int validAt = (int)((byte*)&probe.Valid - (byte*)&probe);
+            foreach (int i in new[] { 0, n / 2, n - 1 })
+                if ((Fails<HashSet<DateTime>>(With(timesData, 4 + i * sizeof(DateTime), badTicks), n + ": HashSet<DateTime> at " + i) ??
+                        Fails<HashSet<UntrustedLaned>>(With(lanedData, 4 + i * sizeof(UntrustedLaned), badTicks),
+                            n + ": HashSet<UntrustedLaned> When at " + i) ??
+                        Fails<HashSet<UntrustedLaned>>(With(lanedData, 4 + i * sizeof(UntrustedLaned) + validAt, 2),
+                            n + ": HashSet<UntrustedLaned> Valid at " + i)) is { } failure)
+                    return failure;
+        }
+
+        return "ok";
     }
 
     /// <summary>
