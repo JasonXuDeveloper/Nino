@@ -95,12 +95,14 @@ public class IncrementalGeneratorTests
         driver = driver.RunGenerators(compilation);
         StringAssert.Contains(Output(driver, "Derived"), "value.Z");
 
-        // A member type that stops being raw changes how the holder writes it.
+        // A member type that stops being raw changes how the holder writes it: through the member's flat chain (a
+        // flat body nested in the holder's, #355 step C) and its formatter.
         compilation = Edit(compilation, "Inner.cs", "public int A;", "public int A; public string S;");
         driver = driver.RunGenerators(compilation);
         holder = Output(driver, "Holder");
         Assert.IsFalse(holder.Contains("WriteValueIn("));
-        StringAssert.Contains(holder, ".Serialize(value.I, ref writer);");
+        StringAssert.Contains(holder, "Inc_InnerFormatter.__Flat.Item");
+        StringAssert.Contains(holder, "default(Inc_InnerFormatter).Deserialize(ref reader, ref value.I);");
     }
 
     [TestMethod]
@@ -702,12 +704,14 @@ public class MadeList : System.Collections.Generic.List<Made> { }
             Assert.IsTrue(reason is IncrementalStepRunReason.Unchanged or IncrementalStepRunReason.Cached, reason.ToString());
         Assert.AreEqual(flat, Output(driver, "Flat"));
 
-        // A property is reached through its accessors: still flat, through a property item.
+        // A property is reached through its accessors: still flat, through a property item, its local copy of a class
+        // type a NinoReference (a class as a type argument would make the chain code shared over classes).
         compilation = Edit(compilation, "Flat.cs", "public string S;", "public string S { get; set; }");
         driver = driver.RunGenerators(compilation);
         string property = Output(driver, "Flat");
         StringAssert.Contains(property, "public bool HasFlat => true;");
-        StringAssert.Contains(property, "NinoPropertyAt<__P_S, string, ");
+        StringAssert.Contains(property, "NinoPropertyAt<__P_S, __CS.NinoReference, ");
+        StringAssert.Contains(property, "= value.As<string>();");
 
         // A member that is none of the flat items (a collection): the generated body again.
         compilation = Edit(compilation, "Flat.cs", "public string S { get; set; }", "public string S; public int[] Q;");

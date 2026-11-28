@@ -17,7 +17,7 @@ namespace Nino.UnitTests
     /// read back both ways, reads into existing instances, subtypes in runs, and hostile data.
     /// </summary>
     [TestClass]
-    public class FlatTests
+    public partial class FlatTests
     {
         private const string Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ";
 
@@ -569,8 +569,8 @@ namespace Nino.UnitTests
             byte[] bad = (byte[])one.Clone();
             bad[flag] = 2;
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatMany>(bad));
-            // A run long enough for the flat kernels (NinoFlatRuns.MinRun), the bad element last.
-            int count = NinoFlatRuns.MinRun + 4;
+            // A run through the flat kernels, the bad element last.
+            const int count = 20;
             byte[] run = BitConverter.GetBytes(count).Concat(Enumerable.Repeat(one, count - 1).SelectMany(x => x))
                 .Concat(bad).ToArray();
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatMany[]>(run));
@@ -579,6 +579,21 @@ namespace Nino.UnitTests
             byte[] presence = BitConverter.GetBytes(count).Concat(Enumerable.Repeat(one, count - 1).SelectMany(x => x))
                 .Concat(new byte[] { 7 }).Concat(one.Skip(1)).ToArray();
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FlatMany[]>(presence));
+        }
+
+        [TestMethod]
+        public void RunsOfAClassInAGenericClassWriteItsTypeId()
+        {
+            // Its type id is computed at run time: the typed kernels once wrote the model's 0, null's id, and read the
+            // null element as a body (end of data).
+            var one = new FlatHolder<long>.Leaf { W = 7, X = 8, S = "open" };
+            byte[] alone = NinoSerializer.Serialize(one);
+            byte[] bytes = NinoSerializer.Serialize(new[] { one, null, one });
+            CollectionAssert.AreEqual(alone.Take(4).ToArray(), bytes.Skip(4).Take(4).ToArray());
+            var back = NinoDeserializer.Deserialize<FlatHolder<long>.Leaf[]>(bytes);
+            Assert.AreEqual(3, back.Length);
+            Assert.IsNull(back[1]);
+            Assert.IsTrue(back[2] is { W: 7, X: 8, S: "open" });
         }
 
         [TestMethod]
@@ -591,7 +606,7 @@ namespace Nino.UnitTests
             FlatNodeProps twin = null;
             for (int i = 0; i < depth; i++)
             {
-                var items = Manys(NinoFlatRuns.MinRun + 2, true, i);
+                var items = Manys(18, true, i);
                 node = new FlatNode { Items = items, Next = node };
                 twin = new FlatNodeProps { Items = items.Select(Props).ToArray(), Next = twin };
             }
@@ -626,10 +641,10 @@ namespace Nino.UnitTests
                         text[i] = i % 2 == 0 ? '\u4E2D' : '\u00E9';
                 var value = new FlatMany { Id = length, Tag = new string(text), Text = "t" };
                 CollectionAssert.AreEqual(NinoSerializer.Serialize(Props(value)), NinoSerializer.Serialize(value), $"{length} {wide}");
-                var run = Enumerable.Repeat(value, NinoFlatRuns.MinRun).ToArray();
+                var run = Enumerable.Repeat(value, 16).ToArray();
                 byte[] bytes = NinoSerializer.Serialize(run);
                 CollectionAssert.AreEqual(NinoSerializer.Serialize(run.Select(Props).ToArray()), bytes, $"run {length} {wide}");
-                Assert.AreEqual(value.Tag, NinoDeserializer.Deserialize<FlatMany[]>(bytes)[NinoFlatRuns.MinRun - 1].Tag);
+                Assert.AreEqual(value.Tag, NinoDeserializer.Deserialize<FlatMany[]>(bytes)[15].Tag);
             }
         }
     }

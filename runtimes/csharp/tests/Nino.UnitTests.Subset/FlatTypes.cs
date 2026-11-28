@@ -41,6 +41,21 @@ namespace Nino.UnitTests.Subset.Flat
         public string Name;
     }
 
+    /// <summary>
+    /// A flat class that is not sealed, nested in a generic class: its type id is computed at run time, from the closed
+    /// type, and the typed kernels write that id.
+    /// </summary>
+    public class FlatHolder<T>
+    {
+        [NinoType]
+        public class Leaf
+        {
+            public long W;
+            public int X;
+            public string S;
+        }
+    }
+
     /// <summary><see cref="FlatOne"/>'s members as auto-properties and a callback: the same body, not flat (the generated
     /// body).</summary>
     [NinoType]
@@ -234,5 +249,186 @@ namespace Nino.UnitTests.Subset.Flat
     {
         public string Key;
         public int Value;
+    }
+
+    /// <summary>
+    /// A keyed flat class (#355 step C): each member a key, a length and its value, in a region (NinoKeyItem,
+    /// NinoEntriesItem, NinoRegionItem); a read that meets another entry leaves the element to the formatter.
+    /// </summary>
+    [NinoType(format: NinoFormat.Keyed)]
+    public sealed class FlatKeyed
+    {
+        public int Id;
+        public string Name;
+        public long? Big { get; set; }
+        public bool Flag;
+        [NinoUtf8] public string Tag;
+        public DateTime At { get; set; }
+    }
+
+    /// <summary><see cref="FlatKeyed"/> with a callback: not flat, the same bytes.</summary>
+    [NinoType(format: NinoFormat.Keyed)]
+    public sealed class FlatKeyedTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public int Id;
+        public string Name;
+        public long? Big { get; set; }
+        public bool Flag;
+        [NinoUtf8] public string Tag;
+        public DateTime At { get; set; }
+    }
+
+    /// <summary>An older <see cref="FlatKeyed"/>: fewer members, in another order, one under a former name.</summary>
+    [NinoType(format: NinoFormat.Keyed)]
+    public sealed class FlatKeyedOld
+    {
+        public string Name;
+        public int Id;
+        [NinoFormerName("Flag")] public bool Enabled;
+    }
+
+    /// <summary>A version-tolerant flat class (#355 step C): its members in a region, each NinoTolerantItem.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public sealed class FlatTolerant
+    {
+        public int Id;
+        public string Name;
+        public int? Count { get; set; }
+        public double Score;
+        public string Note { get; set; } = "unset";
+    }
+
+    /// <summary><see cref="FlatTolerant"/> with a callback: not flat, the same bytes.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public sealed class FlatTolerantTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public int Id;
+        public string Name;
+        public int? Count { get; set; }
+        public double Score;
+        public string Note { get; set; } = "unset";
+    }
+
+    /// <summary>An older <see cref="FlatTolerant"/>: its first two members.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public sealed class FlatTolerantOld
+    {
+        public int Id;
+        public string Name;
+    }
+
+    /// <summary>A version-tolerant flat struct (#355 step C): no header, the region, its runs in place.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public struct FlatTolerantPoint
+    {
+        public int Id;
+        public string Name;
+        public long? Big;
+    }
+
+    /// <summary><see cref="FlatTolerantPoint"/> with a callback: not flat, the same bytes.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public struct FlatTolerantPointTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public int Id;
+        public string Name;
+        public long? Big;
+    }
+
+    /// <summary>A keyed flat struct (#355 step C).</summary>
+    [NinoType(format: NinoFormat.Keyed)]
+    public struct FlatKeyedPoint
+    {
+        public string Name;
+        public int Id;
+    }
+
+    /// <summary><see cref="FlatKeyedPoint"/> with a callback: not flat, the same bytes.</summary>
+    [NinoType(format: NinoFormat.Keyed)]
+    public struct FlatKeyedPointTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public string Name;
+        public int Id;
+    }
+
+    /// <summary>
+    /// Flat bodies nested in a flat class (#355 step C): a sealed flat class, a flat class that is not sealed (a
+    /// subtype in it leaves the element), a flat struct and a version-tolerant one, each the nested type's chain as one
+    /// item.
+    /// </summary>
+    [NinoType]
+    public sealed class FlatOuter
+    {
+        public int Id;
+        public FlatLeaf Leaf;
+        public string Name;
+        public FlatPoint Point { get; set; }
+        public FlatOne One;
+        public FlatTolerantPoint Tolerant;
+    }
+
+    /// <summary><see cref="FlatOuter"/> with a callback: not flat, the same bytes.</summary>
+    [NinoType]
+    public sealed class FlatOuterTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public int Id;
+        public FlatLeaf Leaf;
+        public string Name;
+        public FlatPointTwin Point { get; set; }
+        public FlatOne One;
+        public FlatTolerantPointTwin Tolerant;
+    }
+
+    /// <summary>A flat struct nesting a flat class (#355 step C): a reference in it, its runs in place.</summary>
+    [NinoType]
+    public struct FlatWrap
+    {
+        public FlatMany Many;
+        public int X;
+    }
+
+    /// <summary><see cref="FlatWrap"/> with a callback: not flat, the same bytes.</summary>
+    [NinoType]
+    public struct FlatWrapTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public FlatManyProps Many;
+        public int X;
+    }
+
+    /// <summary>
+    /// A chain of nodes each holding a run of <see cref="FlatOuter"/> (nested class bodies): a run whose nested bodies
+    /// would open past NinoDepth.Inline goes element by element (#355 step C).
+    /// </summary>
+    [NinoType]
+    public sealed class FlatOuterNode
+    {
+        public FlatOuter[] Items;
+        public FlatOuterNode Next;
+    }
+
+    /// <summary><see cref="FlatOuterNode"/> over <see cref="FlatOuterTwin"/>: the same bytes through generated bodies.</summary>
+    [NinoType]
+    public sealed class FlatOuterNodeTwin
+    {
+        public FlatOuterTwin[] Items;
+        public FlatOuterNodeTwin Next;
     }
 }
