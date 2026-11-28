@@ -227,7 +227,7 @@ namespace Nino.Core.Internal
         /// read 1,000 strings 1.3 to 1.5 times as long (asm.py, local quick runs).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static int Read<TItem, TStore>(scoped NinoRun run, TItem item, ref byte data, int end, TStore store)
+        internal static int Read<TItem, TStore>(scoped in NinoRun run, TItem item, ref byte data, int end, TStore store)
             where TItem : struct, INinoItem
             where TStore : struct, INinoRunStore
         {
@@ -461,6 +461,62 @@ namespace Nino.Core.Internal
             {
                 ref var entry = ref Unsafe.As<byte, CollectionFields.MapEntry<string, string>>(ref element);
                 MapTable<string, string>.Add(_dictionary, entry.Key, entry.Value, _insert, _walk);
+            }
+        }
+
+        /// <summary>
+        /// As <see cref="PairAdds"/>, into a dictionary that guards its own buckets (strings on .NET: neither inserted
+        /// nor walked, <see cref="HashTables.Plan{TKey,TValue}"/>): each pair added through the dictionary, a repeated
+        /// key invalid data, inline in the read loop. Its one field, the dictionary, leaves the loop its source, bytes
+        /// left, count and slot in the callee-saved registers; through <see cref="PairAdds"/>' call on its home each
+        /// pair took a call more and its key and value back from memory (CommonTypesTest's StringDictionary: 1,000
+        /// pairs read in 1.16 to 1.50 times main's time on runners, run 46116965014).
+        /// </summary>
+        internal readonly struct GuardedPairAdds : INinoRunStore
+        {
+            private readonly Dictionary<string, string> _dictionary;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public GuardedPairAdds(Dictionary<string, string> dictionary) => _dictionary = dictionary;
+
+            public bool OneSlot
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => true;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Stored(ref byte element)
+            {
+                ref var entry = ref Unsafe.As<byte, CollectionFields.MapEntry<string, string>>(ref element);
+                if (entry.Key == null)
+                    NinoThrow.NullKey(_dictionary);
+                NinoCollections.AddUnique(_dictionary, entry.Key, entry.Value);
+            }
+        }
+
+        /// <summary>As <see cref="GuardedPairAdds"/>, a dictionary keyed by strings whose values are not strings
+        /// (<see cref="KeyAdds{TValue}"/>).</summary>
+        internal readonly struct GuardedKeyAdds<TValue> : INinoRunStore
+        {
+            private readonly Dictionary<string, TValue> _dictionary;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public GuardedKeyAdds(Dictionary<string, TValue> dictionary) => _dictionary = dictionary;
+
+            public bool OneSlot
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => true;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Stored(ref byte element)
+            {
+                ref var entry = ref Unsafe.As<byte, CollectionFields.MapEntry<string, TValue>>(ref element);
+                if (entry.Key == null)
+                    NinoThrow.NullKey(_dictionary);
+                NinoCollections.AddUnique(_dictionary, entry.Key, entry.Value);
             }
         }
     }

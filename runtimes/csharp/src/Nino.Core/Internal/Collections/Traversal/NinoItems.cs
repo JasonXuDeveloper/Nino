@@ -186,16 +186,35 @@ namespace Nino.Core.Internal
             where TStore : struct, INinoRunStore
         {
             if (typeof(TFormatterB) == typeof(StringFormatter))
-                return NinoStringRuns.Read(run, Of<TItemA, NinoUtf16Item>(a, b), ref data, end, store);
+                return ReadPair<TItemA, NinoUtf16Item, TStore>(run, a, b, ref data, end, store);
             if (typeof(TFormatterB) == typeof(Utf8StringFormatter))
-                return NinoStringRuns.Read(run, Of<TItemA, NinoUtf8Item>(a, b), ref data, end, store);
+                return ReadPair<TItemA, NinoUtf8Item, TStore>(run, a, b, ref data, end, store);
             if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Slot)
-                return NinoStringRuns.Read(run, Of<TItemA, NinoSlotItem<TB, TFormatterB, NinoMemorySize<TB>>>(a, b), ref data, end, store);
+                return ReadPair<TItemA, NinoSlotItem<TB, TFormatterB, NinoMemorySize<TB>>, TStore>(run, a, b, ref data, end, store);
             if (NinoKind.Of<TB, TFormatterB>() == NinoElementKind.Block)
-                return NinoStringRuns.Read(run, Of<TItemA, NinoValueItem<TB, TFormatterB>>(a, b), ref data, end, store);
+                return ReadPair<TItemA, NinoValueItem<TB, TFormatterB>, TStore>(run, a, b, ref data, end, store);
             if (typeof(TB) == typeof(bool))
-                return NinoStringRuns.Read(run, Of<TItemA, NinoBoolItem>(a, b), ref data, end, store);
-            return NinoStringRuns.Read(run, Of<TItemA, NinoStructItem<TB>>(a, b), ref data, end, store);
+                return ReadPair<TItemA, NinoBoolItem, TStore>(run, a, b, ref data, end, store);
+            return ReadPair<TItemA, NinoStructItem<TB>, TStore>(run, a, b, ref data, end, store);
+        }
+
+        /// <summary>
+        /// The read of a pair's run, <typeparamref name="TItemA"/> at <paramref name="a"/> and
+        /// <typeparamref name="TItemB"/> at <paramref name="b"/>: in place over the run rebased to the first item, as
+        /// the write's (<see cref="WriteSecond{TItemA,TB,TFormatterB}"/>), one offset fewer in a register; into one
+        /// slot handed to a store (<see cref="INinoRunStore.OneSlot"/>) at both offsets, the store taking the element
+        /// as it is.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ReadPair<TItemA, TItemB, TStore>(scoped NinoRun run, int a, int b, ref byte data, int end,
+            TStore store)
+            where TItemA : struct, INinoItem
+            where TItemB : struct, INinoItem
+            where TStore : struct, INinoRunStore
+        {
+            if (store.OneSlot)
+                return NinoStringRuns.Read(run, Of<TItemA, TItemB>(a, b), ref data, end, store);
+            return NinoStringRuns.Read(run.Items(a), From<TItemA, TItemB>(b - a), ref data, end, store);
         }
 
         /// <summary>The chain of a pair: <typeparamref name="TItemA"/> at <paramref name="a"/>, then

@@ -518,6 +518,19 @@ namespace Nino.Core
             var run = new NinoRun(ref Unsafe.As<CollectionFields.MapEntry<TKey, TValue>, byte>(ref entry), length, 0,
                 NinoRun.NoKey, NinoRun.AllInUse);
             bool walk = HashTables.Plan<TKey, TValue>.Walks;
+            // Keyed by strings where the dictionary guards its own buckets (.NET's randomized string hashing): each
+            // pair added inline through the dictionary (GuardedPairAdds).
+            if (!insert && !walk && NinoKind<TKeyFormatter>.Strings)
+            {
+                if (NinoKind<TValueFormatter>.Strings)
+                    return NinoItems.Read<TKey, TValue, TKeyFormatter, TValueFormatter, NinoStringRuns.GuardedPairAdds>(
+                        run, KeyOffset, ValueOffset, ref data, end,
+                        new NinoStringRuns.GuardedPairAdds(Unsafe.As<Dictionary<string, string>>(dictionary)));
+                return NinoItems.Read<TKey, TValue, TKeyFormatter, TValueFormatter,
+                    NinoStringRuns.GuardedKeyAdds<TValue>>(run, KeyOffset, ValueOffset, ref data, end,
+                    new NinoStringRuns.GuardedKeyAdds<TValue>(Unsafe.As<Dictionary<string, TValue>>(dictionary)));
+            }
+
             // Told by the formatters' types: typeof(TKey) of a class is no constant in code shared over it.
             if (NinoKind<TKeyFormatter>.Strings && NinoKind<TValueFormatter>.Strings)
                 return NinoItems.Read<TKey, TValue, TKeyFormatter, TValueFormatter, NinoStringRuns.PairAdds>(
