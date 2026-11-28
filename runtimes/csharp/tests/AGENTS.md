@@ -84,7 +84,9 @@ Collections/                 arrays, BCL and user collections, empty ones, Stack
                              FlatTests.Blocks.cs: bools, raw structs and NinoNullable members in blocks, their checks
                              on every cut and bad flag; FlatTests.Raw.cs: raw-only classes nested as blocks in flat
                              bodies, against generated twins, reuse, every cut, subtypes and hostile headers read alike
-                             both ways; Untrusted mode in
+                             both ways; FlatTests.Cached.cs: runs reached through CachedFormatter (another
+                             assembly's types) take the kernels and the run loop, the same bytes, every cut; Untrusted
+                             mode in
                              UntrustedModeTests), the prefetch of long top-level
                              arrays
                              and lists of scattered objects and the

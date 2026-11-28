@@ -134,8 +134,8 @@ namespace Nino.UnitTests
         /// costs the kernels nothing: equal bytes cannot tell, a run written element by element writes them too (a
         /// branch placed after the one for formatters that write on a local writer once sent sealed flat classes
         /// there). Writes are seen from the pool of a buffer that starts with one byte, reads from the exception of a
-        /// cut run. Through the generated formatter: this assembly reaches the Subset's types through
-        /// CachedFormatter, which forwards no kernel.
+        /// cut run. Through the generated formatter; runs through CachedFormatter, as this assembly's generated code
+        /// reaches the Subset's types, in FlatTests.Cached.cs.
         /// </summary>
         [TestMethod]
         public void RunsGoThroughTheKernels()
