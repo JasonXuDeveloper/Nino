@@ -173,13 +173,29 @@ namespace Nino.Core.Internal
                     writer.WriteLength(length);
                 if (!row || count != 0)
                 {
+                    // Strings: the free space to one call and the bytes written back, in registers. Through a copy of
+                    // the writer each step of the cursor went through memory (the caller's stores loaded back in the
+                    // call, the call's loaded back here: a store-forwarding round trip each, as a dictionary's pairs
+                    // had, NinoDictionary.WriteFree). The strings that did not fit through the copy (below), from the
+                    // first of them.
+                    int next = 0;
+                    if (!typeof(T).IsValueType)
+                    {
+                        ulong left = WriteStringsFree<TFormatter>(run, ref writer.FreeSpace(out int available),
+                            available);
+                        writer.Commit(available - (int)left);
+                        if (left >> 32 == 0)
+                            return;
+                        next = run.Count - (int)(left >> 32);
+                    }
+
                     // Out of line on a copy of the cursor alone, field by field: strings and the items beside them
                     // open no class body, defer nothing and track no reference. A writer passed and returned by value
                     // is copied with loads wider than the stores that built it (store forwarding fails), and the
                     // whole writer copied each way cost the caller twice the stack accesses.
                     Writer copy = default;
                     writer.CopyCursorTo(ref copy);
-                    WriteStrings<T, TFormatter>(run, ref copy);
+                    WriteStrings<T, TFormatter>(run, next, ref copy);
                     copy.CopyCursorTo(ref writer);
                 }
 
@@ -452,11 +468,12 @@ namespace Nino.Core.Internal
         /// serialized with their writers in memory).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static void WriteStrings<T, TFormatter>(scoped in NinoRun run, ref Writer writer)
+        internal static void WriteStrings<T, TFormatter>(scoped in NinoRun run, int next, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
+            // Strings: those WriteStringsFree left, from the element at next, the first that did not fit.
             if (!typeof(T).IsValueType)
-                NinoStringRuns.Write<TFormatter>(run, ref writer);
+                NinoStringRuns.WriteFrom<TFormatter>(run, next, ref writer);
             // A generated struct whose body is flat (#355): its chain of items, in place (from NinoFlatRuns.MinRun
             // elements on: ShortFlatValues).
             else if (NinoKind<TFormatter>.Flat)
@@ -464,6 +481,16 @@ namespace Nino.Core.Internal
             else
                 default(TFormatter).WriteStrings(run, ref writer);
         }
+
+        /// <summary>
+        /// Writes the strings of <paramref name="run"/> (not empty) into the <paramref name="available"/> bytes at
+        /// <paramref name="destination"/> until one's longest form does not fit (<see cref="NinoStringRuns.WriteFree{TFormatter}"/>):
+        /// the bytes left (low half) and the strings left (high half, 0 when every one fit). Out of line, the free
+        /// space and the result in registers.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ulong WriteStringsFree<TFormatter>(scoped in NinoRun run, ref byte destination, int available) =>
+            NinoStringRuns.WriteFree<TFormatter>(run, ref destination, available);
 
         /// <summary>
         /// As <see cref="WriteStrings{T,TFormatter}"/>, the read in place. The data and the bytes left go to the call,
