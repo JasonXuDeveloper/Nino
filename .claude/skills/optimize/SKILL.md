@@ -170,10 +170,10 @@ says which CPUs and cases moved.
   `INinoAdder` of `NinoGather.Adds`; the string kernels keep their own inline adds (`SetAdds`, `KeyAdds`, ...: a store
   generic over the table is an indirect call per entry in code shared over a class, and the set's measured 1.1 times
   as long through one). The dictionary's
-  out-of-line write computes the key and value offsets from `MapEntry` and calls the by-value loops
-  (`NinoRuns.WriteEach`, `NinoItems.Write`, writer by value and returned): the shared `NinoRuns.WriteEntries`
-  inlined its loop on that method's writer parameter, which then lived in memory (`Dictionary<string, int>` WriteEntries
-  36 to 54 stack accesses; by value 36 to 30). Compute an in-use test from the entry's own fields' distances
+  out-of-line write computes the key and value offsets from `MapEntry` and calls the loops on its own writer, a
+  copy of the caller's cursor (`CopyCursorTo` in and out; the store-forwarding rule below): the shared
+  `NinoRuns.WriteEntries` inlined its loop on that method's writer parameter, which then lived in memory
+  (`Dictionary<string, int>` WriteEntries 36 to 54 stack accesses; by value 36 to 30). Compute an in-use test from the entry's own fields' distances
   (`CollectionFields.InUse`), never from a static of a generic class: one not initialized when Tier1 compiles the caller
   is a helper call that spilled the set's write (`HashSet<int>` serialize 958 to 1,120 bytes, 40 to 57 stack accesses).
   Decide the string run kernels' path in the caller from the item
@@ -182,13 +182,13 @@ says which CPUs and cases moved.
   and 86; reverted). In the read, a shared entry formatter's block test costs nothing more: `NinoKind.Of` is behind
   the no-references guard; the `Dictionary<int, Base>` read shim grew 92 to 167 bytes (a reader copied into the
   out-of-line `NinoEntries.ReadEach`, plus the method's generic lookup) with one copy of the reader instead of two.
-  The entries' write (`NinoDictionary.WriteEntries`: the run, then the loop) is out of line with the writer by value,
+  The entries' write (`NinoDictionary.WriteEntries`: the run, then the loop) is out of line on a copy of the cursor,
   one call per dictionary: inlined, its tests (`NinoItems.RunLoop`, the cursor pair test, the run) spent the budget of a
   generated body holding two dictionaries, which then called it with the writer by ref and compiled both loops of the
   other (asm.py: a `Lookup`'s top-level write 107 to 189 stack accesses, 149 out of line, in 27 % less code). Entries
-  without references (raw or block items) stay inline; with them smaller, a `Lookup`'s whole top-level write is
-  inlined into both loops of `NinoRuns.Write` (1,231 to 2,010 bytes, 94 to 103 stack accesses, no call per element;
-  the case 138 to 112). Compose recycling as the cursor form is: a collection that drops elements recycles them with
+  without references (raw or block items) take the same call (#355's fix: inline they spent generated bodies' budgets,
+  SimpleClass's `__WriteTop` 112 to 159 stack accesses with a class-init helper call); `BclTypesTest.NinoSerializeLookup`
+  wrote in 0.86 times main's time, `IntDictionary` 0.995 (local, alternated). Compose recycling as the cursor form is: a collection that drops elements recycles them with
   `NinoRecycler.MayRecycle<T, TFormatter>` / `Recycle` / `DiscardAll<T, TFormatter>`, and a composite's items through
   its formatter's internal `RecyclesItems` / `ItemsMayRecycle` / `RecycleItems` (pairs, value tuples, entries), never a
   per-collection pair walk (`DiscardPairs` went). Keep the walk over dropped elements and a composite's may-recycle test
