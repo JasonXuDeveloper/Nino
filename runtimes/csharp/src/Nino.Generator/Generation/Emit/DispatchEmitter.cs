@@ -154,6 +154,7 @@ internal static class DispatchEmitter
             if (closed is { Count: > 0 })
                 w.Line();
             EmitClosedSelection(w, t, closed, first, genericServices, write: false);
+            EmitClosedReadRun(w, t, closed, first, genericServices);
             w.Close();
             w.Line();
         }
@@ -359,6 +360,42 @@ internal static class DispatchEmitter
 
         w.Line();
         EmitReadSubtype(w, t, subtypes, services);
+        if (closedForm)
+            EmitReadRun(w, t, subtypes, services);
+    }
+
+    /// <summary>
+    /// <c>__ReadRun</c> of a closed generic base's dispatch: the values of a run in a row (an array's, a list's), each
+    /// read as <c>Deserialize</c> reads one, in a loop of this non-generic class with the switch inline. Over a type
+    /// argument holding a class the base formatter is shared generic code, where each value took a runtime lookup for
+    /// <c>Deserialize</c>, the selection of this class through the generic context, then the case's calls (#441); the
+    /// base formatter's <c>ReadRun</c> selects this loop once per collection instead. Each case reads the subtype's
+    /// body inline (<c>NinoObject.ReadExactShallow</c>: one call per value, the body's), not through
+    /// <c>__ReadExactN</c>: the loop calling <c>__ReadSubtype</c> per value read 1,000 ProbeBox&lt;(ProbeOpenItem,
+    /// int)&gt; in LuminPack/Nino 0.95 against 0.99 inline (base 0.82; local x64, Tier1, 6 rounds).
+    /// </summary>
+    private static void EmitReadRun(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
+    {
+        string run = $"{services}NinoRun";
+        w.Line();
+        w.Line(GeneratedCode.NoInline);
+        w.Open($"internal static void __ReadRun(in {run} run, ref {Core}Reader reader)");
+        w.Line("ref byte entry = ref run.First;");
+        w.Line("int stride = run.Stride;");
+        w.Open($"for (int left = run.Count; left > 0; left--, entry = ref {run}.Next(ref entry, stride))");
+        w.Line($"ref {t} value = ref {run}.Slot<{t}>(ref entry);");
+        w.Line("int id = reader.UnsafeRead<int>();");
+        w.Line($"if (!{services}NinoObject.IsDeep(ref reader))");
+        w.Open();
+        w.Open("switch (id)");
+        foreach (var s in subtypes)
+            w.Line($"case {s.TypeId.ToString(CultureInfo.InvariantCulture)}: {services}NinoObject.ReadExactShallow<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value); continue; // {Display(s.TypeName)}");
+        w.Close();
+        w.Close();
+        w.Line();
+        w.Line(ReadOther(t, services) + ";");
+        w.Close();
+        w.Close();
     }
 
     /// <summary>
@@ -498,6 +535,31 @@ internal static class DispatchEmitter
     /// <summary>The read of a subtype the dispatch does not know: through the registry.</summary>
     private static string ReadOther(string t, string services) =>
         $"{services}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value)";
+
+    /// <summary>
+    /// <c>HasReadRun</c> and <c>ReadRun</c> of a generic base: the run loop of the closed dispatch class of the formatter's
+    /// instance (<see cref="EmitReadRun"/>), selected once per collection as <see cref="EmitClosedSelection"/> selects
+    /// it per value; an instance no class here dispatches reads value by value (HasReadRun false).
+    /// </summary>
+    private static void EmitClosedReadRun(CodeWriter w, string t, SortedSet<string>? closed, int first,
+        string services)
+    {
+        if (closed is not { Count: > 0 })
+            return;
+        string loops = $"{Core}INinoFormatter";
+        w.Line();
+        w.Line($"bool {loops}.HasReadRun => {string.Join(" || ", closed.Select(c => $"typeof({t}) == typeof({c})"))};");
+        w.Line();
+        w.Open($"void {loops}.ReadRun(in {services}NinoRun run, ref {Core}Reader reader)");
+        // Called only where HasReadRun is true: the last instance needs no test.
+        int i = 0;
+        foreach (var c in closed)
+        {
+            string read = $"__NinoDispatch{first++}.__ReadRun(run, ref reader);";
+            w.Line(++i < closed.Count ? $"if (typeof({t}) == typeof({c})) {{ {read} return; }}" : read);
+        }
+        w.Close();
+    }
 
     /// <summary>
     /// Selects a closed dispatch class in the same sorted order as its declaration, or forwards to the registry.

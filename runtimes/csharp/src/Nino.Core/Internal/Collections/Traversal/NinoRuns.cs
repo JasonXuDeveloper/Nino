@@ -567,6 +567,15 @@ namespace Nino.Core.Internal
                 return reader;
             }
 
+            // A generic polymorphic base over a class (#441): the loop of its closed instance's dispatch, where nothing
+            // is shared code, one call for the run instead of a lookup and calls per value here.
+            if (NinoKind<TFormatter>.ReadRuns)
+            {
+                default(TFormatter).ReadRun(NinoRun.Unscoped(new NinoRun(ref Unsafe.As<T, byte>(ref item), count,
+                    Unsafe.SizeOf<T>(), NinoRun.NoKey, NinoRun.AllInUse)), ref reader);
+                return reader;
+            }
+
             ReadLoop<T, TFormatter>(ref Unsafe.As<T, byte>(ref item), count, Unsafe.SizeOf<T>(), ref reader);
             return reader;
         }

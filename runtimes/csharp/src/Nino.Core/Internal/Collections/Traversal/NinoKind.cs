@@ -109,6 +109,10 @@ namespace Nino.Core.Internal
         /// generated loop.</summary>
         public static readonly bool Runs = default(TFormatter).HasRunLoop;
 
+        /// <summary><see cref="INinoFormatter.HasReadRun"/>: the values of a run in a row read in one generated
+        /// loop.</summary>
+        public static readonly bool ReadRuns = default(TFormatter).HasReadRun;
+
         /// <summary><see cref="INinoFormatter.HasFlat"/>: a class whose runs the flat kernels move.</summary>
         public static readonly bool Flat = default(TFormatter).HasFlat;
 
