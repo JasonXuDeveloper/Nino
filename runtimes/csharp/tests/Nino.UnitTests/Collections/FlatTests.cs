@@ -458,9 +458,10 @@ namespace Nino.UnitTests
         }
 
         /// <summary>
-        /// A flat base's runs whose elements are often subtypes (#440): the kernels hand the rest of the run to the
-        /// value-by-value loop (NinoFlatRuns.WriteRest, on the stack) once more than one in eight left, the same bytes as
-        /// element by element, whichever way the subtypes fall (every other, a block of them first, then none).
+        /// A flat base's runs whose elements are often subtypes (#440): a run with more than one subtype among its first
+        /// eight values keeps the base's loop, and the kernels hand the rest of a run to the value-by-value loop
+        /// (NinoFlatRuns.WriteRest, on the stack) once more than one in eight left; the same bytes as element by element,
+        /// whichever way the subtypes fall (every other, a block of them first, every third, only after 30 values).
         /// </summary>
         [TestMethod]
         public void MixedRunsLeaveTheKernels()
@@ -490,8 +491,12 @@ namespace Nino.UnitTests
                     Assert.IsTrue(Same(values[i], back[i]), $"{name} {count} element {i}");
             }
 
+            // Subtypes among the first values: the base's loop, never the kernels; after them: the kernels, then the loop.
             var (writes, _) = Stacks(Mixed(1000, static i => i % 2 == 1));
-            Assert.IsTrue(writes[0].Contains("NinoFlatRuns.WriteRest"), "every other a subtype");
+            Assert.IsFalse(writes[0].Contains("NinoFlat`2.WriteTyped"), "every other a subtype");
+            var (tailWrites, _) = Stacks(Mixed(1000, static i => i > 30 && i % 2 == 0));
+            Assert.IsTrue(tailWrites[0].Contains("NinoFlat`2.WriteTyped"), "subtypes after 30 values");
+            Assert.IsTrue(tailWrites[0].Contains("NinoFlatRuns.WriteRest"), "subtypes after 30 values");
             var (fewWrites, _) = Stacks(Mixed(1000, static i => i % 13 == 7));
             Assert.IsFalse(fewWrites[0].Contains("NinoFlatRuns.WriteRest"), "one in 13 a subtype");
             Assert.IsTrue(fewWrites[0].Contains("NinoFlat`2.WriteTyped"), "one in 13 a subtype");

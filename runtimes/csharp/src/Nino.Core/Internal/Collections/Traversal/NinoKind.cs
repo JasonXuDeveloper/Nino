@@ -112,6 +112,13 @@ namespace Nino.Core.Internal
         /// <summary><see cref="INinoFormatter.HasFlat"/>: a class whose runs the flat kernels move.</summary>
         public static readonly bool Flat = default(TFormatter).HasFlat;
 
+        /// <summary>
+        /// Whether the formatter is <see cref="CachedFormatter{T}"/>, which forwards a run to the registered formatter's
+        /// hooks in a virtual call (#440): a run of one value is read through the virtual call it makes per value anyway.
+        /// </summary>
+        public static readonly bool Forwards =
+            typeof(TFormatter).IsGenericType && typeof(TFormatter).GetGenericTypeDefinition() == typeof(CachedFormatter<>);
+
         /// <summary><see cref="INinoFormatter.RecyclesItems"/>: a dropped value's items recycled
         /// (<see cref="NinoRecycler"/>).</summary>
         public static readonly bool RecyclesItems = default(TFormatter).RecyclesItems;

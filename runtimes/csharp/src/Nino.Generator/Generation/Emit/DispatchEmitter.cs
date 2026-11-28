@@ -24,8 +24,11 @@ internal static class DispatchEmitter
     /// <summary>The most types a run loop tests that is marked to inline into the collection's write.</summary>
     private const int MaxInlinedRunLoop = 8;
 
-    /// <summary>The fewest values of a flat root's run its run loop hands to the flat kernels (EmitRunSplit).</summary>
+    /// <summary>The fewest values of a flat root's run its run loop hands to the flat kernels (EmitWriteFlat).</summary>
     private const int FlatRunLength = 4;
+
+    /// <summary>The values of a flat root's run looked at for subtypes before it goes to the kernels (EmitWriteFlat).</summary>
+    private const int FlatRunProbe = 8;
 
     /// <summary>
     /// A bucket of at most this many subtypes with distinct ids compares the ids directly, without the collision
@@ -428,26 +431,52 @@ internal static class DispatchEmitter
         w.Line("return;");
         w.Close();
         w.Line();
-        // A flat root (#440): an array's or a list's run through its flat kernels, which hand a subtype to the
-        // dispatch and the rest of a run whose elements are often subtypes to the value-by-value loop. Against this
-        // loop, a run of the root's own objects wrote in 0.92 (3), 0.54 (32) and 0.69 (1,000) of the time, one in 13 a
-        // subtype in 0.94, 0.67 and 0.83; one element in 1.26, so a single value keeps the loop (local x64, alternated).
-        if (root is { FlatRuns: true, IsTarget: true })
+        // A flat root (#440): an array's or a list's run through its flat kernels (__WriteFlat).
+        bool flat = root is { FlatRuns: true, IsTarget: true };
+        if (flat)
         {
-            w.Line($"if (run.Count >= {FlatRunLength})");
-            w.Open();
-            w.Line("WriteFlat(in run, ref target);");
-            w.Line("return;");
-            w.Close();
+            w.Line($"if (run.Count >= {FlatRunLength} && __WriteFlat(run, ref target))");
+            w.Line("    return;");
             w.Line();
         }
 
         EmitRunLoop(w, t, root, subtypes, services, entries: false);
         w.Close();
         w.Line();
+        if (flat)
+            EmitWriteFlat(w, t, root!.Self, services);
         w.Line(GeneratedCode.NoInline);
         w.Open($"private static void __WriteEntries({run} run, ref {Core}Writer target)");
         EmitRunLoop(w, t, root, subtypes, services, entries: true);
+        w.Close();
+    }
+
+    /// <summary>
+    /// <c>__WriteFlat</c>: a flat root's run through its flat kernels unless more than one of its first
+    /// <see cref="FlatRunProbe"/> values is a subtype, which leaves the kernels for the dispatch; returns whether it wrote.
+    /// Out of line on a copy of the run: the call inline in <c>WriteRun</c>, with the run passed by <c>in</c>, put the run
+    /// in memory and made runs of one to three values, which keep the loop, 1.08 to 1.27 times as long. Against the
+    /// loop (local x64, alternated): a run of the root's own objects wrote in 0.68 (8), 0.56 (32) and 0.77 (1,000) of the
+    /// time, one in 13 a subtype in 0.67, 0.68 and 0.85; every other one a subtype took 1.6 to 2.3 times the loop's time
+    /// at 4 to 32 values (each subtype leaves the kernels and enters them again), so such a run keeps the loop.
+    /// </summary>
+    private static void EmitWriteFlat(CodeWriter w, string t, string self, string services)
+    {
+        string run = $"{services}NinoRun";
+        w.Line();
+        w.Line(GeneratedCode.NoInline);
+        w.Open($"private static bool __WriteFlat({run} run, ref {Core}Writer target)");
+        w.Line("ref byte entry = ref run.First;");
+        w.Line("int subtypes = 0;");
+        w.Line($"for (int i = System.Math.Min(run.Count, {FlatRunProbe}); i > 0; i--, entry = ref {run}.Next(ref entry, run.Stride))");
+        w.Open();
+        w.Line($"var value = {run}.Value<{t}>(ref entry);");
+        w.Line($"if (value != null && value.GetType() != typeof({t}) && ++subtypes > 1)");
+        w.Line("    return false;");
+        w.Close();
+        w.Line();
+        w.Line($"default({self}).WriteFlat(in run, ref target);");
+        w.Line("return true;");
         w.Close();
     }
 

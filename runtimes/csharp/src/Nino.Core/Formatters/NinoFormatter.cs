@@ -540,8 +540,11 @@ namespace Nino.Core
         internal override T Read(ReadOnlySpan<byte> data) => NinoDirect.Deserialize<T, TFormatter>(data);
 
         // The run hooks CachedFormatter<T> forwards (#440); the queries read once into NinoKind's fields, the calls made
-        // only where they say the formatter has the hook.
-        internal sealed override bool HasRunLoop => NinoKind<TFormatter>.Runs;
+        // only where they say the formatter has the hook. A flat base's runs go to its kernels, not to its run loop
+        // (which hands them to the kernels from four values on): through the loop, a run of one to three of its objects
+        // wrote in 1.5 to 2.0 times the time it took value by value through CachedFormatter, through the kernels in
+        // 0.80 to 1.10 (local, alternated).
+        internal sealed override bool HasRunLoop => NinoKind<TFormatter>.Runs && !NinoKind<TFormatter>.Flat;
 
         internal sealed override void WriteRun(NinoRun run, ref Writer writer) =>
             default(TFormatter).WriteRun(run, ref writer);

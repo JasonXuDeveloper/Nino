@@ -38,7 +38,8 @@ namespace Nino.UnitTests
         /// <summary>
         /// Runs of another assembly's types, reached through <see cref="CachedFormatter{T}"/> (the generated formatter
         /// is internal there), take the registered formatter's run hooks, one call per run (#440): the flat kernels of
-        /// flat classes and structs (their drivers on the stack), a polymorphic base's run loop, the same bytes as the
+        /// flat classes and structs, a flat base's included (their drivers on the stack), a polymorphic base's run
+        /// loop, the same bytes as the
         /// registered formatter writes element by element, read back new and into existing elements, every cut
         /// rejected; a formatter without hooks reports none.
         /// </summary>
@@ -48,8 +49,8 @@ namespace Nino.UnitTests
             Assert.AreEqual((true, false), CachedHooks<FlatMany>());
             Assert.AreEqual((true, false), CachedHooks<FlatLeaf>());
             Assert.AreEqual((true, false), CachedHooks<FlatPoint>());
-            // A flat base with subtypes: its run loop (WriteRun) and its kernels (ReadFlat).
-            Assert.AreEqual((true, true), CachedHooks<FlatOne>());
+            // A flat base with subtypes: its kernels, not its run loop (StructFormatterBase.HasRunLoop).
+            Assert.AreEqual((true, false), CachedHooks<FlatOne>());
             Assert.AreEqual((false, true), CachedHooks<FieldBlockBase>());
             Assert.AreEqual((false, false), CachedHooks<FlatManyProps>());
             Assert.AreEqual((false, false), CachedHooks<FlatPointTwin>());
@@ -113,6 +114,9 @@ namespace Nino.UnitTests
             var (leafWrites, leafReads) = StacksWith<FlatLeaf, CachedFormatter<FlatLeaf>>(leaves);
             Assert.IsTrue(leafWrites[0].Contains("NinoFlat`2.WriteTyped"), "FlatLeaf write");
             Assert.IsTrue(leafReads[0].Contains("NinoFlat`2.ReadTyped"), "FlatLeaf read");
+            var (oneWrites, oneReads) = StacksWith<FlatOne, CachedFormatter<FlatOne>>(Ones(100, true));
+            Assert.IsTrue(oneWrites[0].Contains("NinoFlat`2.WriteTyped"), "FlatOne write");
+            Assert.IsTrue(oneReads[0].Contains("NinoFlat`2.ReadTyped"), "FlatOne read");
             var (pointWrites, pointReads) = StacksWith<FlatPoint, CachedFormatter<FlatPoint>>(
                 Enumerable.Range(0, 50).Select(static i => new FlatPoint { Id = i, Name = "p" }).ToArray());
             Assert.IsTrue(pointWrites[0].Contains("NinoFlatValues`1.Write"), "FlatPoint write");
