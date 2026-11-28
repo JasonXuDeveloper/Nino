@@ -440,5 +440,9 @@
 # #355 whole (feat/storage-layer c6eff3b7, every step merged) against the previous main 9540e0bb. The base is bcc00f8f:
 # main plus LuminPack 2.0.0-rc.2 in Directory.Packages.props, which head's benchmark project needs; Nino is main's.
 # The whole Nino suite, and main against itself for the floor. Decides the feat/storage-layer -> main PR.
-cpu='EPYC|Xeon|Neoverse' bcc00f8f c6eff3b7 3 *Test.Nino*
-cpu='EPYC|Xeon|Neoverse' bcc00f8f bcc00f8f 3 *Test.Nino*
+# done (run 44979508452): cpu='EPYC|Xeon|Neoverse' bcc00f8f c6eff3b7 3 *Test.Nino*
+# done (run 44979508452): cpu='EPYC|Xeon|Neoverse' bcc00f8f bcc00f8f 3 *Test.Nino*
+# #355 after #454 (regressions), #455 (no boxing), #457 (#444) and #458 (#451, #452): feat/storage-layer 1d74935d
+# against the previous main (bcc00f8f = main 9540e0bb + LuminPack rc.2), 2 rounds over the classes the series touches.
+# No floor line: run 44979508452's floor was 0.991-1.009.
+cpu='EPYC|Xeon|Neoverse' bcc00f8f 1d74935d 2 *SimpleTest.Nino* *VersionTolerantTest.Nino* *CommonTypesTest.Nino* *NullableTest.Nino* *CollectionsTest.Nino* *PolymorphicTest.Nino* *FixedSizeTest.Nino* *AppDataTest.Nino* *WorkloadTest.Nino*
