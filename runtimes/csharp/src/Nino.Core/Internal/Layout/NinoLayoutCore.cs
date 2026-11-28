@@ -181,7 +181,10 @@ namespace Nino.Core.Internal
                 case NinoLeaf.SignedPointer:
                     return pointerSize;
                 default:
-                    throw new System.ArgumentOutOfRangeException(nameof(leaf), leaf, "no size of its own");
+                    // The leaf as a number, not as the object the (string, object, string) overload boxes.
+                    throw new System.ArgumentOutOfRangeException(nameof(leaf),
+                        "leaf " + ((int)leaf).ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                        " has no size of its own");
             }
         }
 

@@ -223,7 +223,7 @@ namespace Nino.Core
                 {
                     TKey key = default;
                     default(TKeyFormatter).Deserialize(ref reader, ref key);
-                    if (key == null)
+                    if (NinoUnsafe.IsNull(key))
                         NinoThrow.NullKey(dictionary);
                     seen[i] = key;
 #if NET8_0_OR_GREATER
@@ -545,7 +545,7 @@ namespace Nino.Core
                 TKey key = default;
                 pos += NinoCursor.ReadAt<TKey, TKeyFormatter>(ref Unsafe.Add(ref data, (nint)(uint)pos), end - pos,
                     ref key);
-                if (key == null)
+                if (NinoUnsafe.IsNull(key))
                     NinoThrow.NullKey(dictionary);
                 Unsafe.Add(ref keys, i) = key;
 #if NET8_0_OR_GREATER

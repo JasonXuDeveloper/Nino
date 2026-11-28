@@ -107,7 +107,7 @@ namespace Nino.Core
             try
             {
                 return new ConcurrentDictionary<TKey, TValue>(
-                    new ArraySegment<KeyValuePair<TKey, TValue>>(pairs, 0, length));
+                    new RentedItems<KeyValuePair<TKey, TValue>>(pairs, length));
             }
             catch (ArgumentNullException)
             {
@@ -297,7 +297,7 @@ namespace Nino.Core
             {
                 foreach (var pair in chunk)
                 {
-                    if (pair.Key == null)
+                    if (NinoUnsafe.IsNull(pair.Key))
                         NinoThrow.NullKey(Concurrent);
                     if (_nodes == IntPtr.Zero)
                     {
@@ -319,7 +319,7 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Add(ConcurrentDictionary<TKey, TValue> target, KeyValuePair<TKey, TValue> pair)
             {
-                if (pair.Key == null)
+                if (NinoUnsafe.IsNull(pair.Key))
                     NinoThrow.NullKey(target);
                 if (!target.TryAdd(pair.Key, pair.Value))
                     NinoThrow.DuplicateKey(target.GetType());

@@ -163,7 +163,11 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int Hash<TKey>(object table, TKey key, int mask, bool set)
         {
-            if (!set && key == null)
+            // Initializes the key's presence offset on the first (Tier0) call, for the null tests below and in
+            // Link that a set never runs: compiled before it, each kept a class-init helper and Link<int?> 24 -> 59
+            // stack accesses. Once initialized the read is a constant and gone.
+            _ = NinoPresence<TKey>.Offset;
+            if (!set && NinoUnsafe.IsNull(key))
                 NinoThrow.NullKey(table);
             return EqualityComparer<TKey>.Default.GetHashCode(key!) & mask;
         }
@@ -448,7 +452,7 @@ namespace Nino.Core.Internal
                 // The whole chain, the key's own entry included.
                 var buckets = ObjectFields.At<int[]>(table, at.Buckets);
                 ulong multiplier = at.FastMod >= 0 ? ObjectFields.At<ulong>(table, at.FastMod) : 0;
-                int hash = (key == null ? 0 : comparer.GetHashCode(key)) & mask;
+                int hash = (NinoUnsafe.IsNull(key) ? 0 : comparer.GetHashCode(key)) & mask;
                 other = buckets[(int)Bucket((uint)hash, (uint)buckets.Length, multiplier)] - bias;
                 left++;
             }

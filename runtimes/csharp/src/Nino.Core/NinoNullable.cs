@@ -105,7 +105,9 @@ namespace Nino.Core
             _ => false,
         };
 
-        public override int GetHashCode() => HasValue ? _value.GetHashCode() : 0;
+        // The comparer Equals uses: a T that does not override GetHashCode is boxed by a constrained call to
+        // ValueType.GetHashCode, which EqualityComparer<T>.Default avoids for an IEquatable<T>.
+        public override int GetHashCode() => HasValue ? EqualityComparer<T>.Default.GetHashCode(_value) : 0;
 
         public override string ToString() => HasValue ? _value.ToString() : "";
 
