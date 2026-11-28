@@ -24,6 +24,9 @@ internal static class DispatchEmitter
     /// <summary>The most types a run loop tests that is marked to inline into the collection's write.</summary>
     private const int MaxInlinedRunLoop = 8;
 
+    /// <summary>The fewest values of a flat root's run its run loop hands to the flat kernels (EmitRunSplit).</summary>
+    private const int FlatRunLength = 2;
+
     /// <summary>
     /// A bucket of at most this many subtypes with distinct ids compares the ids directly, without the collision
     /// filter larger buckets need (5cf67a6d).
@@ -425,6 +428,20 @@ internal static class DispatchEmitter
         w.Line("return;");
         w.Close();
         w.Line();
+        // A flat root (#440): an array's or a list's run through its flat kernels, which hand a subtype to the
+        // dispatch and the rest of a run whose elements are often subtypes to the value-by-value loop. Against this
+        // loop, a run of the root's own objects wrote in 0.92 (3), 0.54 (32) and 0.69 (1,000) of the time, one in 13 a
+        // subtype in 0.94, 0.67 and 0.83; one element in 1.26, so a single value keeps the loop (local x64, alternated).
+        if (root is { FlatRuns: true, IsTarget: true })
+        {
+            w.Line($"if (run.Count >= {FlatRunLength})");
+            w.Open();
+            w.Line("WriteFlat(in run, ref target);");
+            w.Line("return;");
+            w.Close();
+            w.Line();
+        }
+
         EmitRunLoop(w, t, root, subtypes, services, entries: false);
         w.Close();
         w.Line();

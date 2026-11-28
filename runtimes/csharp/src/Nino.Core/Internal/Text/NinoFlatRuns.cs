@@ -48,7 +48,7 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            int next = 0, count = run.Count;
+            int next = 0, count = run.Count, left = 0;
             while (true)
             {
                 Write<TItem>(run, ref next, ref writer);
@@ -57,7 +57,33 @@ namespace Nino.Core.Internal
                 writer = WriteOne<T, TFormatter>(ref Unsafe.Add(ref run.First, (nint)next * run.Stride), writer);
                 if (++next == count)
                     return;
+                // Many elements leave (a base's run mixed with its subtypes): the rest element by element. Entering the
+                // kernels again after each one, a run of a flat base, every other element a subtype, wrote in 1.6 to 2.0
+                // times the time of the base's run loop (32 and 1,000 elements), where one in 13 took 0.67 to 0.83 (#440).
+                if (++left * MixedRun > next + MixedGrace)
+                {
+                    writer = WriteRest<T, TFormatter>(ref Unsafe.Add(ref run.First, (nint)next * run.Stride),
+                        count - next, run.Stride, run.InUse, writer);
+                    return;
+                }
             }
+        }
+
+        /// <summary>
+        /// A run whose elements leave once in more than <see cref="MixedRun"/> (after the first
+        /// <see cref="MixedGrace"/> / <see cref="MixedRun"/> leaves) takes the rest element by element
+        /// (<see cref="WriteRun{T,TFormatter,TItem}"/>).
+        /// </summary>
+        private const int MixedRun = 8, MixedGrace = 16;
+
+        /// <summary>The rest of a run whose elements leave often, element by element through the formatter, out of line.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteRest<T, TFormatter>(scoped ref byte first, int count, int stride, int inUse,
+            Writer writer)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            NinoRuns.WriteLoop<T, TFormatter>(ref first, count, stride, NinoRun.NoKey, inUse, ref writer);
+            return writer;
         }
 
         /// <summary>
