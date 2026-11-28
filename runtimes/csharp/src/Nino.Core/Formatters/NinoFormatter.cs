@@ -49,6 +49,21 @@ namespace Nino.Core
         void WriteRun(NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(null, nameof(WriteRun));
 
         /// <summary>
+        /// Whether <see cref="ReadRun"/> reads the values of a run in one loop (false, the default): generated formatters
+        /// of generic polymorphic bases over a closed instance whose code is shared (a type argument holding a class),
+        /// whose loop lies in that instance's own dispatch, where nothing is shared code. Called once.
+        /// </summary>
+        bool HasReadRun => false;
+
+        /// <summary>
+        /// Reads each value of <paramref name="run"/> (values in a row, every one in use, not empty; the count is the
+        /// caller's) in place as <see cref="INinoFormatter{T}.Deserialize"/> reads one. Called only where
+        /// <see cref="HasReadRun"/> is true. Not generic, as <see cref="WriteRun"/>: from code shared over a class the
+        /// call is the one indirect call per collection, never one per value.
+        /// </summary>
+        void ReadRun(in NinoRun run, ref Reader reader) => NinoThrow.MissingCapability(null, nameof(ReadRun));
+
+        /// <summary>
         /// Whether a run of the formatter's values is written and read by the flat kernels (false, the default):
         /// <see cref="WriteFlat"/> and <see cref="ReadFlat"/>. Generated formatters of classes and structs whose body is
         /// flat (raw members, bools, raw T?s and strings: <see cref="NinoFlat{TLayout,TBody}"/>,

@@ -96,9 +96,9 @@ NinoDirect.cs                the top-level calls with the formatter the generato
 NinoRun.cs                   NinoRun: the run cursor over any contiguous storage (first value, count, stride, the in-use
                              test of free entries; the key's offset and write only in the run of a pair's values) and the
                              one way a run of items is made (Items: a set's values, a pair's values with their keys), and
-                             the pieces of a loop over it (Next, Skips, WriteKey, Value; WriteEach, the deep path,
+                             the pieces of a loop over it (Next, Skips, WriteKey, Value, Slot; WriteEach, the deep path,
                              through NinoRuns.WriteLoop);
-                             what INinoFormatter.WriteRun takes
+                             what INinoFormatter.WriteRun and ReadRun take
 NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory, built item by item (Item)
 NinoBlocks.cs                NinoBlocks: the items of composites (ItemSize, WriteItem, ReadItem: raw, or a block through
                              constrained calls), and the offsets NinoBlockMap is built from
@@ -139,9 +139,10 @@ NinoFormatter.cs             INinoFormatter<T> (Serialize, Deserialize; capabili
                              WriteFixed, BlockMap, ReadBlock, internal slots with a slot's single value at a reference
                              (WriteAt, ReadAt), and a composite's ItemsMayRecycle, RecycleItems) and the non-generic
                              INinoFormatter it
-                             extends (BodyTraits; the run loop of polymorphic bases: HasRunLoop, WriteRun; the flat
-                             kernels' runs of flat classes: HasFlat, WriteFlat, ReadFlat; the prefetch of long
-                             collections of classes: PrefetchBytes, HasMemberPrefetch, PrefetchMembers; internal
+                             extends (BodyTraits; the run loops of polymorphic bases: HasRunLoop, WriteRun, and the
+                             read of a generic base's closed instance, HasReadRun, ReadRun; the flat kernels' runs of flat
+                             classes: HasFlat, WriteFlat, ReadFlat; the prefetch of long collections of classes: PrefetchBytes,
+                             HasMemberPrefetch, PrefetchMembers; internal
                              HasSizedWrite, HasExternalWrite, HasCursor with WriteStrings, ReadStrings: a run of pairs
                              holding strings through the string run kernels; RecyclesItems);
                              NinoFormatterBase<T> and its struct wrappers (StructFormatter, FixedStructFormatter,
@@ -296,7 +297,8 @@ NinoRuns.cs                  the one write of a run (NinoRun) of any stride and 
                              dictionary's entries, each the element), each kind by its kernel, the rest through the
                              one loop per direction (WriteLoop, ReadLoop; WriteEach, ReadEach out of line); strings and
                              pairs holding them handed to the string run kernels, one call out of line (WriteStrings,
-                             ReadStrings); a polymorphic base's run loop (KeyOf: the keys a pair's run writes)
+                             ReadStrings); a polymorphic base's run loop (KeyOf: the keys a pair's run writes), a generic base's
+                             closed read loop (ReadRun, from ReadClasses)
 NinoItems.cs                 what a composite of any number of items (a KeyValuePair, a value tuple of two to seven, a
                              dictionary's entry) does on a run, composed once from its items at their offsets: the
                              cursor form (Part, Pair, Cursor; each item's bottom item picked outside the loop into the

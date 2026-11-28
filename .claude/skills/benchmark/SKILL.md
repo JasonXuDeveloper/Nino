@@ -37,7 +37,10 @@ run the builds alternated six times (`DOTNET_gcServer=1` where the class has `[G
 and median. `NinoDeserializePooled` read 213-284 ns (rc.7), 250-296 (main) round after round there, where quick mode
 gave overlapping ranges. Never pin it to one CPU (`taskset`): the tiering thread starves and the loop times Tier0 code
 (1,000 ns instead of 250); `DOTNET_TieredCompilation=0` times code whose `static readonly` fields do not fold, not what
-runners measure. Runners still decide (round 123).
+runners measure. Runners still decide (round 123). To read a gap against a competitor in such a probe, sample the two
+libraries alternately (a batch of Nino, a batch of the other, 41 times) and take the median of the per-pair ratios:
+timed one case after the other, on a machine other agents shared, GenericSealedClassTupleBase's LuminPack/Nino read
+0.75 to 1.13 from round to round of one build; alternated, 0.80 to 0.90 over six rounds (#441).
 
 - Time each build in a process of its own, not two assembly load contexts in one process: a byte-identical A/A of
   the 64-item `BlockWaypoint` case in one process showed a 5–15% gap on several Arm64 runs, even with the warmup
