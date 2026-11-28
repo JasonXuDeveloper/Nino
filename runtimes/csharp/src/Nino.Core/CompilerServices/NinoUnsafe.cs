@@ -412,15 +412,15 @@ namespace Nino.Core.CompilerServices
         /// value has no side effects: on a <c>T?</c> read through a reference in an inlined call .NET 11 allocated the
         /// box whenever the value was present (#449: a <c>HashSet&lt;int?&gt;</c> read, one per element; the reuse read
         /// of a <c>T?</c> of a struct with a reference). A value type is null only as a <c>T?</c> (<c>default(T) ==
-        /// null</c>, which the JIT folds for every value type) whose presence byte is 0 (<see cref="NinoPresence{T}"/>:
-        /// one load of a static the class needs no initialization for, then one load of the byte);
-        /// <c>Nullable&lt;T&gt;.Equals(object)</c> boxed nothing either but stayed a call, and a <c>static readonly</c>
-        /// offset folded only where the class was already initialized when the caller compiled, a helper call and
-        /// twice the spills everywhere else (the hash chain walk of a <c>Dictionary&lt;int?, V&gt;</c>). A class is
-        /// compared as a reference. A Debug build of Nino runs without JIT optimization, where <c>default(T) != null</c>
-        /// allocates the box for every other value type (24 bytes per key of a <c>Dictionary&lt;int, int?&gt;</c>
-        /// read, which CI's Debug tests caught), so there the static says whether <typeparamref name="T"/> is a
-        /// <c>T?</c> too.
+        /// null</c>, which optimized code folds for every value type) whose presence byte is 0, at the offset
+        /// <see cref="NinoPresence{T}"/> found: a <c>static readonly</c> the JIT reads as a constant once the class is
+        /// initialized, so a fresh read of a <c>T?</c> folds the test away; a static found on first use instead kept
+        /// the load, a call and the recycling of a value known to be default in every top-level read of a
+        /// <c>ManagedStruct?</c> (657 -> 932 bytes). <c>Nullable&lt;T&gt;.Equals(object)</c> boxed nothing either but
+        /// stayed a call. A class is compared as a reference. A Debug build of Nino runs without JIT optimization,
+        /// where <c>default(T) != null</c> allocates the box for every other value type (24 bytes per key of a
+        /// <c>Dictionary&lt;int, int?&gt;</c> read, which CI's Debug tests caught), so there the offset (-1) says
+        /// whether <typeparamref name="T"/> is a <c>T?</c> too.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool IsNull<T>(scoped in T value)
@@ -431,11 +431,8 @@ namespace Nino.Core.CompilerServices
             if (default(T) != null)
                 return false;
 #endif
-            int at = NinoPresence<T>.At;
-            if (at == 0)
-                at = NinoPresence<T>.Find();
-            return at > 0 &&
-                   Unsafe.AddByteOffset(ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), (nint)(at - 1)) == 0;
+            return NinoPresence<T>.Offset >= 0 && Unsafe.AddByteOffset(
+                ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), (nint)NinoPresence<T>.Offset) == 0;
         }
 
         /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its
@@ -464,32 +461,29 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// Where a <typeparamref name="T"/> that is a <c>T?</c> keeps its presence (HasValue), plus one (0 until found,
-    /// -1 for any other type):
+    /// Where a <typeparamref name="T"/> that is a <c>T?</c> keeps its presence (HasValue), or -1 for any other type:
     /// found once by comparing a present value (an unboxed zeroed value of the underlying type) with
     /// <c>default</c>, so <see cref="NinoUnsafe.IsNull{T}"/> reads one byte on every runtime, whatever its layout of
     /// <c>Nullable&lt;T&gt;</c> (CoreCLR's presence first unless the value holds references, Mono's after the value).
-    /// No initializer on purpose: a class without one needs no initialization check where the field is read.
     /// </summary>
     internal static class NinoPresence<T>
     {
-        public static int At;
+        public static readonly int Offset = Find();
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2087",
             Justification = "A value type: its zeroed instance runs no constructor, and the type is kept as T's argument.")]
-        public static int Find()
+        private static int Find()
         {
-            if (Nullable.GetUnderlyingType(typeof(T)) == null)
-                return At = -1;
-            T present = (T)RuntimeHelpers.GetUninitializedObject(Nullable.GetUnderlyingType(typeof(T))!);
+            if (!typeof(T).IsValueType || Nullable.GetUnderlyingType(typeof(T)) is not { } underlying)
+                return -1;
+            T present = (T)RuntimeHelpers.GetUninitializedObject(underlying);
             T absent = default;
             ref byte a = ref Unsafe.As<T, byte>(ref absent);
             ref byte p = ref Unsafe.As<T, byte>(ref present);
             int i = 0;
             while (Unsafe.Add(ref a, i) == Unsafe.Add(ref p, i))
                 i++;
-            return At = i + 1;
+            return i;
         }
     }
 }

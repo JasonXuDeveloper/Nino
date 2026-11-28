@@ -60,8 +60,9 @@ namespace Nino.Core
 
         // Out of line: dropped instances are rare, and the code inlined at every slot that may drop one would use
         // up the JIT's inlining budget of the method it is inlined into.
+        // Discard calls it directly: it has tested the value for null once already.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void RecycleCore(T value)
+        internal static void RecycleCore(T value)
         {
             var handler = Handler;
             if (handler != null)
@@ -117,7 +118,7 @@ namespace Nino.Core
 
             var old = value;
             value = default;
-            NinoRecycler<T>.Recycle(old);
+            NinoRecycler<T>.RecycleCore(old);
         }
 
         /// <summary>
