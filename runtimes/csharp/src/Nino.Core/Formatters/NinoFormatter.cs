@@ -732,9 +732,9 @@ namespace Nino.Core
 
         bool INinoFormatter.HasFlat => NinoTopFormatter<T>.Formatter.HasFlat;
 
-        // A single value as one: the run's call and the kernels' entry on top of the forward read one flat class in
-        // 1.10 to 1.15 times the time of its virtual call (local, alternated). Here, not in NinoRuns' loops, whose
-        // code is shared by every collection: a test there changed how the JIT inlined other types' reads (asm.py).
+        // A single value as one: the kernels' entry on top of the forward wrote one flat class in up to 1.19 times the
+        // time of its virtual call (local, alternated). A read of one is told apart before the run is built
+        // (NinoRuns.ReadClasses, NinoKind.Forwards).
         void INinoFormatter.WriteFlat(in NinoRun run, ref Writer writer)
         {
             if (run.Count == 1)
@@ -743,12 +743,7 @@ namespace Nino.Core
                 NinoTopFormatter<T>.Formatter.WriteFlat(in run, ref writer);
         }
 
-        void INinoFormatter.ReadFlat(in NinoRun run, ref Reader reader)
-        {
-            if (run.Count == 1)
-                NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref Unsafe.As<byte, T>(ref run.First));
-            else
-                NinoTopFormatter<T>.Formatter.ReadFlat(in run, ref reader);
-        }
+        void INinoFormatter.ReadFlat(in NinoRun run, ref Reader reader) =>
+            NinoTopFormatter<T>.Formatter.ReadFlat(in run, ref reader);
     }
 }
