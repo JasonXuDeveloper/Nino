@@ -79,7 +79,8 @@ Collections/                 arrays, BCL and user collections, empty ones, Stack
                              body, which runs take the kernels (their drivers on the stack), subtypes, reuse, sets, runs
                              past the inline depth, hostile data; FlatTests.Bodies.cs: keyed, version-tolerant and
                              nested bodies, across versions, hostile bytes read alike by the flat and generated reads;
-                             Untrusted mode in
+                             FlatTests.Blocks.cs: bools, raw structs and NinoNullable members in blocks, their checks
+                             on every cut and bad flag; Untrusted mode in
                              UntrustedModeTests), the prefetch of long top-level
                              arrays
                              and lists of scattered objects and the

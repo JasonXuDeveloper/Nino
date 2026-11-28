@@ -425,6 +425,21 @@ says which CPUs and cases moved.
   version-tolerant struct 0.75 and 0.91-0.94 (1.00-1.02); a class nesting two classes and two structs 1.00-1.04
   (0.99-1.01) and 0.91-0.92 (0.95). The node after a nested class item in that class is reported "recursive" by the
   JIT (a call per element left in its listing): look there before nesting deeper.
+- **Let bools, raw structs without padding and `NinoNullable<T>` members join a flat class's blocks, their read
+  checks a `TCheck` type argument over the block's bytes, never an item each** (#444: `NinoBlockAt<TMember, TCheck>`,
+  `INinoBlockCheck`, the generated `__C_<member>`; `NinoBlockCheck.Bools` ORs the bool bytes and throws once on a bit
+  past 0/1). Join only members consecutive in declaration order and in CoreCLR's auto layout (references, then
+  primitives by size 8/4/2/1 in declaration order, then structs in declaration order at their alignment:
+  `FlatRules.PredictedOffsets`, proven per call by `__Check.Write`, the chain of fields elsewhere: Mono, IL2CPP, 32-bit);
+  a padded struct stays a `NinoStructItem` (padding cleared on write), and Untrusted mode keeps the chain of fields for
+  checked structs (`NinoFieldBlock.ReadsAsIs`). Over the benchmark and workload models' 167 positional classes this
+  took blocks from 35 of 86 members to 50 of 121 (the 21 flat classes: Image's 3 members, now also Order's Paid and
+  Status). Declaring raw fields largest first would take the flat classes' chains from 91 to 56 nodes (all classes 524
+  to 339, 76 gaining), but it changes the wire order, so a note for it helps only new types: left to the owner, no
+  rule. Local, alternated, Xeon 2.10 GHz, median of 3, against main 9540e0bb at 1/3/32/1000 elements, Tier1 (TC=0): a
+  class of three blocks with bools, DateTime, Guid, decimal and NinoNullables wrote in 0.79/0.86/0.84/0.82
+  (0.83/0.92/0.88/0.94) and read in 0.95-1.01 (0.95-1.01); Order and Comment on par (Order's Tier1 read at 32 ranged
+  1,018-1,276 ns against main's 1,037-1,154: noise on a shared machine, a runner A/B decides).
 - **Never call the runtime's `Utf8` transcoder for a short ASCII string right after Nino's own 256-bit code.** The
   ReadyToRun CoreLib's `Utf8.FromUtf16`/`ToUtf16` are SSE-encoded, and an inlined AVX2 string kernel before them
   leaves the upper vector state dirty, so each call paid an AVX-SSE transition until the caller tiered up (TC=0, and
