@@ -417,19 +417,25 @@ namespace Nino.Core.CompilerServices
         /// <c>Nullable&lt;T&gt;.Equals(object)</c> boxed nothing either but stayed a call, and a <c>static readonly</c>
         /// offset folded only where the class was already initialized when the caller compiled, a helper call and
         /// twice the spills everywhere else (the hash chain walk of a <c>Dictionary&lt;int?, V&gt;</c>). A class is
-        /// compared as a reference.
+        /// compared as a reference. A Debug build of Nino runs without JIT optimization, where <c>default(T) != null</c>
+        /// allocates the box for every other value type (24 bytes per key of a <c>Dictionary&lt;int, int?&gt;</c>
+        /// read, which CI's Debug tests caught), so there the static says whether <typeparamref name="T"/> is a
+        /// <c>T?</c> too.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool IsNull<T>(scoped in T value)
         {
             if (!typeof(T).IsValueType)
                 return value == null;
+#if !DEBUG
             if (default(T) != null)
                 return false;
+#endif
             int at = NinoPresence<T>.At;
             if (at == 0)
                 at = NinoPresence<T>.Find();
-            return Unsafe.AddByteOffset(ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), (nint)(at - 1)) == 0;
+            return at > 0 &&
+                   Unsafe.AddByteOffset(ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), (nint)(at - 1)) == 0;
         }
 
         /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its
@@ -458,7 +464,8 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// Where a <typeparamref name="T"/> that is a <c>T?</c> keeps its presence (HasValue), plus one (0 until found):
+    /// Where a <typeparamref name="T"/> that is a <c>T?</c> keeps its presence (HasValue), plus one (0 until found,
+    /// -1 for any other type):
     /// found once by comparing a present value (an unboxed zeroed value of the underlying type) with
     /// <c>default</c>, so <see cref="NinoUnsafe.IsNull{T}"/> reads one byte on every runtime, whatever its layout of
     /// <c>Nullable&lt;T&gt;</c> (CoreCLR's presence first unless the value holds references, Mono's after the value).
@@ -473,6 +480,8 @@ namespace Nino.Core.CompilerServices
             Justification = "A value type: its zeroed instance runs no constructor, and the type is kept as T's argument.")]
         public static int Find()
         {
+            if (Nullable.GetUnderlyingType(typeof(T)) == null)
+                return At = -1;
             T present = (T)RuntimeHelpers.GetUninitializedObject(Nullable.GetUnderlyingType(typeof(T))!);
             T absent = default;
             ref byte a = ref Unsafe.As<T, byte>(ref absent);
