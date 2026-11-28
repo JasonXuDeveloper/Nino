@@ -219,9 +219,11 @@ says which CPUs and cases moved.
   Beside a string, a slot's value (a raw `T?`) is an item in its single value's
   bytes (`NinoSlotItem` over two internal non-generic members of `INinoFormatter<T>`, `WriteAt`/`ReadAt`, implemented by
   `UnmanagedNullableFormatter`): `NinoCursor.Item` is the one predicate of what may sit beside a string. A raw run Nino
-  checks (bools, Untrusted mode) is checked in the data out of line and then copied as one block in `NinoRuns.Read`
-  (`CheckRaw`), never sent to the per-value loop: nothing the check rejects is stored, so a rejected read leaves an
-  existing array as it was. Write every collection that is not one run through the gather seam, never element by
+  checks (bools, Untrusted mode) goes through the one kernel `NinoChecks.CopyValues` from every collection
+  (`NinoRuns.Read`'s raw branch, `Reader.ReadUnmanagedRaw`, the raw array and list formatters), never the per-value
+  loop: into fresh storage (new, published only once read: pass `fresh` from the caller that knows) checked while
+  copied from 4 KiB, into existing values checked first, so a rejected read leaves an existing array as it was
+  (vectors-checks.md, the fused bullet). Write every collection that is not one run through the gather seam, never element by
   element (#355, `CompilerServices`, hidden): a package outside Nino.Core (Nino.Immutable) says only how its
   collection is walked, an `INinoGatherSource<T>` struct handed to `NinoGathered.Write` (or `WriteReversed` for a
   stack walked from its top), and Nino.Core's run loops write each chunk (raw values as one block or straight into the

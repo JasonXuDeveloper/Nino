@@ -133,10 +133,10 @@ namespace Nino.Core
             if (!ListAccess.Direct || !NinoLayout<T>.CopiesAsIs)
             {
                 // The read checks bools and Untrusted mode's values: a new list over an uninitialized array takes the
-                // slot once filled.
+                // slot once filled, so its values are checked while they are copied.
                 var list = value ?? ListAccess.CreateOverwritten<TList, T>(length, uninitialized: true);
                 var span = ListAccess.Open(list, length, overwritten: true, out var buffer);
-                reader.ReadUnmanagedRaw(span);
+                reader.ReadUnmanagedRaw(span, fresh: value == null);
                 ListAccess.Close(list, length, buffer);
                 value = list;
                 return;

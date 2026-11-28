@@ -24,7 +24,7 @@ public class SettingsTests
         private readonly string _directory = Path.GetDirectoryName(typeof(SettingsTests).Assembly.Location);
 
         protected override Assembly Load(AssemblyName name) =>
-            name.Name is "Nino.Core" or "Nino.UnitTests" or "Nino.UnitTests.Subset" or "Nino.Immutable"
+            name.Name is "Nino.Core" or "Nino.UnitTests" or "Nino.UnitTests.Subset" or "Nino.Immutable" or "Nino.UnityTypes"
                 ? LoadFromAssemblyPath(Path.Combine(_directory, name.Name + ".dll"))
                 : null;
     }
