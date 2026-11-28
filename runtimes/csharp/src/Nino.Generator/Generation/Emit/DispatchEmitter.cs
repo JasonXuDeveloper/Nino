@@ -341,8 +341,8 @@ internal static class DispatchEmitter
             w.Close();
             w.Line();
             foreach (var s in subtypes)
-                w.Line(WriteShallow(s, services, "return;"));
-            w.Line(WriteOther(t, services) + ";");
+                w.Line(WriteCase(s, services, "ref writer", "return;"));
+            w.Line(WriteOtherCase(services, "ref writer"));
             w.Close();
             if (runLoop)
                 EmitWriteRun(w, t, root!, subtypes, services);
@@ -400,14 +400,17 @@ internal static class DispatchEmitter
 
     /// <summary>
     /// The write of <paramref name="s"/> when the value is exactly that subtype and its body is not too deep, ending in
-    /// <paramref name="exit"/>. A raw body's type id and block go into one reservation, written here rather than
-    /// through NinoObject.WriteExactRawShallow: one inlining level fewer per subtype, so a dispatch of many keeps more of
-    /// them within the JIT's budget, and one it leaves out is a call to the subtype's own formatter, not to shared
-    /// generic code that looks the formatter up (#305).
+    /// <paramref name="exit"/>: one call of Nino.Core's <c>NinoWriteCursor</c>, the same in <c>__WriteSubtype</c>
+    /// (<paramref name="at"/> the writer) and in the run loop (the loop's cursor and the target writer). A raw body's
+    /// type id and block go into one reservation (<c>Raw</c>), any other body through the writer (<c>Body</c>). The
+    /// subtype's own formatter is named: one the JIT leaves out of line is a call to it, not to shared generic code
+    /// that looks the formatter up (#305).
     /// </summary>
-    private static string WriteShallow(DispatchEntry s, string services, string exit) => s.RawBody
-        ? $$"""if (value.GetType() == typeof({{s.TypeName}})) { ref byte __block = ref writer.Reserve(sizeof(int) + default({{s.FormatterName}}).BodySize); {{services}}NinoUnsafe.Write(ref __block, {{s.TypeId.ToString(CultureInfo.InvariantCulture)}}); default({{s.FormatterName}}).WriteRawBody({{services}}NinoObject.SameType<{{s.TypeName}}>(value), ref __block, sizeof(int)); {{exit}} }"""
-        : $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); {{exit}} }""";
+    private static string WriteCase(DispatchEntry s, string services, string at, string exit) =>
+        $"if (value.GetType() == typeof({s.TypeName})) {{ {services}NinoWriteCursor.{(s.RawBody ? "Raw" : "Body")}<{s.TypeName}, {s.FormatterName}>(value, {at}); {exit} }}";
+
+    /// <summary>The write of a subtype the chain does not know, through the registry, as <see cref="WriteCase"/>.</summary>
+    private static string WriteOtherCase(string services, string at) => $"{services}NinoWriteCursor.Other(value, {at});";
 
     /// <summary>
     /// <c>WriteRun</c> (<c>HasRunLoop</c>): the values of a run of any collection's storage (<c>NinoRun</c>: an array's,
@@ -479,49 +482,41 @@ internal static class DispatchEmitter
         string services, bool entries)
     {
         string run = $"{services}NinoRun";
+        const string at = "ref cursor, ref target";
         w.Line("ref byte entry = ref run.First;");
         w.Line("int stride = run.Stride;");
-        // The cursor and the free bytes in two locals, which the JIT keeps in registers; the target writer takes them
-        // back around anything else that writes (a key, a body that is not one raw block, the registry).
-        w.Line("ref byte cur = ref target.UnsafeCursor(out int avail);");
+        // The cursor and the free bytes in a local the JIT keeps in two registers; each piece gives them back to the
+        // target writer around anything else that writes (a key, a body that is not one raw block, the registry).
+        w.Line($"var cursor = new {services}NinoWriteCursor(ref target);");
         w.Line($"for (int left = run.Count; left > 0; left--, entry = ref {run}.Next(ref entry, stride))");
         w.Open();
         if (entries)
         {
             w.Line($"if ({run}.Skips(ref entry, run.InUse))");
             w.Line("    continue;");
-            w.Line($"if (run.Key != {run}.NoKey) {{ target.UnsafeSetCursor(ref cur, avail); {run}.WriteKey(ref entry, run.Key, ref target); cur = ref target.UnsafeCursor(out avail); }}");
+            w.Line($"{services}NinoWriteCursor.Key(ref entry, run.Key, {at});");
         }
         w.Line($"var value = {run}.Value<{t}>(ref entry);");
-        w.Line($"if (value == null) {{ if (avail < sizeof(int)) {{ target.UnsafeGrowAt(ref cur, avail, sizeof(int)); cur = ref target.UnsafeCursor(out avail); }} {services}NinoUnsafe.Write(ref cur, 0); cur = ref {services}NinoUnsafe.Add(ref cur, sizeof(int)); avail -= sizeof(int); continue; }}");
+        w.Line($"if (value == null) {{ {services}NinoWriteCursor.Null({at}); continue; }}");
         // A root that is a class of its own (not abstract) tests its own type first, as its Serialize does. Left to the
         // registry (NinoSubtypes.Serialize: a lookup and a virtual call), 1,000 values of a root with four subtypes,
         // most of its own type, wrote in 0.76-0.80 of the time (local x64, #355). Classes below the root keep no loop of
         // their own: one per class with subtypes (its own type, then its subtypes) wrote 1,000 values 1.14-1.22x as
         // long for three subtypes and 1.04-1.06x for twelve, against the value-by-value loop with the root's dispatch.
         if (root is { IsTarget: true })
-            w.Line(WriteAtCursor(root, services));
-        // The chain written out here again, not shared with __WriteSubtype through one AggressiveInlining method
-        // (returning whether it wrote, or ending in the registry): the run loop of PolymorphicFooBase's 20 subtypes
-        // then called it per element at Tier1 ("too many locals": the inlinee's argument temporaries on top of the
-        // loop's; WriteRun 2,620 to 1,391 bytes plus the call), and at FullOpts the chain was a root of its own.
+            w.Line(WriteCase(root, services, at, "continue;"));
+        // The chain written out here again (the same calls as __WriteSubtype's), not shared with __WriteSubtype through
+        // one AggressiveInlining method (returning whether it wrote, or ending in the registry): the run loop of
+        // PolymorphicFooBase's 20 subtypes then called it per element at Tier1 ("too many locals": the inlinee's
+        // argument temporaries on top of the loop's; WriteRun 2,620 to 1,391 bytes plus the call), and at FullOpts the
+        // chain was a root of its own.
         foreach (var s in subtypes)
-            w.Line(WriteAtCursor(s, services));
-        // A subtype the chain does not know: the registry, with the target writer.
-        w.Line($"target.UnsafeSetCursor(ref cur, avail); {WriteOther(t, services, "target")}; cur = ref target.UnsafeCursor(out avail);");
+            w.Line(WriteCase(s, services, at, "continue;"));
+        w.Line(WriteOtherCase(services, at));
         w.Close();
         w.Line();
-        w.Line("target.UnsafeSetCursor(ref cur, avail);");
+        w.Line("cursor.Back(ref target);");
     }
-
-    /// <summary>
-    /// The write of <paramref name="s"/> in a run loop that holds the cursor in locals (<c>cur</c>, <c>avail</c>): a
-    /// raw body's type id and block at the cursor after one check of the free bytes, any other body through the target
-    /// writer, given the cursor back around it.
-    /// </summary>
-    private static string WriteAtCursor(DispatchEntry s, string services) => s.RawBody
-        ? $$"""if (value.GetType() == typeof({{s.TypeName}})) { int __n = sizeof(int) + default({{s.FormatterName}}).BodySize; if ((uint)__n > (uint)avail) { target.UnsafeGrowAt(ref cur, avail, __n); cur = ref target.UnsafeCursor(out avail); } {{services}}NinoUnsafe.Write(ref cur, {{s.TypeId.ToString(CultureInfo.InvariantCulture)}}); default({{s.FormatterName}}).WriteRawBody({{services}}NinoObject.SameType<{{s.TypeName}}>(value), ref cur, sizeof(int)); cur = ref {{services}}NinoUnsafe.Add(ref cur, __n); avail -= __n; continue; }"""
-        : $$"""if (value.GetType() == typeof({{s.TypeName}})) { target.UnsafeSetCursor(ref cur, avail); {{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref target); cur = ref target.UnsafeCursor(out avail); continue; }""";
 
     private static string WriteSubtype(string t) => $"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)";
 
