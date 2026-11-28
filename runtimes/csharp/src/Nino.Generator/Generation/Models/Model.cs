@@ -637,10 +637,11 @@ internal sealed record InterceptedCall(string Signature, string Method, string T
 // A type in the per-assembly subtype dispatch: a base (DispatchesSubtypes: a root, IsBase, or a class below one,
 // Middle), a target (IsDispatchTarget), or both. TypeParameterList: a generic base's (TypeModel.TypeParameterList), ""
 // otherwise. RawBody: the target's body is one raw block (TypeModel.RawBody), written with its type id in one
-// reservation.
+// reservation. FlatRuns: the type's runs have the flat kernels' hooks (TypeModel.Flat, not NestOnly), which a root's
+// run loop hands its runs to (DispatchEmitter.EmitRunSplit).
 internal sealed record DispatchEntry(string TypeName, string FormatterName, string TypeParameterList, int TypeId,
     bool IsBase, bool IsTarget, EquatableArray<string> BaseClasses, EquatableArray<string> Interfaces,
-    EquatableArray<GenericAncestor> GenericAncestors, bool RawBody, bool Flat, bool Middle)
+    EquatableArray<GenericAncestor> GenericAncestors, bool RawBody, bool Flat, bool Middle, bool FlatRuns)
 {
     /// <inheritdoc cref="TypeModel.Self"/>
     public string Self => TypeModel.SelfOf(FormatterName, TypeParameterList);

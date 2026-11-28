@@ -337,7 +337,7 @@ public sealed partial class NinoGenerator : IIncrementalGenerator
                 return isBase || isTarget || middle
                     ? new DispatchEntry(m.TypeName, m.FormatterName, m.TypeParameterList, m.TypeId, isBase, isTarget,
                         m.Inheritance.NinoBaseClasses, m.Inheritance.NinoInterfaces, m.Inheritance.NinoGenericAncestors,
-                        m.RawBody, !m.Depth.Nests, middle)
+                        m.RawBody, !m.Depth.Nests, middle, FlatRuns: m.Flat is { NestOnly: false })
                     : null;
             })
             .Select(static (x, _) => new EquatableArray<DispatchEntry>(

@@ -134,8 +134,8 @@ namespace Nino.UnitTests
         /// costs the kernels nothing: equal bytes cannot tell, a run written element by element writes them too (a
         /// branch placed after the one for formatters that write on a local writer once sent sealed flat classes
         /// there). Writes are seen from the pool of a buffer that starts with one byte, reads from the exception of a
-        /// cut run. Through the generated formatter: this assembly reaches the Subset's types through
-        /// CachedFormatter, which forwards no kernel.
+        /// cut run. Through the generated formatter; runs through CachedFormatter, as this assembly's generated code
+        /// reaches the Subset's types, in FlatTests.Cached.cs.
         /// </summary>
         [TestMethod]
         public void RunsGoThroughTheKernels()
@@ -146,7 +146,8 @@ namespace Nino.UnitTests
             var leaves = Enumerable.Range(0, 100).Select(static i => new FlatLeaf { Id = i, Name = "leaf " + i }).ToArray();
             var (manyWrites, manyRead) = Stacks(manys);
             var (leafWrites, leafRead) = Stacks(leaves);
-            var (_, oneRead) = Stacks(Ones(100, false));
+            var (oneWrites, oneRead) = Stacks(Ones(100, false));
+            var (mixedWrites, _) = Stacks(Ones(100, true));
             Assert.IsTrue(manyWrites[0].Contains(sealedWrite), "FlatMany[] write");
             Assert.IsTrue(manyWrites[1].Contains(sealedWrite), "List<FlatMany> write");
             Assert.IsTrue(leafWrites[0].Contains(typedWrite), "FlatLeaf[] write");
@@ -155,7 +156,11 @@ namespace Nino.UnitTests
             Assert.IsTrue(manyRead[1].Contains(sealedRead), "List<FlatMany> read");
             Assert.IsTrue(leafRead[0].Contains(typedRead), "FlatLeaf[] read");
             Assert.IsTrue(leafRead[1].Contains(typedRead), "List<FlatLeaf> read");
-            // A base with subtypes: written through its dispatch loop (INinoFormatter.WriteRun), read by the kernels.
+            // A base with subtypes: its dispatch loop (INinoFormatter.WriteRun) hands a run to the kernels (#440), a
+            // run with subtypes in it too; read by the kernels.
+            Assert.IsTrue(oneWrites[0].Contains(typedWrite), "FlatOne[] write");
+            Assert.IsTrue(oneWrites[1].Contains(typedWrite), "List<FlatOne> write");
+            Assert.IsTrue(mixedWrites[0].Contains(typedWrite), "FlatOne[] write, subtypes in it");
             Assert.IsTrue(oneRead[0].Contains(typedRead), "FlatOne[] read");
             Assert.IsTrue(oneRead[1].Contains(typedRead), "List<FlatOne> read");
 
@@ -450,6 +455,51 @@ namespace Nino.UnitTests
                     CollectionAssert.AreEqual(NinoSerializer.Serialize(Props(value)).Skip(4).ToArray(),
                         NinoSerializer.Serialize(value).Skip(4).ToArray());
             }
+        }
+
+        /// <summary>
+        /// A flat base's runs whose elements are often subtypes (#440): a run with more than one subtype among its first
+        /// eight values keeps the base's loop, and the kernels hand the rest of a run to the value-by-value loop
+        /// (NinoFlatRuns.WriteRest, on the stack) once more than one in eight left; the same bytes as element by element,
+        /// whichever way the subtypes fall (every other, a block of them first, every third, only after 30 values).
+        /// </summary>
+        [TestMethod]
+        public void MixedRunsLeaveTheKernels()
+        {
+            static FlatOne[] Mixed(int count, Func<int, bool> derived) => Enumerable.Range(0, count).Select(i =>
+            {
+                var value = derived(i) ? new FlatOneDerived { Extra = -i } : new FlatOne();
+                value.Id = i;
+                value.Stamp = i * 3L;
+                value.Name = i % 9 == 4 ? null : "item " + i;
+                return value;
+            }).ToArray();
+
+            foreach (int count in new[] { 2, 3, 17, 18, 40, 1000 })
+            foreach (var (name, derived) in new (string, Func<int, bool>)[]
+                     {
+                         ("alternate", static i => i % 2 == 1), ("first", static i => i < 12),
+                         ("thirds", static i => i % 3 == 0), ("tail", static i => i > 30 && i % 2 == 0),
+                     })
+            {
+                var values = Mixed(count, derived);
+                byte[] each = Each(values);
+                CollectionAssert.AreEqual(each, NinoSerializer.Serialize(values), $"{name} {count}");
+                CollectionAssert.AreEqual(each, NinoSerializer.Serialize(values.ToList()), $"{name} list {count}");
+                var back = NinoDeserializer.Deserialize<FlatOne[]>(each);
+                for (int i = 0; i < count; i++)
+                    Assert.IsTrue(Same(values[i], back[i]), $"{name} {count} element {i}");
+            }
+
+            // Subtypes among the first values: the base's loop, never the kernels; after them: the kernels, then the loop.
+            var (writes, _) = Stacks(Mixed(1000, static i => i % 2 == 1));
+            Assert.IsFalse(writes[0].Contains("NinoFlat`2.WriteTyped"), "every other a subtype");
+            var (tailWrites, _) = Stacks(Mixed(1000, static i => i > 30 && i % 2 == 0));
+            Assert.IsTrue(tailWrites[0].Contains("NinoFlat`2.WriteTyped"), "subtypes after 30 values");
+            Assert.IsTrue(tailWrites[0].Contains("NinoFlatRuns.WriteRest"), "subtypes after 30 values");
+            var (fewWrites, _) = Stacks(Mixed(1000, static i => i % 13 == 7));
+            Assert.IsFalse(fewWrites[0].Contains("NinoFlatRuns.WriteRest"), "one in 13 a subtype");
+            Assert.IsTrue(fewWrites[0].Contains("NinoFlat`2.WriteTyped"), "one in 13 a subtype");
         }
 
         [TestMethod]

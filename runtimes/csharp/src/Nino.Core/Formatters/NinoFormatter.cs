@@ -453,6 +453,36 @@ namespace Nino.Core
         /// collections (<see cref="NinoNesting"/>); the formatter itself where it cannot be wrapped.
         /// </summary>
         internal virtual NinoFormatterBase<T> Counted() => this;
+
+        /// <summary>
+        /// <see cref="INinoFormatter.HasRunLoop"/> of the struct formatter this one wraps, which
+        /// <see cref="CachedFormatter{T}"/> reports as its own and hands a whole run to (#440): one virtual call per
+        /// run, never one per value. False (the default) for any other formatter: a missing one, and a nesting one,
+        /// which counts each value toward the depth limit.
+        /// </summary>
+        internal virtual bool HasRunLoop => false;
+
+        /// <summary><see cref="INinoFormatter.WriteRun"/> of the wrapped struct formatter, as <see cref="HasRunLoop"/>.</summary>
+        internal virtual void WriteRun(NinoRun run, ref Writer writer) =>
+            NinoThrow.MissingCapability(typeof(T), nameof(WriteRun));
+
+        /// <summary><see cref="INinoFormatter.HasReadRun"/> of the wrapped struct formatter, as <see cref="HasRunLoop"/>.</summary>
+        internal virtual bool HasReadRun => false;
+
+        /// <summary><see cref="INinoFormatter.ReadRun"/> of the wrapped struct formatter, as <see cref="HasRunLoop"/>.</summary>
+        internal virtual void ReadRun(in NinoRun run, ref Reader reader) =>
+            NinoThrow.MissingCapability(typeof(T), nameof(ReadRun));
+
+        /// <summary><see cref="INinoFormatter.HasFlat"/> of the wrapped struct formatter, as <see cref="HasRunLoop"/>.</summary>
+        internal virtual bool HasFlat => false;
+
+        /// <summary><see cref="INinoFormatter.WriteFlat"/> of the wrapped struct formatter, as <see cref="HasRunLoop"/>.</summary>
+        internal virtual void WriteFlat(in NinoRun run, ref Writer writer) =>
+            NinoThrow.MissingCapability(typeof(T), nameof(WriteFlat));
+
+        /// <summary><see cref="INinoFormatter.ReadFlat"/> of the wrapped struct formatter, as <see cref="HasRunLoop"/>.</summary>
+        internal virtual void ReadFlat(in NinoRun run, ref Reader reader) =>
+            NinoThrow.MissingCapability(typeof(T), nameof(ReadFlat));
     }
 
     /// <summary>Formatters of arrays whose elements are written as one raw block.</summary>
@@ -531,6 +561,29 @@ namespace Nino.Core
             NinoDirect.Write<T, TFormatter>(value, buffer);
 
         internal override T Read(ReadOnlySpan<byte> data) => NinoDirect.Deserialize<T, TFormatter>(data);
+
+        // The run hooks CachedFormatter<T> forwards (#440); the queries read once into NinoKind's fields, the calls made
+        // only where they say the formatter has the hook. A flat base's runs go to its kernels, not to its run loop
+        // (which hands them to the kernels from four values on): through the loop, a run of one to three of its objects
+        // wrote in 1.5 to 2.0 times the time it took value by value through CachedFormatter, through the kernels in
+        // 0.80 to 1.10 (local, alternated).
+        internal sealed override bool HasRunLoop => NinoKind<TFormatter>.Runs && !NinoKind<TFormatter>.Flat;
+
+        internal sealed override void WriteRun(NinoRun run, ref Writer writer) =>
+            default(TFormatter).WriteRun(run, ref writer);
+
+        internal sealed override bool HasReadRun => NinoKind<TFormatter>.ReadRuns;
+
+        internal sealed override void ReadRun(in NinoRun run, ref Reader reader) =>
+            default(TFormatter).ReadRun(in run, ref reader);
+
+        internal sealed override bool HasFlat => NinoKind<TFormatter>.Flat;
+
+        internal sealed override void WriteFlat(in NinoRun run, ref Writer writer) =>
+            default(TFormatter).WriteFlat(in run, ref writer);
+
+        internal sealed override void ReadFlat(in NinoRun run, ref Reader reader) =>
+            default(TFormatter).ReadFlat(in run, ref reader);
     }
 
     /// <summary>Wraps a struct formatter as a <see cref="NinoFormatterBase{T}"/>.</summary>
@@ -652,7 +705,9 @@ namespace Nino.Core
     /// formatter for an element type whose formatter you cannot name (a <c>[NinoType]</c>); generated code uses it
     /// for type parameters and types whose formatter is only known at run time. Tier1 code calls (and inlines) the
     /// formatter directly where <typeparamref name="T"/> is exact (<see cref="NinoTopFormatter{T}"/>); shared generic
-    /// code and AOT runtimes make one virtual call.
+    /// code and AOT runtimes make one virtual call. A run of a collection's values goes to the formatter's run hooks
+    /// where it has them (a polymorphic base's loops, a flat type's kernels: <see cref="INinoFormatter.HasRunLoop"/>,
+    /// <see cref="INinoFormatter.HasReadRun"/>, <see cref="INinoFormatter.HasFlat"/>), one virtual call per run (#440).
     /// </summary>
     public struct CachedFormatter<T> : INinoFormatter<T>
     {
@@ -662,5 +717,34 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref T value) =>
             NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
+
+        // The run hooks of the registered formatter (#440): asked once (NinoKind), each call a whole run. The other
+        // run kinds are not forwarded: slots, the cursor form and the sized writes are Nino.Core's own formatters',
+        // which generated code names directly, and a block's hooks are called per value.
+        bool INinoFormatter.HasRunLoop => NinoTopFormatter<T>.Formatter.HasRunLoop;
+
+        void INinoFormatter.WriteRun(NinoRun run, ref Writer writer) =>
+            NinoTopFormatter<T>.Formatter.WriteRun(run, ref writer);
+
+        bool INinoFormatter.HasReadRun => NinoTopFormatter<T>.Formatter.HasReadRun;
+
+        void INinoFormatter.ReadRun(in NinoRun run, ref Reader reader) =>
+            NinoTopFormatter<T>.Formatter.ReadRun(in run, ref reader);
+
+        bool INinoFormatter.HasFlat => NinoTopFormatter<T>.Formatter.HasFlat;
+
+        // A single value as one: the kernels' entry on top of the forward wrote one flat class in up to 1.19 times the
+        // time of its virtual call (local, alternated). A read of one is told apart before the run is built
+        // (NinoRuns.ReadClasses, NinoKind.Forwards).
+        void INinoFormatter.WriteFlat(in NinoRun run, ref Writer writer)
+        {
+            if (run.Count == 1)
+                NinoTopFormatter<T>.Formatter.Serialize(Unsafe.As<byte, T>(ref run.First), ref writer);
+            else
+                NinoTopFormatter<T>.Formatter.WriteFlat(in run, ref writer);
+        }
+
+        void INinoFormatter.ReadFlat(in NinoRun run, ref Reader reader) =>
+            NinoTopFormatter<T>.Formatter.ReadFlat(in run, ref reader);
     }
 }

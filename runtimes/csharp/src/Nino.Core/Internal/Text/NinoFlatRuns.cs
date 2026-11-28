@@ -48,16 +48,64 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            int next = 0, count = run.Count;
+            int next = 0, count = run.Count, left = 0;
             while (true)
             {
                 Write<TItem>(run, ref next, ref writer);
                 if (next >= count)
                     return;
-                writer = WriteOne<T, TFormatter>(ref Unsafe.Add(ref run.First, (nint)next * run.Stride), writer);
-                if (++next == count)
+                long state = WriteLeaving<T, TFormatter>(in run, next, left, ref writer);
+                next = (int)state;
+                left = (int)(state >> 32);
+                if (next >= count)
                     return;
             }
+        }
+
+        /// <summary>
+        /// A run whose elements leave once in more than <see cref="MixedRun"/> (after the first
+        /// <see cref="MixedGrace"/> / <see cref="MixedRun"/> leaves) takes the rest element by element
+        /// (<see cref="WriteLeaving{T,TFormatter}"/>).
+        /// </summary>
+        private const int MixedRun = 8, MixedGrace = 8;
+
+        /// <summary>
+        /// Writes the element at <paramref name="next"/>, which the items leave, through its formatter; where elements
+        /// leave often (a base's run mixed with its subtypes, <paramref name="left"/> of them so far), the rest of the run
+        /// too, element by element. Returns the next element (the count when the run is done) and, in the upper half, the
+        /// leaves counted. Entering the kernels again after each one, a run of a flat base, every other element a
+        /// subtype, wrote in 1.6 to 2.3 times the time of the base's run loop at 4 to 1,000 elements, where one in 13
+        /// took 0.67 to 0.83 (local, alternated, #440). Out of line, its state returned in one value: the test inline in
+        /// <see cref="WriteRun{T,TFormatter,TItem}"/> grew the driver of every flat class's runs by 220 bytes and 10
+        /// stack accesses, and the counts passed by reference kept them in memory (6 more, asm.py).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static long WriteLeaving<T, TFormatter>(scoped in NinoRun run, int next, int left, ref Writer writer)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int stride = run.Stride, count = run.Count;
+            ref byte element = ref Unsafe.Add(ref run.First, (nint)next * stride);
+            default(TFormatter).Serialize(Unsafe.As<byte, T>(ref element), ref writer);
+            if (++next < count && ++left * MixedRun > next + MixedGrace)
+            {
+                writer = WriteRest<T, TFormatter>(ref Unsafe.Add(ref element, stride), count - next, stride, run.InUse,
+                    writer);
+                next = count;
+            }
+
+            return ((long)left << 32) | (uint)next;
+        }
+
+        /// <summary>
+        /// The rest of a run whose elements leave often (<see cref="WriteLeaving{T,TFormatter}"/>), element by element.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteRest<T, TFormatter>(scoped ref byte first, int count, int stride, int inUse,
+            Writer writer)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            NinoRuns.WriteLoop<T, TFormatter>(ref first, count, stride, NinoRun.NoKey, inUse, ref writer);
+            return writer;
         }
 
         /// <summary>
@@ -102,15 +150,6 @@ namespace Nino.Core.Internal
             where TItem : struct, INinoItem =>
             NinoStringRuns.WriteFitting(ref run.First, run.Count, run.Stride, run.InUse, default(TItem), next,
                 ref destination, available);
-
-        /// <summary>An element the items leave, through its formatter, out of line.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteOne<T, TFormatter>(scoped ref byte element, Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            default(TFormatter).Serialize(Unsafe.As<byte, T>(ref element), ref writer);
-            return writer;
-        }
 
         /// <summary>As <see cref="WriteRun{T,TFormatter,TItem}"/>, the read in place (values in a row).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
