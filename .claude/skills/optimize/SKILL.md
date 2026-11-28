@@ -488,7 +488,9 @@ says which CPUs and cases moved.
   `NinoUnsafe.IsNull` (one load of the presence byte at the offset `NinoPresence<T>` found, in a static with no
   initializer: `Nullable<T>.Equals(object)` boxed nothing but stayed a call, `HashTables.Hash<int?>` 1 -> 6 stack
   accesses, and a `static readonly` offset needed a class-init helper where the class was not yet initialized,
-  `HashTables.Link<int?>` 24 -> 59 stack accesses), never `== null`: on a `T?` the JIT
+  `HashTables.Link<int?>` 24 -> 59 stack accesses; `default(T) != null` folds only in optimized code, and CI's tests
+  run a Debug Nino.Core, where it boxed every `int` key of a `Dictionary<int, int?>` read, so a Debug build asks the
+  static instead), never `== null`: on a `T?` the JIT
   removes that box only where the boxed value has no side effects, and .NET 11's JIT kept it in an inlined call (#449: `HashTables.Hash` boxed every non-null `int?` of a
   `HashSet<int?>` read, 46,152 B against 22,176 per 1,000 and 2.2x main, cc8f4132; the dictionary path of the same
   test still boxed in a `Dictionary<int?, int>` read, and `NinoRecycler.Discard` a `ManagedStruct?` replaced by null
