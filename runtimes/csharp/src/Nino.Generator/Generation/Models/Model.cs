@@ -337,7 +337,7 @@ internal sealed record TypeModel(
     /// body (one that does passes the reader to that body's call anyway): a large body inlined into every call site
     /// would use up the JIT's inlining budget there.
     /// </summary>
-    public bool TopInline => HasTop && InlineBody && Flat == null;
+    public bool TopInline => HasTop && InlineBody && Flat is null or { NestOnly: true };
 
     /// <summary>
     /// <see cref="TopInline"/> for reads: a flat body (<see cref="Flat"/>) reads one value member by member, as any
@@ -490,9 +490,9 @@ internal enum FlatItemKind
     Slot,
 
     /// <summary>
-    /// A member whose type is itself flat (<see cref="FlatItem.Nested"/>, non-generic and generated here): that type's
-    /// chain of fields as one item at the member (<see cref="FlatItem.Nested"/>: a struct in place; a class through its
-    /// element item, its presence byte or type id, then its body).
+    /// A member whose type is itself flat (<see cref="FlatItem.Nested"/>, non-generic and generated here; a class whose
+    /// body is one raw block too, #452): that type's chain as one item at the member, its generated <c>Nested</c> (a
+    /// struct in place; a class through its element item, its presence byte or type id, then its body).
     /// </summary>
     Nested,
 }
@@ -500,12 +500,14 @@ internal enum FlatItemKind
 /// <summary>An item of a flat body: its kind, the index of its (first) member in TypeModel.Members, its members (more
 /// than one only for a block), and whether it is a property reached through its accessors (NinoPropertyAt: never in a
 /// block, never checked at startup).</summary>
-/// <param name="Nested">For <see cref="FlatItemKind.Nested"/>, the member type's body as one item: its generated
-/// formatter's chain of fields (<c>__Flat</c> or <c>__Fields</c>) as NinoFlat's Sealed or Typed, or NinoFlatValues'
-/// Item.</param>
+/// <param name="Nested">For <see cref="FlatItemKind.Nested"/>, the member type's generated formatter, whose
+/// <c>__Flat.Nested</c> (and <c>__Fields.Nested</c>, the chain of fields, where it has a startup check) is the body as
+/// one item: a type without type arguments, so the nodes over it stay below the JIT's context complexity (#451).</param>
 /// <param name="NestedClass">For <see cref="FlatItemKind.Nested"/>, whether the member type is a class.</param>
+/// <param name="NestedChecks">For <see cref="FlatItemKind.Nested"/>, whether the member type's body has a startup check
+/// (<see cref="FlatModel.Checks"/>): the chain of blocks nests its blocks, under this body's check, which includes it.</param>
 internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool Property = false, string Nested = "",
-    bool NestedClass = false)
+    bool NestedClass = false, bool NestedChecks = false)
 {
     /// <summary>Whether the member's value is a reference (a string, a nested class): a property's local copy is then
     /// NinoReference, never the class itself as a type argument (code shared over classes, Nino.Core's NinoReference).</summary>
@@ -525,22 +527,25 @@ internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool P
 /// its own item.</param>
 /// <param name="Depth">The class bodies the members nested in the chain open (<see cref="FlatItemKind.Nested"/>), the
 /// element's own not counted: runs that would open one past the inline depth go element by element (NinoFlatRuns).</param>
-/// <param name="Levels">The levels of inlining the chain takes, its deepest item's (a node per item before it, a
-/// wrapper each, a nested body's own levels): at most <see cref="FlatRules.MaxItems"/>.</param>
+/// <param name="Levels">The levels of inlining the chain takes, its deepest item's (its groups and its node in the tree
+/// of the chain, FlatRules.Tree, a wrapper each, a nested body's own levels): at most <see cref="FlatRules.MaxItems"/>.</param>
 /// <param name="Sealed">A sealed class: nested, its presence byte (NinoFlat's Sealed), else its type id (Typed).</param>
+/// <param name="NestOnly">A class whose body is one raw block (<see cref="TypeModel.RawBody"/>, #452): its chain only
+/// nested in other flat bodies, its own runs and bodies as they were (no hooks).</param>
 internal sealed record FlatModel(EquatableArray<FlatItem> Items, bool ValueType = false, bool Generic = false,
-    NinoFormat Format = NinoFormat.Positional, int Depth = 0, int Levels = 0, bool Sealed = false)
+    NinoFormat Format = NinoFormat.Positional, int Depth = 0, int Levels = 0, bool Sealed = false, bool NestOnly = false)
 {
     /// <summary>
     /// Whether only runs take the chain, one value its member-by-member body: a struct, a generic type, a
-    /// version-tolerant or keyed body, and a body nesting a class (whose one body checks the depth itself).
+    /// version-tolerant or keyed body, a body nesting a class (whose one body checks the depth itself), and a raw body
+    /// (nested only).
     /// </summary>
-    public bool RunsOnly => ValueType || Generic || Format != NinoFormat.Positional || Depth != 0;
+    public bool RunsOnly => ValueType || Generic || Format != NinoFormat.Positional || Depth != 0 || NestOnly;
 
-    /// <summary>Whether the body has a fallback chain and a startup check: a block or a struct among a positional
-    /// class's items.</summary>
+    /// <summary>Whether the body has a fallback chain and a startup check: a block among a positional class's items, or
+    /// a nested body that has one.</summary>
     public bool Checks => !ValueType && Format == NinoFormat.Positional &&
-                          Items.Any(static i => i.Kind == FlatItemKind.Block);
+                          Items.Any(static i => i.Kind == FlatItemKind.Block || i.NestedChecks);
 
     /// <summary>The class bodies an element of a run opens: its own (a class's) and those nested in its chain.</summary>
     public int RunDepth => (ValueType ? 0 : 1) + Depth;

@@ -505,4 +505,92 @@ namespace Nino.UnitTests.Subset.Flat
         public bool B;
         public string Name;
     }
+
+    /// <summary>A sealed class whose body is one raw block (#452): flat only nested in another flat body.</summary>
+    [NinoType]
+    public sealed class FlatBadge
+    {
+        public int Gold;
+        public int Silver;
+        public int Bronze;
+    }
+
+    /// <summary>A raw-only class that is not sealed (#452): nested with its type id, a subtype leaving the element.</summary>
+    [NinoType]
+    public class FlatRawOpen
+    {
+        public long A;
+        public int B;
+    }
+
+    [NinoType]
+    public sealed class FlatRawOpenSub : FlatRawOpen
+    {
+        public short C;
+    }
+
+    /// <summary>ShallowUser's shape (#452): raw T?s, strings, an enum and two raw-only classes nested, so flat.</summary>
+    [NinoType]
+    public sealed class FlatUser
+    {
+        public int? UserId;
+        public string Name;
+        public int? Reputation;
+        public FlatKind Kind;
+        public string Link;
+        public FlatBadge Badges;
+        public FlatRawOpen Open;
+    }
+
+    /// <summary><see cref="FlatUser"/> with a callback: not flat, the same bytes.</summary>
+    [NinoType]
+    public sealed class FlatUserTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public int? UserId;
+        public string Name;
+        public int? Reputation;
+        public FlatKind Kind;
+        public string Link;
+        public FlatBadge Badges;
+        public FlatRawOpen Open;
+    }
+
+    /// <summary>
+    /// Comment's shape (#452): blocks, strings and two <see cref="FlatUser"/>s nested, each nesting raw-only classes:
+    /// three levels of bodies, flat within the inline depth as a tree of groups.
+    /// </summary>
+    [NinoType]
+    public sealed class FlatPost
+    {
+        public int Id;
+        public int PostId;
+        public DateTime At;
+        public int Score;
+        public bool Edited;
+        public string Body;
+        public FlatUser Owner;
+        public FlatUser Reply;
+        public string Link;
+    }
+
+    /// <summary><see cref="FlatPost"/> with a callback over <see cref="FlatUserTwin"/>s: not flat, the same bytes.</summary>
+    [NinoType]
+    public sealed class FlatPostTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public int Id;
+        public int PostId;
+        public DateTime At;
+        public int Score;
+        public bool Edited;
+        public string Body;
+        public FlatUserTwin Owner;
+        public FlatUserTwin Reply;
+        public string Link;
+    }
 }

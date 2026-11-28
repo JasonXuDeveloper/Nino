@@ -197,6 +197,11 @@ namespace Nino.Fuzz
                 L = i % 3 == 1 ? default : new Nino.Core.NinoNullable<long>(-i), G = new Guid(i, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
                 P = new FlatPaddedFuzz { A = (byte)i, B = i * 3 },
             }).ToList(),
+            Users = Enumerable.Range(0, 20).Select(i => i == 4 ? null : new FlatUserFuzz
+            {
+                Id = i % 3 == 0 ? null : i, R = i % 5 == 1 ? null : new FlatRawFuzz { W = i * 99L, X = -i, Y = (short)i },
+                S = i % 4 == 2 ? null : "u" + i, W = i, Q = i % 2 == 0 ? null : new FlatRawFuzz { W = -i },
+            }).ToList(),
         };
 
         public static Holder Holder()

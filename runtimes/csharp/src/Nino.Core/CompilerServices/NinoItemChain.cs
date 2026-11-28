@@ -213,7 +213,144 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// What a block (<see cref="NinoBlockAt{TMember,TCheck,TNext}"/>) checks in its bytes before a read copies them
+    /// Parts of a generated chain over the same composite, run in order (#452): a generated chain is a tree of groups
+    /// of at most four parts over its items (<see cref="NinoItemAt{TMember,TItem}"/>,
+    /// <see cref="NinoBlockAt{TMember,TCheck}"/>, <see cref="NinoPropertyAt{TProperty,TValue,TItem}"/>), so the levels
+    /// of inlining it takes grow with the logarithm of its items, not with their count (the JIT inlines at most 20
+    /// deep: a right-nested chain of a class nesting two classes went past it). A part that may leave the element
+    /// (<see cref="INinoItem.Leaves"/>) ends the read there, as <see cref="NinoItemAt{TMember,TItem,TNext}"/> does.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoGroup<T1, T2> : INinoItem
+        where T1 : struct, INinoItem
+        where T2 : struct, INinoItem
+    {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(T1).Leaves || default(T2).Leaves;
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item) => default(T1).MaxSize(ref item) + default(T2).MaxSize(ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item)
+        {
+            int size = default(T1).WriteAt(ref destination, ref item);
+            return size + default(T2).WriteAt(ref Unsafe.Add(ref destination, (nint)(uint)size), ref item);
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
+        {
+            int size = default(T1).ReadAt(ref source, available, ref item, fresh);
+            if (default(T1).Leaves && size < 0)
+                return size;
+            return size + default(T2).ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item,
+                fresh);
+        }
+    }
+
+    /// <summary>As <see cref="NinoGroup{T1,T2}"/>, 3 parts.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoGroup<T1, T2, T3> : INinoItem
+        where T1 : struct, INinoItem
+        where T2 : struct, INinoItem
+        where T3 : struct, INinoItem
+    {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(T1).Leaves || default(T2).Leaves || default(T3).Leaves;
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item) =>
+            default(T1).MaxSize(ref item) + default(T2).MaxSize(ref item) +
+            default(T3).MaxSize(ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item)
+        {
+            int size = default(T1).WriteAt(ref destination, ref item);
+            size += default(T2).WriteAt(ref Unsafe.Add(ref destination, (nint)(uint)size), ref item);
+            return size + default(T3).WriteAt(ref Unsafe.Add(ref destination, (nint)(uint)size), ref item);
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
+        {
+            int size = default(T1).ReadAt(ref source, available, ref item, fresh);
+            if (default(T1).Leaves && size < 0)
+                return size;
+            size += default(T2).ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item, fresh);
+            if (default(T2).Leaves && size < 0)
+                return size;
+            return size + default(T3).ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item,
+                fresh);
+        }
+    }
+
+    /// <summary>As <see cref="NinoGroup{T1,T2}"/>, 4 parts.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoGroup<T1, T2, T3, T4> : INinoItem
+        where T1 : struct, INinoItem
+        where T2 : struct, INinoItem
+        where T3 : struct, INinoItem
+        where T4 : struct, INinoItem
+    {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(T1).Leaves || default(T2).Leaves || default(T3).Leaves || default(T4).Leaves;
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item) =>
+            default(T1).MaxSize(ref item) + default(T2).MaxSize(ref item) +
+            default(T3).MaxSize(ref item) + default(T4).MaxSize(ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item)
+        {
+            int size = default(T1).WriteAt(ref destination, ref item);
+            size += default(T2).WriteAt(ref Unsafe.Add(ref destination, (nint)(uint)size), ref item);
+            size += default(T3).WriteAt(ref Unsafe.Add(ref destination, (nint)(uint)size), ref item);
+            return size + default(T4).WriteAt(ref Unsafe.Add(ref destination, (nint)(uint)size), ref item);
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
+        {
+            int size = default(T1).ReadAt(ref source, available, ref item, fresh);
+            if (default(T1).Leaves && size < 0)
+                return size;
+            size += default(T2).ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item, fresh);
+            if (default(T2).Leaves && size < 0)
+                return size;
+            size += default(T3).ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item, fresh);
+            if (default(T3).Leaves && size < 0)
+                return size;
+            return size + default(T4).ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item,
+                fresh);
+        }
+    }
+
+    /// <summary>
+    /// What a block (<see cref="NinoBlockAt{TMember,TCheck}"/>) checks in its bytes before a read copies them
     /// (generated code, #444): the bools in it, each 0 or 1, at constant offsets. Nothing is copied before the check, so a
     /// rejected read leaves the element as it was.
     /// </summary>
@@ -259,59 +396,8 @@ namespace Nino.Core.CompilerServices
     /// bools, raw structs without padding: #444), laid out in the composite as on the wire: one copy of
     /// <see cref="INinoSize.Size"/> bytes, the chain's raw item, read after <typeparamref name="TCheck"/> checked its
     /// bytes (the bools in it). Only where a startup check proved the layout, and for reads only where Untrusted mode
-    /// checks nothing in it.
+    /// checks nothing in it. A part of a generated chain (<see cref="NinoGroup{T1,T2}"/>).
     /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public readonly struct NinoBlockAt<TMember, TCheck, TNext> : INinoItem
-        where TMember : struct, INinoMember
-        where TCheck : struct, INinoBlockCheck
-        where TNext : struct, INinoItem
-    {
-        /// <inheritdoc/>
-        public bool Leaves
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => default(TNext).Leaves;
-        }
-
-        private readonly TMember _member;
-        private readonly TNext _next;
-
-        /// <summary>The block at <paramref name="member"/>, then <paramref name="next"/>.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public NinoBlockAt(TMember member, TNext next)
-        {
-            _member = member;
-            _next = next;
-        }
-
-        /// <inheritdoc/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long MaxSize(ref byte item) => _member.Size + _next.MaxSize(ref item);
-
-        /// <inheritdoc/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int WriteAt(ref byte destination, ref byte item)
-        {
-            int size = _member.Size;
-            NinoUnsafe.Copy(ref destination, ref _member.Ref(ref item), (uint)size);
-            return size + _next.WriteAt(ref Unsafe.Add(ref destination, size), ref item);
-        }
-
-        /// <inheritdoc/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
-        {
-            int size = _member.Size;
-            if ((uint)available < (uint)size)
-                NinoThrow.EndOfData();
-            default(TCheck).Check(ref source);
-            NinoUnsafe.Copy(ref _member.Ref(ref item), ref source, (uint)size);
-            return size + _next.ReadAt(ref Unsafe.Add(ref source, size), available - size, ref item, fresh);
-        }
-    }
-
-    /// <summary>As <see cref="NinoBlockAt{TMember,TCheck,TNext}"/>, the last item of a chain.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public readonly struct NinoBlockAt<TMember, TCheck> : INinoItem
         where TMember : struct, INinoMember
@@ -393,61 +479,10 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// <typeparamref name="TItem"/> over the value of the property <typeparamref name="TProperty"/>, then the items
-    /// <typeparamref name="TNext"/>: <see cref="NinoItemAt{TMember,TItem,TNext}"/> for a member reached through its
-    /// accessors, the bottom item over a local copy (a read assigns it back; a string equal to the one held is kept).
+    /// <typeparamref name="TItem"/> over the value of the property <typeparamref name="TProperty"/>: a part of a generated
+    /// chain (<see cref="NinoGroup{T1,T2}"/>) for a member reached through its accessors, the bottom item over a local
+    /// copy (a read assigns it back; a string equal to the one held is kept).
     /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public readonly struct NinoPropertyAt<TProperty, TValue, TItem, TNext> : INinoItem
-        where TProperty : struct, INinoProperty<TValue>
-        where TItem : struct, INinoItem
-        where TNext : struct, INinoItem
-    {
-        /// <inheritdoc/>
-        public bool Leaves
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => default(TItem).Leaves || default(TNext).Leaves;
-        }
-
-        private readonly TProperty _property;
-        private readonly TNext _next;
-
-        /// <summary>The node at <paramref name="property"/>, then <paramref name="next"/>.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public NinoPropertyAt(TProperty property, TNext next)
-        {
-            _property = property;
-            _next = next;
-        }
-
-        /// <inheritdoc/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public long MaxSize(ref byte item) =>
-            new NinoPropertyAt<TProperty, TValue, TItem>(_property).MaxSize(ref item) + _next.MaxSize(ref item);
-
-        /// <inheritdoc/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int WriteAt(ref byte destination, ref byte item)
-        {
-            int size = new NinoPropertyAt<TProperty, TValue, TItem>(_property).WriteAt(ref destination, ref item);
-            return size + _next.WriteAt(ref Unsafe.Add(ref destination, (nint)(uint)size), ref item);
-        }
-
-        /// <inheritdoc/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
-        {
-            int size = new NinoPropertyAt<TProperty, TValue, TItem>(_property).ReadAt(ref source, available, ref item,
-                fresh);
-            if (default(TItem).Leaves && size < 0)
-                return size;
-            return size + _next.ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item,
-                fresh);
-        }
-    }
-
-    /// <summary>As <see cref="NinoPropertyAt{TProperty,TValue,TItem,TNext}"/>, the last item of a chain.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public readonly struct NinoPropertyAt<TProperty, TValue, TItem> : INinoItem
         where TProperty : struct, INinoProperty<TValue>

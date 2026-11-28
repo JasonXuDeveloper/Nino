@@ -82,7 +82,9 @@ Collections/                 arrays, BCL and user collections, empty ones, Stack
                              past the inline depth, hostile data; FlatTests.Bodies.cs: keyed, version-tolerant and
                              nested bodies, across versions, hostile bytes read alike by the flat and generated reads;
                              FlatTests.Blocks.cs: bools, raw structs and NinoNullable members in blocks, their checks
-                             on every cut and bad flag; Untrusted mode in
+                             on every cut and bad flag; FlatTests.Raw.cs: raw-only classes nested as blocks in flat
+                             bodies, against generated twins, reuse, every cut, subtypes and hostile headers read alike
+                             both ways; Untrusted mode in
                              UntrustedModeTests), the prefetch of long top-level
                              arrays
                              and lists of scattered objects and the

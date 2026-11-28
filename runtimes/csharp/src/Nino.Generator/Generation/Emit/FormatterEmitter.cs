@@ -327,7 +327,7 @@ internal static class FormatterEmitter
         }
         ForwardWriteBody(w, m, names, m.TopInline ? "__WriteBodyInline" : null);
         ForwardReadBody(w, m, names, m.ReadTopInline ? "__ReadBodyInline" : null);
-        if (m.Flat != null)
+        if (m.Flat is { NestOnly: false })
             FlatEmitter.EmitHooks(w, m, names, top);
         EmitPrefetch(w, m, names, twin: true);
         w.Close();

@@ -355,7 +355,7 @@ says which CPUs and cases moved.
   `ref byte Ref(ref byte item)` returns the field (`NinoMemberAccess.Bytes(ref NinoMemberAccess.As<T>(ref item).Field)`:
   the struct in place, or for a class a reference to the object) and whose `Size` is a literal, so the field is a
   constant offset once inlined. Hand a class's chain the object as `ref Unsafe.As<object, byte>(ref local)` (the element
-  item's local, `NinoFlatSealedItem`): once inlined the JIT turns the indirections back into the local, and the flat
+  item's local, `NinoFlat.Sealed`): once inlined the JIT turns the indirections back into the local, and the flat
   kernels' listings matched `object`-based items' (asm.py, ScatteredTest: read 1,066/64 to 1,051/57 bytes/stack
   accesses, write loop 462/12 to 443/12). The members' empty accessor structs as fields of the nodes cost nothing. Give a member generated code cannot reach by reference (a property) a node of its own that runs the same bottom
   item over a local copy (`NinoPropertyAt`, #355 step B), never a second bottom item per kind. Gate a generic flat
@@ -407,7 +407,7 @@ says which CPUs and cases moved.
   the count take one header size.
 - **Compose keyed, version-tolerant and nested flat bodies from leaves of the one chain, never a loop of their own**
   (#355 step C: `NinoRegionItem`, `NinoEntriesItem`, `NinoKeyItem`, `NinoTolerantItem`; a nested type's chain as one
-  item, `NinoFlat.Sealed`/`Typed`, `NinoFlatValues.Item`). Six rules, each from a measurement or a failure: (1) An item
+  item, `NinoFlat.Sealed`/`Typed`, `NinoFlatValues.Item`). Eight rules, each from a measurement or a failure: (1) An item
   that may leave the element says so as a constant (`INinoItem.Leaves`), and a node tests the size before reading on
   only after such an item: without the test the next items read at `source + (uint)int.MinValue` with `available`
   wrapped negative, which passes every unsigned length check (FlatTests.Bodies' hostile twins caught it as a stray
@@ -439,8 +439,19 @@ says which CPUs and cases moved.
   class writes in 0.78-0.82 (0.82-0.86) and reads in 0.89 (1.08, the `NinoLayout` statics a raw `T?` reads when its
   classes are not initialized at compile time); a keyed class 0.80-0.84 (0.79-0.82) and 0.96-1.00 (0.99-1.01); a
   version-tolerant struct 0.75 and 0.91-0.94 (1.00-1.02); a class nesting two classes and two structs 1.00-1.04
-  (0.99-1.01) and 0.91-0.92 (0.95). The node after a nested class item in that class is reported "recursive" by the
-  JIT (a call per element left in its listing): look there before nesting deeper.
+  (0.99-1.01) and 0.91-0.92 (0.95). (7) Refer to a nested type's body through a non-generic struct its formatter
+  declares (`Nested`, #451), never by spelling its chain into the outer chain's type arguments: the JIT refuses an
+  inline as "recursive" when the callee's generic context has more than 64 type arguments and an ancestor in the
+  inline tree has the same generic definition (a `NinoGroup` under a `NinoGroup`), not because of depth, and left a
+  call per element after a nested class item (FlatOuter: "recursive" inline failures 18 to 0 at Tier1, 8 to 0 at TC=0
+  with `Nested`). Build every chain as a balanced tree of `NinoGroup`s of two to four parts (`FlatRules.Tree`), never
+  a linear chain, so the levels grow with the log of the items (ShallowUser 7, Comment 12) and stay under
+  `NinoDepth.Inline`. (8) A class whose body is one raw block (`FlatModel.NestOnly`, #452: BadgeCount, the Circle
+  shapes) gets a nest chain of blocks and no run hooks of its own, so a class holding it stays flat (its presence
+  byte or type id, then the block). Local, alternated, against main 9540e0bb at 1/3/32/1000 elements, Tier1:
+  `List<ShallowUser>` wrote in 0.69/0.86/0.88/0.83 and read in 0.96/0.99/0.90/0.87; Comment wrote in 0.84-0.93
+  and read in 0.92-1.00 (its read hits the JIT's "too many locals", #456); FlatOuter wrote in 0.65/0.82/0.81/0.83
+  and read in 0.85-0.95; Outer wrote in 0.70-0.75 and read in 0.94-0.99 (guidance; a runner A/B decides).
 - **Let bools, raw structs without padding and `NinoNullable<T>` members join a flat class's blocks, their read
   checks a `TCheck` type argument over the block's bytes, never an item each** (#444: `NinoBlockAt<TMember, TCheck>`,
   `INinoBlockCheck`, the generated `__C_<member>`; `NinoBlockCheck.Bools` ORs the bool bytes and throws once on a bit

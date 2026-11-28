@@ -51,7 +51,7 @@ internal static class FlatEmitter
         if (flat.ValueType)
         {
             // A struct: each element of a run in place, through one item per member.
-            w.Line($"internal sealed class __Flat : {Services}NinoFlatValues<{Chain(m, fields: true)}> {{ }}");
+            ChainClass(w, m, names, "__Flat", $"{Services}NinoFlatValues<{Chain(m, fields: true)}>", "Item");
             w.Line();
             EmitHooks(w, m, names, m.Self);
             return;
@@ -65,20 +65,50 @@ internal static class FlatEmitter
         w.Line($"public int TypeId => {FormatterEmitter.TypeIdValue(m)};"); // a generic class's from its formatter
         w.Close();
         w.Line();
-        w.Line($"internal sealed class __Flat : {Services}NinoFlat<__Layout, {Chain(m, fields: false)}> {{ }}");
+        string element = m.Kind == FormatterKind.SealedClass ? "Sealed" : "Typed";
+        ChainClass(w, m, names, "__Flat", $"{Services}NinoFlat<__Layout, {Chain(m, fields: false)}>", element);
         if (flat.Checks)
         {
-            w.Line($"internal sealed class __Fields : {Services}NinoFlat<__Layout, {Chain(m, fields: true)}> {{ }}");
+            ChainClass(w, m, names, "__Fields", $"{Services}NinoFlat<__Layout, {Chain(m, fields: true)}>", element);
             w.Line();
             EmitCheck(w, m);
         }
 
+        // A raw body (#452): nested in other flat bodies only, its own runs and bodies as they were.
+        if (flat.NestOnly)
+            return;
         w.Line();
         EmitHooks(w, m, names, m.Self);
         if (flat.RunsOnly)
             return;
         w.Line();
         EmitBodies(w, m, names);
+    }
+
+    /// <summary>
+    /// A chain's class (<paramref name="name"/>, deriving <paramref name="type"/>) and, for a type other flat bodies can
+    /// nest (not generic), its <c>Nested</c>: the body as one item (<paramref name="item"/>: NinoFlat's Sealed or Typed,
+    /// NinoFlatValues' Item) under a name without type arguments. A node whose type arguments held the nested chain went
+    /// past the JIT's context complexity (64 type arguments, counted through every level), which it reports as a
+    /// recursive inline and leaves as a call per element (#451: FlatOuter's node after its nested FlatLeaf).
+    /// </summary>
+    private static void ChainClass(CodeWriter w, TypeModel m, FormatterNames names, string name, string type, string item)
+    {
+        if (m.Flat!.Generic)
+        {
+            w.Line($"internal sealed class {name} : {type} {{ }}");
+            return;
+        }
+
+        w.Open($"internal sealed class {name} : {type}");
+        w.Open($"internal readonly struct Nested : {Services}INinoItem");
+        w.Line($"public bool Leaves {{ {names.Inline} get => default({item}).Leaves; }}");
+        w.Line($"{names.Inline} public long MaxSize(ref byte item) => default({item}).MaxSize(ref item);");
+        w.Line($"{names.Inline} public int WriteAt(ref byte destination, ref byte item) => default({item}).WriteAt(ref destination, ref item);");
+        w.Line($"{names.Inline} public int ReadAt(ref byte source, int available, ref byte item, bool fresh) => " +
+               $"default({item}).ReadAt(ref source, available, ref item, fresh);");
+        w.Close();
+        w.Close();
     }
 
     /// <summary>
@@ -158,24 +188,37 @@ internal static class FlatEmitter
     }
 
     /// <summary>
-    /// <c>__Check</c>: whether each block lies in the object as on the wire and each struct member's memory is its
-    /// bytes (<c>Write</c>), and also nothing in them is checked on read (<c>Read</c>: Untrusted mode), measured once on
-    /// an uninitialized instance; the hooks read it once per call, never per element.
+    /// <c>__Check</c>: whether each block lies in the object as on the wire (<c>Write</c>), and also nothing in them is
+    /// checked on read (<c>Read</c>: Untrusted mode), measured once on an uninitialized instance, and the same of each
+    /// nested body that has a check (its blocks in the chain of blocks); the hooks read it once per call, never per
+    /// element. Internal: the bodies nesting this one read it.
     /// </summary>
     private static void EmitCheck(CodeWriter w, TypeModel m)
     {
         var flat = m.Flat!;
         var blocks = flat.Items.Where(static i => i.Kind == FlatItemKind.Block).ToArray();
-        w.Open("private static class __Check");
-        w.Line("internal static readonly bool Write = Proves();");
+        var inner = flat.Items.Where(static i => i.NestedChecks).Select(static i => i.Nested + ".__Check").Distinct()
+            .ToArray();
+        w.Open("internal static class __Check");
+        var write = inner.Select(static c => c + ".Write");
+        if (blocks.Length != 0)
+            write = write.Prepend("Proves()");
+        w.Line($"internal static readonly bool Write = {string.Join(" && ", write)};");
         // A block read copies its values as their bytes: only where Untrusted mode checks none of them (the chain of
         // fields checks them one by one); its bools are checked in the block's bytes (its TCheck).
         var structs = blocks.SelectMany(i => Enumerable.Range(i.Member, i.Count))
             .Where(i => m.Members[i].Raw!.Read == RawRead.Checked)
-            .Select(i => $"{Services}NinoFieldBlock.ReadsAsIs<{m.Members[i].TypeName}>()").Distinct().ToArray();
+            .Select(i => $"{Services}NinoFieldBlock.ReadsAsIs<{m.Members[i].TypeName}>()").Distinct()
+            .Concat(inner.Select(static c => c + ".Read")).ToArray();
         w.Line(structs.Length == 0
             ? "internal static readonly bool Read = Write;"
             : $"internal static readonly bool Read = Write && {string.Join(" && ", structs)};");
+        if (blocks.Length == 0)
+        {
+            w.Close();
+            return;
+        }
+
         w.Line();
         w.Open("private static bool Proves()");
         w.Line($"var value = {Services}NinoFieldBlock.Probe<{m.TypeName}>();");
@@ -240,23 +283,24 @@ internal static class FlatEmitter
             : Services + "NinoUnchecked";
 
     /// <summary>
-    /// The items as nested type arguments in wire order: blocks and struct members copied whole (<c>NinoBlockAt</c>), or
-    /// (<paramref name="fields"/>) one item per member (<c>NinoItemAt</c> with its bottom item), the last without a next:
-    /// the one chain of items every composite is (Nino.Core's NinoItemChain.cs).
+    /// The items as nested type arguments in wire order: blocks copied whole (<c>NinoBlockAt</c>), or
+    /// (<paramref name="fields"/>) one item per member (<c>NinoItemAt</c> with its bottom item), as a tree of groups
+    /// (<c>NinoGroup</c>, <see cref="FlatRules.Tree"/>): the one chain of items every composite is (Nino.Core's
+    /// NinoItemChain.cs).
     /// </summary>
     private static string Chain(TypeModel m, bool fields)
     {
-        // Each node as its type and its arguments before the next: "NinoBlockAt<__B_A" or "NinoItemAt<__M_S, NinoUtf16Item".
-        // A version-tolerant or keyed body: one item per member, each wrapped (NinoTolerantItem, NinoKeyItem), the
-        // chain in its region (NinoRegionItem; a keyed one's entries NinoEntriesItem).
+        // Each part: "NinoBlockAt<__B_A, __C_A>" or "NinoItemAt<__M_S, NinoUtf16Item>". A version-tolerant or keyed
+        // body: one item per member, each wrapped (NinoTolerantItem, NinoKeyItem), the chain in its region
+        // (NinoRegionItem; a keyed one's entries NinoEntriesItem).
         var format = m.Flat!.Format;
         fields |= format != NinoFormat.Positional;
-        var nodes = new System.Collections.Generic.List<string>();
+        var parts = new System.Collections.Generic.List<string>();
         foreach (var item in m.Flat!.Items)
         {
             if (!fields && item.Kind == FlatItemKind.Block)
             {
-                nodes.Add($"{Services}NinoBlockAt<{BlockName(m, item)}, {CheckName(m, item)}");
+                parts.Add($"{Services}NinoBlockAt<{BlockName(m, item)}, {CheckName(m, item)}>");
                 continue;
             }
 
@@ -276,16 +320,18 @@ internal static class FlatEmitter
                     FlatItemKind.Struct => $"{Services}NinoStructItem<{member.TypeName}>",
                     FlatItemKind.Slot => $"{Services}NinoSlotItem<{member.TypeName}, {member.Formatter}, " +
                                          $"{(item.Property ? PropertyName(member) : MemberName(member))}>",
-                    FlatItemKind.Nested => item.Nested,
+                    // The chain of blocks nests the type's blocks (its check is in this one's), the chain of fields its
+                    // fields.
+                    FlatItemKind.Nested => item.Nested + (fields && item.NestedChecks ? ".__Fields" : ".__Flat") + ".Nested",
                     _ => $"{Services}NinoRawItem<{member.TypeName}>",
                 };
                 if (format == NinoFormat.VersionTolerant)
                     bottom = $"{Services}NinoTolerantItem<{bottom}>";
                 else if (format == NinoFormat.Keyed)
                     bottom = $"{Services}NinoKeyItem<{(item.Property ? PropertyName(member) : MemberName(member))}, {bottom}>";
-                nodes.Add(item.Property
-                    ? $"{Services}NinoPropertyAt<{PropertyName(member)}, {PropertyValue(item, member)}, {bottom}"
-                    : $"{Services}NinoItemAt<{MemberName(member)}, {bottom}");
+                parts.Add(item.Property
+                    ? $"{Services}NinoPropertyAt<{PropertyName(member)}, {PropertyValue(item, member)}, {bottom}>"
+                    : $"{Services}NinoItemAt<{MemberName(member)}, {bottom}>");
             }
         }
 
@@ -294,9 +340,35 @@ internal static class FlatEmitter
             text.Append(Services).Append("NinoRegionItem<");
         else if (format == NinoFormat.Keyed)
             text.Append(Services).Append("NinoRegionItem<").Append(Services).Append("NinoEntriesItem<");
-        for (int i = 0; i < nodes.Count; i++)
-            text.Append(nodes[i]).Append(i < nodes.Count - 1 ? ", " : "");
-        text.Append('>', nodes.Count + (format == NinoFormat.Keyed ? 2 : format == NinoFormat.VersionTolerant ? 1 : 0));
+        // A group's parts are separated by commas: one after each part or group that is not its group's last.
+        var left = new System.Collections.Generic.Stack<int>();
+        void Next()
+        {
+            if (left.Count == 0)
+                return;
+            int rest = left.Pop() - 1;
+            left.Push(rest);
+            if (rest > 0)
+                text.Append(", ");
+        }
+
+        FlatRules.Tree(parts.Count, (i, _) =>
+            {
+                text.Append(parts[i]);
+                Next();
+            },
+            count =>
+            {
+                text.Append(Services).Append("NinoGroup<");
+                left.Push(count);
+            },
+            () =>
+            {
+                text.Append('>');
+                left.Pop();
+                Next();
+            });
+        text.Append('>', format == NinoFormat.Keyed ? 2 : format == NinoFormat.VersionTolerant ? 1 : 0);
         return text.ToString();
     }
 

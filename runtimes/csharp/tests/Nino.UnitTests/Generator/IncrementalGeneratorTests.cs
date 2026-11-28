@@ -101,7 +101,7 @@ public class IncrementalGeneratorTests
         driver = driver.RunGenerators(compilation);
         holder = Output(driver, "Holder");
         Assert.IsFalse(holder.Contains("WriteValueIn("));
-        StringAssert.Contains(holder, "Inc_InnerFormatter.__Flat.Item");
+        StringAssert.Contains(holder, "Inc_InnerFormatter.__Flat.Nested");
         StringAssert.Contains(holder, "default(Inc_InnerFormatter).Deserialize(ref reader, ref value.I);");
     }
 
