@@ -431,4 +431,78 @@ namespace Nino.UnitTests.Subset.Flat
         public FlatOuterTwin[] Items;
         public FlatOuterNodeTwin Next;
     }
+
+    /// <summary>A raw struct with padding (a byte, then an int): never in a block, its own item, padding cleared.</summary>
+    public struct FlatPadded
+    {
+        public byte A;
+        public int B;
+    }
+
+    /// <summary>
+    /// A flat class whose blocks hold bools, raw structs and NinoNullable members (#444), declared so that CoreCLR lays
+    /// them out as the wire does: the primitives by size (8, 4, 2, 1), then the structs in declaration order. Its
+    /// blocks: Stamp to Count (40 bytes, two bools in it), Big to Price (48 bytes); Name and Padded (a struct with
+    /// padding) are items of their own.
+    /// </summary>
+    [NinoType]
+    public sealed class FlatBlocks
+    {
+        public long Stamp;
+        public int Id;
+        public short Level;
+        public bool Flag;
+        public bool Done;
+        public DateTime At;
+        public NinoNullable<int> Count;
+        public string Name;
+        public NinoNullable<long> Big;
+        public Guid Key;
+        public decimal Price;
+        public FlatPadded Padded;
+    }
+
+    /// <summary><see cref="FlatBlocks"/> with a callback: not flat, the same bytes.</summary>
+    [NinoType]
+    public sealed class FlatBlocksTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public long Stamp;
+        public int Id;
+        public short Level;
+        public bool Flag;
+        public bool Done;
+        public DateTime At;
+        public NinoNullable<int> Count;
+        public string Name;
+        public NinoNullable<long> Big;
+        public Guid Key;
+        public decimal Price;
+        public FlatPadded Padded;
+    }
+
+    /// <summary>A flat class whose one block ends with two bools (#444): Id, A and B, then a string.</summary>
+    [NinoType]
+    public class FlatFlags
+    {
+        public int Id;
+        public bool A;
+        public bool B;
+        public string Name;
+    }
+
+    /// <summary><see cref="FlatFlags"/> with a callback: not flat, the same bytes (its type id differs).</summary>
+    [NinoType]
+    public class FlatFlagsTwin
+    {
+        [NinoOnSerializing]
+        internal void Writing() { }
+
+        public int Id;
+        public bool A;
+        public bool B;
+        public string Name;
+    }
 }

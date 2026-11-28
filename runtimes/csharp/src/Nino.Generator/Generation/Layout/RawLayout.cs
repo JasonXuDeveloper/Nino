@@ -68,6 +68,29 @@ internal static class RawLayout
         return Describe(type, sb) ? sb.ToString() : "raw";
     }
 
+    /// <summary>
+    /// The size and alignment of <paramref name="type"/> in the canonical layout (64-bit CoreCLR's) and whether its
+    /// leaves leave a gap (padding): what the flat bodies of #444 predict a class's struct fields from. False when the
+    /// layout is not known at compile time.
+    /// </summary>
+    public static bool Canonical(ITypeSymbol type, out int size, out int align, out bool padded)
+    {
+        var leaves = new List<NinoLayoutCore.Leaf>();
+        padded = false;
+        if (!NinoLayoutCore.Measure(new SymbolView(type, canonical: true), type, NinoLayoutModel.Canonical, 0, leaves,
+                out size, out align))
+            return false;
+        int end = 0;
+        foreach (var leaf in leaves.OrderBy(static l => l.Offset))
+        {
+            padded |= leaf.Offset != end;
+            end = leaf.Offset + leaf.Size;
+        }
+
+        padded |= end != size;
+        return true;
+    }
+
     private static bool Describe(ITypeSymbol type, StringBuilder sb)
     {
         var offsets = new List<int>();
