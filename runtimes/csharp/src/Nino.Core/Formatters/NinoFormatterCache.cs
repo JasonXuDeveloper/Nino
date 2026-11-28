@@ -86,7 +86,7 @@ namespace Nino.Core
             // dynamic code: [NinoType] structs (registered by their generated code, RegisterType above, when they
             // exist), pointer-sized values and the types with a format of their own are left out; other generic
             // structs are raw, as everywhere else.
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoReflection.IsRawShape(typeof(T)))
+            if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoReflection.IsRawShape(typeof(T)))
                 return new StructFormatter<T, RawValueFormatter<T>>();
             return null;
         }
@@ -195,7 +195,7 @@ namespace Nino.Core
         {
             // A big-endian host takes the formatter, whose writer or reader rejects it (BitConverter.IsLittleEndian
             // is a JIT-time constant: this field stays one).
-            if (NinoUnsafe.IsReferenceOrContainsReferences<T>() || !BitConverter.IsLittleEndian)
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() || !BitConverter.IsLittleEndian)
                 return false;
             return NinoTopFormatter<T>.Formatter.IsRaw;
         }
@@ -294,13 +294,13 @@ namespace Nino.Core
         /// constant once inlined; for reference types <see cref="NinoRaw{T}"/> is never touched.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool Is<T>() => !NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw;
+        public static bool Is<T>() => !RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw;
 
         /// <summary>
         /// Whether the top-level APIs read values of <typeparamref name="T"/> as their raw bytes: <see cref="Is{T}"/>,
         /// but not for a <c>bool</c> (<see cref="NinoRaw{T}.IsRawRead"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool IsRead<T>() => !NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRawRead;
+        public static bool IsRead<T>() => !RuntimeHelpers.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRawRead;
     }
 }

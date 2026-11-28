@@ -45,6 +45,12 @@ where that is so, and its x64 sizes are listings, not throughput.
   budget case (the last subtype's `WriteExactShallow` a shared `__Canon` call), and `NinoUnsafe.Is64Bit` through
   `IntPtr.Size` was `too deep` in top-level writes and left `call IntPtr.get_Size` before 4-byte stores: one level
   fewer through `Unsafe.SizeOf<IntPtr>()` (same IL size) removed it, no other method changed at FullOpts. The
+  same fix closed #355's: every Tier1 `too deep` (13 on main, 34 on the storage layer: AppData `Lookups` and `Events`
+  and their interceptors) sat at the leaves of the cold growth path `Ensure` -> `Grow` -> `SetBuffer`, its `Span<byte>`
+  conversion and `MemoryMarshal.GetReference`; `MemoryMarshal.GetArrayDataReference` with a null test took both levels
+  out and left none (13 -> 0), and calling `RuntimeHelpers.IsReferenceOrContainsReferences` directly instead of the
+  `NinoUnsafe` forwarder took one level out of every use (TC=0 `too deep` 104 -> 54). Find the chain from the leaf
+  that failed: the release runtime's events name the root as the inliner, so look for the helper whose leaves fail. The
   opposite trade measured worse: writing the 64-bit test out in `NinoUnsafe.Read<T>` so the JIT folds it at import
   removed about 4,000 `ReadBytes` candidates (no budget charged for them) but added a byte of IL per `Read`, and five
   Tier1 collection reads then exceeded their budget (`NinoDeserializeNullableMemoryInts` 11 to 29 stack accesses,

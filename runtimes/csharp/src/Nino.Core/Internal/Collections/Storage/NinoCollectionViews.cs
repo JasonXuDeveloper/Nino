@@ -31,7 +31,7 @@ namespace Nino.Core
                 // capacity), cleared as above.
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoKind<T, TFormatter>.Heavy)
                 {
-                    if (!NinoElements.ReadOverwrites<T, TFormatter>() && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
+                    if (!NinoElements.ReadOverwrites<T, TFormatter>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                         Array.Clear(items, 0, items.Length);
                     reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, length, reader);
                     return array = items;
@@ -41,7 +41,7 @@ namespace Nino.Core
             }
 
             var span = MemoryMarshal.CreateSpan(ref NinoUnsafe.GetArrayDataReference(items), length);
-            if (!NinoElements.ReadOverwrites<T, TFormatter>() && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
+            if (!NinoElements.ReadOverwrites<T, TFormatter>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 span.Clear();
             NinoRuns.Read<T, TFormatter>(span, ref reader, prechecked: true);
             return items;

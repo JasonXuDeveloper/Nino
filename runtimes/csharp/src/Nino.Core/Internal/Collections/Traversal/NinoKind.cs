@@ -48,7 +48,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static NinoElementKind Of<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            NinoUnsafe.IsReferenceOrContainsReferences<T>()
+            RuntimeHelpers.IsReferenceOrContainsReferences<T>()
                 ? NinoElementKind.PerValue
                 : NinoKind<T, TFormatter>.Kind;
 
@@ -58,7 +58,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Stride<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            NinoUnsafe.IsReferenceOrContainsReferences<T>() ? -1 : NinoKind<T, TFormatter>.Stride;
+            RuntimeHelpers.IsReferenceOrContainsReferences<T>() ? -1 : NinoKind<T, TFormatter>.Stride;
     }
 
     /// <summary>
@@ -214,7 +214,7 @@ namespace Nino.Core.Internal
         // layout check RawFormatter holds (the raw marker and NinoLayout.Canonical), read as it is.
         private static NinoElementKind Decide()
         {
-            if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 return NinoElementKind.PerValue;
             if (RawFormatter<T, TFormatter>.Is)
                 return NinoElementKind.Raw;

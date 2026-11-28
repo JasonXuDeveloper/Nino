@@ -365,7 +365,7 @@ namespace Nino.Core.CompilerServices
 #if !NET8_0_OR_GREATER
             // IL2CPP (which runs this build only) lays some packed structs out apart from their compiled code: their
             // arrays get spare elements (NinoElementLayouts). The reference test and IsDynamicCodeSupported first.
-            if (!IsReferenceOrContainsReferences<T>() && !RuntimeFeature.IsDynamicCodeSupported &&
+            if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>() && !RuntimeFeature.IsDynamicCodeSupported &&
                 NinoReflection.IsIl2Cpp && NinoElementLayouts<T>.Oversized && length > 0)
                 return NinoElementLayouts<T>.New(length);
 #endif

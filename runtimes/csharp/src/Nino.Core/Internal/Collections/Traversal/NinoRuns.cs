@@ -172,17 +172,27 @@ namespace Nino.Core.Internal
                 if (counted)
                     writer.WriteLength(length);
                 if (!row || count != 0)
-                    writer = WriteStrings<T, TFormatter>(run, writer);
+                {
+                    // Out of line on a copy of the cursor alone, field by field: strings and the items beside them
+                    // open no class body, defer nothing and track no reference. A writer passed and returned by value
+                    // is copied with loads wider than the stores that built it (store forwarding fails), and the
+                    // whole writer copied each way cost the caller twice the stack accesses.
+                    Writer copy = default;
+                    writer.CopyCursorTo(ref copy);
+                    WriteStrings<T, TFormatter>(run, ref copy);
+                    copy.CopyCursorTo(ref writer);
+                }
+
                 return;
             }
 
-            // A class whose generated body is flat (#355): the flat kernels, from NinoFlatRuns.MinRun elements on; runs with
-            // free entries (a set's) and short ones take the loop below. After the kinds above, before the local writes, which
+            // A class whose generated body is flat (#355): the flat kernels, at every length (their entry is as cheap as
+            // the loop below at one element); runs with free entries (a set's) take that loop. After the kinds above, before the local writes, which
             // sealed flat classes take too (NinoKind.FlatClass), where the kernels went unused and ScatteredTest's write of a
             // million items took 1.33 times the base's: a static readonly of NinoKind<TFormatter> read in code shared over
             // classes is no constant, and read first it turned a string array's and a polymorphic base's writes from 4 to 29
             // and 86 to 234 stack accesses (asm.py).
-            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun &&
+            if (!typeof(T).IsValueType && NinoKind<TFormatter>.Flat && count != 0 &&
                 (row || run.InUse == NinoRun.AllInUse))
             {
                 if (counted)
@@ -248,7 +258,7 @@ namespace Nino.Core.Internal
         /// (any stride, free entries skipped): a set's or a dictionary's; <paramref name="length"/> written first.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static Writer WriteEach<T, TFormatter>(scoped NinoRun run, int length, Writer writer)
+        internal static Writer WriteEach<T, TFormatter>(scoped in NinoRun run, int length, Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (length != NoLength)
@@ -299,7 +309,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int KeyOf<TKey, TKeyFormatter>() where TKeyFormatter : struct, INinoFormatter<TKey> =>
             NinoKind<TKeyFormatter>.IsString ? NinoRun.KeyAt(0, -1)
-            : NinoUnsafe.IsReferenceOrContainsReferences<TKey>() ? NinoRun.NoKey
+            : RuntimeHelpers.IsReferenceOrContainsReferences<TKey>() ? NinoRun.NoKey
             : Keys<TKey, TKeyFormatter>.Key;
 
         private static class Keys<TKey, TKeyFormatter> where TKeyFormatter : struct, INinoFormatter<TKey>
@@ -410,7 +420,7 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Whether a run of <paramref name="count"/> values is a flat struct's (#355) too short for the flat kernels
-        /// (under <see cref="NinoFlatRuns.MinRun"/>, as a flat class's): it takes the loops of values one at a time.
+        /// (under <see cref="NinoFlatRuns.MinRun"/>): it takes the loops of values one at a time.
         /// Through the kernels, out of line twice, a run of one flat struct wrote in 2.1 times main's time and one of a
         /// version-tolerant struct 2.8 (their fixed cost; Tier1, local, alternated). The count first: the static
         /// after it only for short runs.
@@ -428,20 +438,17 @@ namespace Nino.Core.Internal
         /// serialized with their writers in memory).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static Writer WriteStrings<T, TFormatter>(scoped NinoRun run, Writer writer)
+        internal static void WriteStrings<T, TFormatter>(scoped in NinoRun run, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (!typeof(T).IsValueType)
-                return NinoStringRuns.Write<TFormatter>(run, writer);
+                NinoStringRuns.Write<TFormatter>(run, ref writer);
             // A generated struct whose body is flat (#355): its chain of items, in place (from NinoFlatRuns.MinRun
             // elements on: ShortFlatValues).
-            if (NinoKind<TFormatter>.Flat)
-            {
+            else if (NinoKind<TFormatter>.Flat)
                 default(TFormatter).WriteFlat(NinoRun.Unscoped(run), ref writer);
-                return writer;
-            }
-
-            return default(TFormatter).WriteStrings(run, writer);
+            else
+                default(TFormatter).WriteStrings(run, ref writer);
         }
 
         /// <summary>
@@ -518,7 +525,7 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// <see cref="ReadEach{T,TFormatter}"/> for classes: a class whose generated body is flat (#355) through the flat
-        /// kernels, from <see cref="NinoFlatRuns.MinRun"/> elements on. Here, out of line, not in Read: the reader's
+        /// kernels, at every length. Here, out of line, not in Read: the reader's
         /// address passed there kept it in memory in every collection's read of such a class, short runs included
         /// (asm.py: 8 to 21 stack accesses, ChatMessage, ScatteredItem).
         /// </summary>
@@ -526,7 +533,7 @@ namespace Nino.Core.Internal
         private static Reader ReadClasses<T, TFormatter>(scoped ref T item, int count, Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (NinoKind<TFormatter>.Flat && count >= NinoFlatRuns.MinRun)
+            if (NinoKind<TFormatter>.Flat)
             {
                 default(TFormatter).ReadFlat(NinoRun.Unscoped(new NinoRun(ref Unsafe.As<T, byte>(ref item), count,
                     Unsafe.SizeOf<T>(), NinoRun.NoKey, NinoRun.AllInUse)), ref reader);

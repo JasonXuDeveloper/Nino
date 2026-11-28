@@ -44,36 +44,36 @@ namespace Nino.Core.CompilerServices
         /// inline goes element by element, its bodies deferred.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void WriteSealed<T, TFormatter>(NinoRun run, ref Writer writer, int depth)
+        public static void WriteSealed<T, TFormatter>(in NinoRun run, ref Writer writer, int depth)
             where T : class
             where TFormatter : struct, INinoFormatter<T> =>
-            writer = NinoFlatRuns.WriteRun<T, TFormatter, NinoFlatSealedItem<TLayout, TBody>>(run, writer, depth);
+            NinoFlatRuns.WriteRun<T, TFormatter, NinoFlatSealedItem<TLayout, TBody>>(in run, ref writer, depth);
 
         /// <summary>As <see cref="WriteSealed{T,TFormatter}"/>, a class that is not sealed: each its type id, then its
         /// body; a subtype through <typeparamref name="TFormatter"/>.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void WriteTyped<T, TFormatter>(NinoRun run, ref Writer writer, int depth)
+        public static void WriteTyped<T, TFormatter>(in NinoRun run, ref Writer writer, int depth)
             where T : class
             where TFormatter : struct, INinoFormatter<T> =>
-            writer = NinoFlatRuns.WriteRun<T, TFormatter, NinoFlatTypedItem<TLayout, TBody>>(run, writer, depth);
+            NinoFlatRuns.WriteRun<T, TFormatter, NinoFlatTypedItem<TLayout, TBody>>(in run, ref writer, depth);
 
         /// <summary>
         /// Reads the values of <paramref name="run"/> (not empty, values in a row) of a sealed class in place: an
         /// element that holds an object (a read into existing elements) goes through <typeparamref name="TFormatter"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void ReadSealed<T, TFormatter>(NinoRun run, ref Reader reader, int depth)
+        public static void ReadSealed<T, TFormatter>(in NinoRun run, ref Reader reader, int depth)
             where T : class
             where TFormatter : struct, INinoFormatter<T> =>
-            reader = NinoFlatRuns.ReadRun<T, TFormatter, NinoFlatSealedItem<TLayout, TBody>>(run, reader, depth);
+            NinoFlatRuns.ReadRun<T, TFormatter, NinoFlatSealedItem<TLayout, TBody>>(in run, ref reader, depth);
 
         /// <summary>As <see cref="ReadSealed{T,TFormatter}"/>, a class that is not sealed: another type id through
         /// <typeparamref name="TFormatter"/>.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void ReadTyped<T, TFormatter>(NinoRun run, ref Reader reader, int depth)
+        public static void ReadTyped<T, TFormatter>(in NinoRun run, ref Reader reader, int depth)
             where T : class
             where TFormatter : struct, INinoFormatter<T> =>
-            reader = NinoFlatRuns.ReadRun<T, TFormatter, NinoFlatTypedItem<TLayout, TBody>>(run, reader, depth);
+            NinoFlatRuns.ReadRun<T, TFormatter, NinoFlatTypedItem<TLayout, TBody>>(in run, ref reader, depth);
 
         /// <summary>
         /// Writes the body of <paramref name="value"/> (not null), out of line on a local copy of the writer's cursor
@@ -195,27 +195,30 @@ namespace Nino.Core.CompilerServices
         /// <summary>Writes the values of <paramref name="run"/> (not empty; free entries skipped);
         /// <paramref name="depth"/> as <see cref="NinoFlat{TLayout,TBody}.WriteSealed{T,TFormatter}"/>'s.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void Write<T, TFormatter>(NinoRun run, ref Writer writer, int depth)
+        public static void Write<T, TFormatter>(in NinoRun run, ref Writer writer, int depth)
             where T : struct
-            where TFormatter : struct, INinoFormatter<T> =>
+            where TFormatter : struct, INinoFormatter<T>
+        {
             // A chain no element leaves (a positional struct's, no class nested): the string kernels' write, which has
             // no stop (through the flat kernels' loop ManagedStruct's runs wrote in 1.1 times step B's time). Here,
             // not in NinoFlatRuns: its IL there kept the class runs' driver from inlining into their hooks (asm.py,
             // TC=0: "too many il bytes", a call more per run).
-            writer = default(TBody).Leaves || depth != 0
-                ? NinoFlatRuns.WriteRun<T, TFormatter, TBody>(run, writer, depth)
-                : NinoStringRuns.Write(run, default(TBody), writer);
+            if (default(TBody).Leaves || depth != 0)
+                NinoFlatRuns.WriteRun<T, TFormatter, TBody>(in run, ref writer, depth);
+            else
+                NinoStringRuns.Write(run, default(TBody), ref writer);
+        }
 
         /// <summary>Reads the values of <paramref name="run"/> (not empty, every one in use) in place.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void Read<T, TFormatter>(NinoRun run, ref Reader reader, int depth)
+        public static void Read<T, TFormatter>(in NinoRun run, ref Reader reader, int depth)
             where T : struct
             where TFormatter : struct, INinoFormatter<T>
         {
             // As Write: the string kernels' read loop, no stop (through the flat loop, with its index for a stop, a
             // flat struct's runs read in 1.04 times step B's time; through this one 0.96).
             if (default(TBody).Leaves || depth != 0)
-                reader = NinoFlatRuns.ReadRun<T, TFormatter, TBody>(run, reader, depth);
+                NinoFlatRuns.ReadRun<T, TFormatter, TBody>(in run, ref reader, depth);
             else
                 reader.UnsafeAdvance(NinoStringRuns.Read(run, default(TBody), ref reader.Peek(), reader.Remaining,
                     default(NinoStringRuns.InPlace)));

@@ -47,7 +47,7 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool InPlace<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && Memory<T, TFormatter>.Is;
+            !RuntimeHelpers.IsReferenceOrContainsReferences<T>() && Memory<T, TFormatter>.Is;
 
         private static class Memory<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
         {
@@ -332,7 +332,7 @@ namespace Nino.Core.Internal
         public static readonly int Length = Math.Max(1, NinoGather.ChunkBytes / Unsafe.SizeOf<T>());
 
         // Room to move the start to a 64-byte boundary.
-        private static readonly int Spare = NinoUnsafe.IsReferenceOrContainsReferences<T>() || Unsafe.SizeOf<T>() > 64
+        private static readonly int Spare = RuntimeHelpers.IsReferenceOrContainsReferences<T>() || Unsafe.SizeOf<T>() > 64
             ? 0
             : 64 / Unsafe.SizeOf<T>();
 
@@ -380,7 +380,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void Return(Chunk chunk, int used)
         {
-            if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 System.Array.Clear(chunk.Array, chunk.Start, used);
             int count = t_count;
             if (count == Kept)
