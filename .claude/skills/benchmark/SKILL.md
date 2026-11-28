@@ -40,7 +40,11 @@ gave overlapping ranges. Never pin it to one CPU (`taskset`): the tiering thread
 runners measure. Runners still decide (round 123). To read a gap against a competitor in such a probe, sample the two
 libraries alternately (a batch of Nino, a batch of the other, 41 times) and take the median of the per-pair ratios:
 timed one case after the other, on a machine other agents shared, GenericSealedClassTupleBase's LuminPack/Nino read
-0.75 to 1.13 from round to round of one build; alternated, 0.80 to 0.90 over six rounds (#441).
+0.75 to 1.13 from round to round of one build; alternated, 0.80 to 0.90 over six rounds (#441). Bind each case with
+`Delegate.CreateDelegate` and call it through a generic wrapper, never through a compiled `Expression` lambda: a
+compiled expression is a dynamic method, never tiered, and the JIT inlines the case into it at FullOpts without
+profile data, so the probe times code BenchmarkDotNet never runs (#460: NonGenericBase serialize read 1.9 against
+2.3 us base to head through the lambda, 2.1 against 2.2 through the delegate, where the Tier1 listings were equal).
 
 - Time each build in a process of its own, not two assembly load contexts in one process: a byte-identical A/A of
   the 64-item `BlockWaypoint` case in one process showed a 5–15% gap on several Arm64 runs, even with the warmup
