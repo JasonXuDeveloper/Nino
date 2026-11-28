@@ -50,8 +50,9 @@ namespace Nino.Core
 
         /// <summary>
         /// Whether <see cref="ReadRun"/> reads the values of a run in one loop (false, the default): generated formatters
-        /// of generic polymorphic bases over a closed instance whose code is shared (a type argument holding a class),
-        /// whose loop lies in that instance's own dispatch, where nothing is shared code. Called once.
+        /// of non-generic polymorphic roots (the switch inline in the loop), and of generic polymorphic bases over a
+        /// closed instance whose code is shared (a type argument holding a class), whose loop lies in that instance's
+        /// own dispatch, where nothing is shared code. Called once.
         /// </summary>
         bool HasReadRun => false;
 

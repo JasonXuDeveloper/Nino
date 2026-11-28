@@ -360,13 +360,26 @@ internal static class DispatchEmitter
 
         w.Line();
         EmitReadSubtype(w, t, subtypes, services);
-        if (closedForm)
-            EmitReadRun(w, t, subtypes, services);
+        if (closedForm || runLoop)
+            EmitReadRun(w, t, root is { IsTarget: true } ? subtypes.Prepend(root) : subtypes, services);
+        if (runLoop)
+        {
+            string loops = $"{Core}INinoFormatter";
+            w.Line();
+            w.Line($"bool {loops}.HasReadRun => true;");
+            w.Line();
+            w.Line($"void {loops}.ReadRun(in {services}NinoRun run, ref {Core}Reader reader) => __ReadRun(run, ref reader);");
+        }
     }
 
     /// <summary>
-    /// <c>__ReadRun</c> of a closed generic base's dispatch: the values of a run in a row (an array's, a list's), each
-    /// read as <c>Deserialize</c> reads one, in a loop of this non-generic class with the switch inline. Over a type
+    /// <c>__ReadRun</c> of a non-generic root's or a closed generic base's dispatch: the values of a run in a row (an
+    /// array's, a list's), each read as <c>Deserialize</c> reads one, in a loop of this non-generic type with the switch
+    /// inline (a root that is a class of its own first, as its own case). A non-generic root's read value by value
+    /// through Nino.Core's loop paid the id read and the switch per value through <c>Deserialize</c>; this loop read
+    /// PolymorphicClass's 1,000-value list in 18.5 against 20.1 us and NonGenericBase in 16.9 against 17.4
+    /// (LuminPack/Nino 0.90 to 0.95 and 1.02 to 1.09; local x64, quiet machine, alternated, 3 rounds; FooArray and
+    /// PolymorphicClassArray on par, #305). Over a type
     /// argument holding a class the base formatter is shared generic code, where each value took a runtime lookup for
     /// <c>Deserialize</c>, the selection of this class through the generic context, then the case's calls (#441); the
     /// base formatter's <c>ReadRun</c> selects this loop once per collection instead. Each case reads the subtype's
@@ -374,7 +387,7 @@ internal static class DispatchEmitter
     /// <c>__ReadExactN</c>: the loop calling <c>__ReadSubtype</c> per value read 1,000 ProbeBox&lt;(ProbeOpenItem,
     /// int)&gt; in LuminPack/Nino 0.95 against 0.99 inline (base 0.82; local x64, Tier1, 6 rounds).
     /// </summary>
-    private static void EmitReadRun(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
+    private static void EmitReadRun(CodeWriter w, string t, IEnumerable<DispatchEntry> subtypes, string services)
     {
         string run = $"{services}NinoRun";
         w.Line();
