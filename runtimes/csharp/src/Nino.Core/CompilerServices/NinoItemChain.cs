@@ -117,6 +117,7 @@ namespace Nino.Core.CompilerServices
         public ref byte Ref(ref byte item) => ref Unsafe.AddByteOffset(ref item, (nint)_at);
     }
 
+
     /// <summary>
     /// <typeparamref name="TItem"/> at <typeparamref name="TMember"/>'s memory in the composite: the last item of a chain.
     /// A chain ends at its last item rather than at an empty end node, whose byte (and padding) made a pair's chain
@@ -205,6 +206,81 @@ namespace Nino.Core.CompilerServices
             int size = default(TItem).ReadAt(ref source, available, ref _member.Ref(ref item), fresh);
             // An item that left the element (NinoFlatRuns.Left: a subtype, another key) ends the read here: the next
             // items would read at its negative size. Only after an item that may (Leaves, a constant).
+            if (default(TItem).Leaves && size < 0)
+                return size;
+            return size + _next.ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item,
+                fresh);
+        }
+    }
+
+    /// <summary>
+    /// <typeparamref name="TItem"/> (a nested flat body, the generated <c>Nested</c>) read out of line: its read a
+    /// method of its own, its own root for the JIT, while its size and write stay inline. Where the generator gives a
+    /// nested body this item (FlatRules' locals budget, #456): a chain read whole in one method ran out of the JIT's
+    /// locals (the run's root, NinoFlatRuns.Read, past its limit) and left the rest of each element as calls (Comment,
+    /// two ShallowUsers each nesting BadgeCount: 12 "too many locals" failures at Tier1).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public readonly struct NinoReadCall<TItem> : INinoItem
+        where TItem : struct, INinoItem
+    {
+        /// <inheritdoc/>
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(TItem).Leaves;
+        }
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item) => default(TItem).MaxSize(ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item) => default(TItem).WriteAt(ref destination, ref item);
+
+        /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh) =>
+            default(TItem).ReadAt(ref source, available, ref item, fresh);
+    }
+
+    /// <summary>
+    /// A chain's first item at the element's start, then <typeparamref name="TNext"/>: the chain of a composite whose
+    /// run was rebased to its first item (<see cref="NinoRun.Items"/>; a pair's write, <see cref="Internal.NinoItems"/>),
+    /// so the kernels hold one offset fewer in a register. Its only field is the next node's: an empty member as a
+    /// field made the chain a byte and an int built in memory and loaded whole, which the CPU cannot forward (a
+    /// store-forwarding stall per call: the write of SimpleClass's Dictionary&lt;int, string&gt;).
+    /// </summary>
+    internal readonly struct NinoItemFirst<TItem, TNext> : INinoItem
+        where TItem : struct, INinoItem
+        where TNext : struct, INinoItem
+    {
+        public bool Leaves
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => default(TItem).Leaves || default(TNext).Leaves;
+        }
+
+        private readonly TNext _next;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public NinoItemFirst(TNext next) => _next = next;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public long MaxSize(ref byte item) => default(TItem).MaxSize(ref item) + _next.MaxSize(ref item);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int WriteAt(ref byte destination, ref byte item)
+        {
+            int size = default(TItem).WriteAt(ref destination, ref item);
+            return size + _next.WriteAt(ref Unsafe.Add(ref destination, (nint)(uint)size), ref item);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadAt(ref byte source, int available, ref byte item, bool fresh)
+        {
+            int size = default(TItem).ReadAt(ref source, available, ref item, fresh);
             if (default(TItem).Leaves && size < 0)
                 return size;
             return size + _next.ReadAt(ref Unsafe.Add(ref source, (nint)(uint)size), available - size, ref item,

@@ -29,7 +29,7 @@ where that is so, and its x64 sizes are listings, not throughput.
   | reason | limit | fix |
   |---|---|---|
   | `inline exceeds budget` | the root's time budget, about `(60 + 3 × root IL bytes) × 10`, spent by each inlinee's estimate from its IL size (dead branches included) | move work out of line, or start a new root (a `NoInlining` entry with a local cursor); take IL out of inlinees |
-  | `too many locals` | the root's local count, inlinee temporaries included (`MAX_LV_NUM_COUNT_FOR_INLINING`, 512 in the JIT sources, unverified) | fewer temporaries per inlinee (struct arguments, `ref` locals), or split the root; a larger root or smaller IL does not help |
+  | `too many locals` | the root's local count, inlinee temporaries included (`MAX_LV_NUM_COUNT_FOR_INLINING`, 512 in the JIT sources, unverified) | fewer temporaries per inlinee (struct arguments, `ref` locals), or split the root; a larger root or smaller IL does not help; a branch the importer cannot fold (a test inside a `bool` helper such as `NinoCursor.Own`) imports both arms' inlines and spends their locals: test `typeof` in the method itself |
   | `too deep` | inline depth | flatten forwarders (`default(F).X` → `X`), use an intrinsic instead of a property around one |
   | `too many il bytes` | a callee without `AggressiveInlining` over the size limit | mostly throw helpers and BCL: fine |
   | `unprofitable inline` | the heuristic said no | a small Nino helper lacks `AggressiveInlining`, or sits in a branch not folded at import (costs a candidate, not budget) |
@@ -39,6 +39,13 @@ where that is so, and its x64 sizes are listings, not throughput.
   suite gave up, at Tier1, `too many locals` 44 times (distinct root and inlinee), `inline exceeds budget` 18 and `too
   deep` 25; at FullOpts 64, 0 and 24 (`too many basic blocks` 19). A deep tree of `AggressiveInlining` helpers
   stopped at `too many locals`, and padding the root with folded dead IL to raise its budget inlined nothing more.
+  Version-tolerant bodies read members out of order in their keyed loop (`__keyed`, data of another version: ProfileCache
+  reads V1 bytes), so a body that spends its locals on the in-order path leaves that loop's reads as calls: ProfileV2's
+  `ReadBody` gave up 19 inlines (`ReadBool`, `ReadChecked`, `UnsafeRead`, the nullable reads) and ProfileCache read in
+  1.34 times main's time (local, alternated) until a `List<string>`'s and a `Dictionary<string, string>`'s whole read
+  went out of line under a direct `typeof(TFormatter)` test (`ListFormatter`, `DictionaryFormatter`: 0 left). The same
+  move under `NinoCursor.Own` changed nothing: the inline arm was imported anyway (an inline-order trace, a startup
+  hook recording `MethodJitInliningSucceeded` and `Failed` in order, showed `NinoKind.Of` 18 times in the root).
   `PolymorphicClassFormatter.ReadBody` (6.6 KB) was at the local limit (FooD's 20-subtype read switch inlined, then
   `FooZFormatter.ReadBody`, `Create` and even `get_BodyTraits` left calls; fixed by cases holding only the body,
   dispatch.md), `CustomerEventFormatter.Serialize` is a
@@ -160,6 +167,16 @@ where that is so, and its x64 sizes are listings, not throughput.
   takes the data and its end, and its store by value, returning what it counts (`NinoDictionary.MergeCursors`: the keys
   already there in the high half): the store by reference, copied back, kept its address in a register and the
   caller's store in memory.
+  Give a collection's first pass the free space inline too, with the result in a register, and copy the writer only
+  for what is left (`NinoRuns`' `WriteStringsFree`, `NinoDictionary.WriteFree`: raw entries as one block, string
+  pairs through `NinoItems.WriteFree`; bytes left in the low half, elements left in the high half): Players wrote in
+  0.95-0.97 times main's time (1.19-1.24 before), IntDictionary 0.89-0.99 (1.01-1.07), StringDictionary 0.75 (0.85),
+  a class of one `Dictionary<int, int>` 0.98-0.995 (1.15-1.2; local, alternated). Pass a run to the part out of line as
+  its fields, never by `in`: an `in` run that reaches a call is address-exposed and every field stays in memory.
+  Not retried: the same loop around a flat class's body (measure, check the free space, grow, measure again) to keep
+  its fields loaded once spilled the writer's cursor and bytes left to the stack and still loaded each field twice;
+  the JIT reloads a class's fields between `MaxSize` and `WriteAt` even with no call between them (a class of two
+  strings, Tier1 listings).
   The same rule keeps multi-segment input a copy: a `ReadOnlySequence<byte>` read across segments in place would need
   every bounds check to refill the reader out of line instead of throwing (the reader's address in every method that
   reads, or a refill inlined into every check), and regions, sections and deferrals address the data by absolute

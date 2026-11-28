@@ -72,7 +72,9 @@ NinoItemChain.cs             the one item chain of #355, every composite's (a pa
                              (the raw item: primitives, bools and raw structs copied as one block, its bools checked
                              in its bytes by a TCheck, INinoBlockCheck, NinoUnchecked, NinoBlockCheck: #444), the last
                              item without a next (NinoItemAt<TMember, TItem>, NinoBlockAt<TMember, TCheck>), the
-                             groups that balance a long chain into a tree (NinoGroup of two to four parts: #451), and the
+                             groups that balance a long chain into a tree (NinoGroup of two to four parts: #451), the
+                             first item at the element's start (NinoItemFirst, a rebased pair run), a nested body read
+                             out of line (NinoReadCall, the generated read's locals budget: #456), and the
                              bottom items, one per element kind
                              (NinoUtf16Item, NinoUtf8Item, NinoRawItem, NinoStructItem, NinoBoolItem, NinoValueItem,
                              NinoSlotItem: a raw T?'s single value, its size a generator literal through INinoSize);
@@ -389,7 +391,8 @@ NinoKernelHook.cs            registered native function pointers and call thresh
 ### Internal/Validation/
 
 ```
-NinoChecks.cs                checks of values Nino never writes (bools other than 0 or 1) where each costs least
+NinoChecks.cs                checks of values Nino never writes (bools other than 0 or 1) where each costs least, and
+                             CopyValues, the raw-run kernel of values Nino checks (fused into the copy for new storage)
 NinoLimits.cs                the settings read paths check, frozen as static readonly fields
 NinoSeededHash.cs            SipHash-1-3 comparers for the tables Nino creates in Untrusted mode
 NinoThrow.cs                 throw helpers, out of line (NinoDataException for the data, InvalidOperationException else)

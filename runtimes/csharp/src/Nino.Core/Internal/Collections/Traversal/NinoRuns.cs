@@ -8,7 +8,7 @@ namespace Nino.Core.Internal
     /// <summary>
     /// The one write and the one read of a run of a collection's storage (<see cref="NinoRun"/>), over
     /// <c>&lt;T, TFormatter&gt;</c> only, for a run of any stride (#355): <see cref="Write{T,TFormatter}(NinoRun, bool,
-    /// bool, int, ref Writer)"/> and <see cref="Read{T,TFormatter}(Span{T}, ref Reader, bool)"/>. Every collection
+    /// bool, int, ref Writer)"/> and <see cref="Read{T,TFormatter}(Span{T}, ref Reader, bool, bool)"/>. Every collection
     /// writes its elements through them and reads them into its storage through the same view: values in a row (an
     /// array, a list, a span, each half of a ring, a gathered chunk), the entries of a set and of a dictionary, each
     /// the element (a storage element whose formatter composes its items at their offsets,
@@ -173,13 +173,29 @@ namespace Nino.Core.Internal
                     writer.WriteLength(length);
                 if (!row || count != 0)
                 {
+                    // Strings: the free space to one call and the bytes written back, in registers. Through a copy of
+                    // the writer each step of the cursor went through memory (the caller's stores loaded back in the
+                    // call, the call's loaded back here: a store-forwarding round trip each, as a dictionary's pairs
+                    // had, NinoDictionary.WriteFree). The strings that did not fit through the copy (below), from the
+                    // first of them.
+                    int next = 0;
+                    if (!typeof(T).IsValueType)
+                    {
+                        ulong left = WriteStringsFree<TFormatter>(run, ref writer.FreeSpace(out int available),
+                            available);
+                        writer.Commit(available - (int)left);
+                        if (left >> 32 == 0)
+                            return;
+                        next = run.Count - (int)(left >> 32);
+                    }
+
                     // Out of line on a copy of the cursor alone, field by field: strings and the items beside them
                     // open no class body, defer nothing and track no reference. A writer passed and returned by value
                     // is copied with loads wider than the stores that built it (store forwarding fails), and the
                     // whole writer copied each way cost the caller twice the stack accesses.
                     Writer copy = default;
                     writer.CopyCursorTo(ref copy);
-                    WriteStrings<T, TFormatter>(run, ref copy);
+                    WriteStrings<T, TFormatter>(run, next, ref copy);
                     copy.CopyCursorTo(ref writer);
                 }
 
@@ -328,20 +344,27 @@ namespace Nino.Core.Internal
 
         /// <summary>Reads into the elements of <paramref name="values"/>, reusing the existing values.</summary>
         /// <param name="prechecked">The collection length already proved its entire fixed-stride payload fits.</param>
+        /// <param name="fresh">
+        /// The elements are new storage that nobody sees before the read returns (a rented chunk, the slots past an
+        /// empty ring's count): raw values Nino checks are then checked while they are copied
+        /// (<see cref="NinoChecks.CopyValues{T}"/>).
+        /// </param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(Span<T> values, ref Reader reader, bool prechecked = false)
+        public static void Read<T, TFormatter>(Span<T> values, ref Reader reader, bool prechecked = false,
+            bool fresh = false)
             where TFormatter : struct, INinoFormatter<T> =>
-            Read<T, TFormatter>(ref MemoryMarshal.GetReference(values), values.Length, ref reader, prechecked);
+            Read<T, TFormatter>(ref MemoryMarshal.GetReference(values), values.Length, ref reader, prechecked, fresh);
 
         /// <summary>
         /// Reads <paramref name="count"/> elements into the slots starting at <paramref name="first"/> (a
-        /// multi-dimensional array's), as <see cref="Read{T,TFormatter}(Span{T}, ref Reader, bool)"/> reads a span.
+        /// multi-dimensional array's), as <see cref="Read{T,TFormatter}(Span{T}, ref Reader, bool, bool)"/> reads a span.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader, bool prechecked = false)
+        public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader, bool prechecked = false,
+            bool fresh = false)
             where TFormatter : struct, INinoFormatter<T> =>
             Read<T, TFormatter>(new NinoRun(ref Unsafe.As<T, byte>(ref first), count, Unsafe.SizeOf<T>(),
-                NinoRun.NoKey, NinoRun.AllInUse), ref reader, prechecked);
+                NinoRun.NoKey, NinoRun.AllInUse), ref reader, prechecked, fresh);
 
         /// <summary>
         /// The one read of values in a row (#355), every entry point's: an array's, a list's backing array, a ring's
@@ -352,24 +375,31 @@ namespace Nino.Core.Internal
         /// any stride, take from <see cref="NinoEntries{TEntry,TFormatter,TTable}"/>).
         /// </summary>
         /// <param name="prechecked">The collection length already proved its entire fixed-stride payload fits.</param>
+        /// <param name="fresh">See <see cref="Read{T,TFormatter}(Span{T}, ref Reader, bool, bool)"/>.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Read<T, TFormatter>(scoped NinoRun run, ref Reader reader, bool prechecked)
+        private static void Read<T, TFormatter>(scoped NinoRun run, ref Reader reader, bool prechecked, bool fresh)
             where TFormatter : struct, INinoFormatter<T>
         {
             int count = run.Count;
             ref T first = ref Unsafe.As<byte, T>(ref run.First);
             // Raw elements: one bounds check and one block copy (see Write). Values Nino checks (bools, Untrusted
-            // mode's fields: NinoLayout<T>.CopiesAsIs false) are checked in the data first, out of line, then copied
-            // the same way: the copy never stores a value the check rejects, so every collection reading raw values
-            // block-checks them (an ArraySegment, a Queue or an ImmutableArray of bools read one by one before).
+            // mode's fields: NinoLayout<T>.CopiesAsIs false) take the checked copy, out of line
+            // (NinoChecks.CopyValues): it never leaves a value the check rejects where anyone sees it, so every
+            // collection reading raw values block-checks them (an ArraySegment, a Queue or an ImmutableArray of bools
+            // read one by one before).
             var kind = NinoKind.Of<T, TFormatter>();
             if (kind == NinoElementKind.Raw)
             {
                 ref byte destination = ref Unsafe.As<T, byte>(ref first);
                 ref byte source = ref TakeElements(ref reader, count, Unsafe.SizeOf<T>(), prechecked);
+                if (!NinoLayout<T>.CopiesAsIs)
+                {
+                    if (count != 0)
+                        NinoChecks.CopyValues<T>(ref destination, ref source, count, fresh);
+                    return;
+                }
+
                 uint bytes = (uint)count * (uint)Unsafe.SizeOf<T>();
-                if (!NinoLayout<T>.CopiesAsIs && count != 0)
-                    CheckRaw<T>(ref source, count);
 #if NET8_0_OR_GREATER
                 if (Unsafe.SizeOf<T>() == 1 && NinoUnsafe.IsArm64Short(bytes))
                     NinoUnsafe.CopyArm64ShortMayOverlap(ref destination, ref source, bytes);
@@ -438,11 +468,12 @@ namespace Nino.Core.Internal
         /// serialized with their writers in memory).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static void WriteStrings<T, TFormatter>(scoped in NinoRun run, ref Writer writer)
+        internal static void WriteStrings<T, TFormatter>(scoped in NinoRun run, int next, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
+            // Strings: those WriteStringsFree left, from the element at next, the first that did not fit.
             if (!typeof(T).IsValueType)
-                NinoStringRuns.Write<TFormatter>(run, ref writer);
+                NinoStringRuns.WriteFrom<TFormatter>(run, next, ref writer);
             // A generated struct whose body is flat (#355): its chain of items, in place (from NinoFlatRuns.MinRun
             // elements on: ShortFlatValues).
             else if (NinoKind<TFormatter>.Flat)
@@ -450,6 +481,16 @@ namespace Nino.Core.Internal
             else
                 default(TFormatter).WriteStrings(run, ref writer);
         }
+
+        /// <summary>
+        /// Writes the strings of <paramref name="run"/> (not empty) into the <paramref name="available"/> bytes at
+        /// <paramref name="destination"/> until one's longest form does not fit (<see cref="NinoStringRuns.WriteFree{TFormatter}"/>):
+        /// the bytes left (low half) and the strings left (high half, 0 when every one fit). Out of line, the free
+        /// space and the result in registers.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ulong WriteStringsFree<TFormatter>(scoped in NinoRun run, ref byte destination, int available) =>
+            NinoStringRuns.WriteFree<TFormatter>(run, ref destination, available);
 
         /// <summary>
         /// As <see cref="WriteStrings{T,TFormatter}"/>, the read in place. The data and the bytes left go to the call,
@@ -483,15 +524,6 @@ namespace Nino.Core.Internal
             typeof(T).IsValueType
                 ? default(TFormatter).ReadStrings(run, ref data, end)
                 : NinoStringRuns.Read<TFormatter>(run, ref data, end);
-
-        /// <summary>
-        /// Checks <paramref name="count"/> raw values (not 0) in the data at <paramref name="source"/> before they are
-        /// copied (<see cref="NinoChecks.Values{T}"/>: bools, Untrusted mode's fields). Out of line: rare, and the
-        /// checks are large.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void CheckRaw<T>(ref byte source, int count) =>
-            NinoChecks.Values<T>(ref source, count, Unsafe.SizeOf<T>());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ref byte TakeElements(ref Reader reader, int count, int stride, bool prechecked) =>

@@ -322,6 +322,9 @@ internal static class FlatEmitter
                                          $"{(item.Property ? PropertyName(member) : MemberName(member))}>",
                     // The chain of blocks nests the type's blocks (its check is in this one's), the chain of fields its
                     // fields.
+                    // A nested body past the locals budget read out of line (#456).
+                    FlatItemKind.Nested when item.Called => $"{Services}NinoReadCall<{item.Nested}" +
+                        (fields && item.NestedChecks ? ".__Fields" : ".__Flat") + ".Nested>",
                     FlatItemKind.Nested => item.Nested + (fields && item.NestedChecks ? ".__Fields" : ".__Flat") + ".Nested",
                     _ => $"{Services}NinoRawItem<{member.TypeName}>",
                 };

@@ -95,7 +95,8 @@ FlatRules.cs                 whether a class's or struct's body is flat (#355) a
                              bodies; the chain as a balanced tree of groups (Tree, Fanout); the levels within the
                              JIT's inline depth (MaxItems) and the depth literal of the
                              class bodies an element opens; runs only for a struct, a generic type, a body that is not
-                             positional or nests one (FlatModel.RunsOnly)
+                             positional or nests one (FlatModel.RunsOnly); the read's locals budgeted (Locals,
+                             MaxLocals: over it the heaviest nested body reads out of line, FlatItem.Called, #456)
 PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoFormatter.PrefetchBytes):
                              the object's estimated bytes for the cache budget, and which members' objects it prefetches
 TypeFacts.cs                 everything model builds ask about one compilation's symbols, memoized and shared (Flat: a

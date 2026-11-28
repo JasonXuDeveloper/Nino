@@ -51,7 +51,7 @@ namespace Nino.Core.Internal
             WritesOnLocal<T>() || NinoKind<T, TFormatter>.FlatClass;
 
         /// <summary>
-        /// Whether <see cref="NinoRuns.Read{T,TFormatter}(Span{T}, ref Reader, bool)"/> overwrites every element
+        /// Whether <see cref="NinoRuns.Read{T,TFormatter}(Span{T}, ref Reader, bool, bool)"/> overwrites every element
         /// whatever it held (raw elements and blocks are each read in full), so the slots need not
         /// be cleared or zeroed first. A JIT-time constant.
         /// </summary>

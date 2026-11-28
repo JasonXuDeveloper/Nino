@@ -1,6 +1,3 @@
-#if NET8_0_OR_GREATER
-using System.Runtime.Intrinsics;
-#endif
 using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
@@ -13,10 +10,6 @@ namespace Nino.Core
     /// <summary>Unmanaged <c>T[]</c>: length (-1 = null), then one block copy.</summary>
     public struct UnmanagedArrayFormatter<[NinoRaw] T> : INinoFormatter<T[]>, INinoRawArrayFormatter where T : unmanaged
     {
-#if NET8_0_OR_GREATER
-        private const int MinFusedBytes = 4096;
-#endif
-
         // Elements with a non-canonical layout take the formatter path, which converts them.
         int INinoRawArrayFormatter.ElementSize => NinoLayout<T>.IsCanonical ? Unsafe.SizeOf<T>() : 0;
 
@@ -90,12 +83,8 @@ namespace Nino.Core
         Array INinoRawArrayFormatter.Read(ReadOnlySpan<byte> data, Array existing)
         {
             // A new array (NinoDeserializer.Deserialize<T[]>(data) passes null, a constant once inlined): no slot
-            // to reuse, so no local whose address reaches the recycler and stays in memory.
-#if NET8_0_OR_GREATER
-            if (typeof(T) == typeof(bool) && existing == null && Vector128.IsHardwareAccelerated &&
-                data.Length >= NinoWire.LengthSize + MinFusedBytes)
-                return ReadNewChecked(data);
-#endif
+            // to reuse, so no local whose address reaches the recycler and stays in memory. Values Nino checks take
+            // the reader's checked copy (Deserialize), into a new array checked while copied.
             if (existing == null && NinoLayout<T>.CopiesAsIs)
                 return ReadNew(data);
             var reader = new Reader(data);
@@ -103,11 +92,6 @@ namespace Nino.Core
             Deserialize(ref reader, ref value);
             return value;
         }
-
-#if NET8_0_OR_GREATER
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static T[] ReadNewChecked(ReadOnlySpan<byte> data) => ReadNew(data);
-#endif
 
         /// <summary>The bytes of <see cref="Deserialize"/>, into a new array (null for null).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -127,16 +111,7 @@ namespace Nino.Core
 
             var array = NinoUnsafe.NewArray<T>(length, uninitialized: true);
             ref byte target = ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array));
-            ref byte source = ref Unsafe.Add(ref start, NinoWire.LengthSize);
-#if NET8_0_OR_GREATER
-            if (typeof(T) == typeof(bool))
-            {
-                if (bytes >= MinFusedBytes && NinoChecks.TryCopyBools(ref target, ref source, (int)bytes))
-                    return array;
-                NinoChecks.Bools(ref source, length);
-            }
-#endif
-            NinoUnsafe.CopyToNew(ref target, ref source, (uint)bytes);
+            NinoUnsafe.CopyToNew(ref target, ref Unsafe.Add(ref start, NinoWire.LengthSize), (uint)bytes);
             return array;
         }
 
@@ -181,30 +156,12 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoLayout<T>.Size, out int length))
                 return;
 
-            // Bools and Untrusted mode's values are checked by the read: a new array takes the slot once filled.
+            // Bools and Untrusted mode's values are checked by the read: a new array takes the slot once filled, so
+            // its values are checked while they are copied.
             var current = value;
             var array = NinoElements.NewOrSame(current, length);
-#if NET8_0_OR_GREATER
-            if (NinoLayout<T>.Checks is not { } checks || !NinoLayout<T>.IsCanonical ||
-                array == current || !TryReadFreshChecked(array, length, checks, ref reader))
-#endif
-                reader.ReadUnmanagedRaw(array.AsSpan());
+            reader.ReadUnmanagedRaw(array.AsSpan(), fresh: array != current);
             NinoElements.Publish(ref value, current, array);
         }
-
-#if NET8_0_OR_GREATER
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static bool TryReadFreshChecked(T[] array, int length, NinoValueChecks checks, ref Reader reader)
-        {
-            int stride = Unsafe.SizeOf<T>();
-            int bytes = length * stride;
-            if (bytes < MinFusedBytes || !checks.TryCopy(ref reader.Peek(),
-                    ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)), bytes, stride))
-                return false;
-
-            reader.UnsafeAdvance(bytes);
-            return true;
-        }
-#endif
     }
 }

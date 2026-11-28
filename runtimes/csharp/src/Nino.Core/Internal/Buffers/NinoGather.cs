@@ -236,7 +236,7 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Reads <paramref name="length"/> elements (not 0) and hands them to <paramref name="target"/> a chunk at a
         /// time, each chunk filled by the run's read loop
-        /// (<see cref="NinoRuns.Read{T,TFormatter}(Span{T}, ref Reader, bool)"/>), whose checks bound what each takes
+        /// (<see cref="NinoRuns.Read{T,TFormatter}(Span{T}, ref Reader, bool, bool)"/>), whose checks bound what each takes
         /// from the data. Inlined into <see cref="ReadAll{T,TFormatter,TTarget}"/>, the reader a local there. A read
         /// rejected half way leaves its chunk to the collector, never back in the buffer.
         /// </summary>
@@ -255,7 +255,8 @@ namespace Nino.Core.Internal
                 // The read loop reuses what the slots hold: the last chunk's values, which belong to the collection.
                 if (!NinoElements.ReadOverwrites<T, TFormatter>())
                     part.Clear();
-                NinoRuns.Read<T, TFormatter>(part, ref reader);
+                // Fresh: the chunk's values are copies the collection already took.
+                NinoRuns.Read<T, TFormatter>(part, ref reader, fresh: true);
                 target.Add(part);
                 left -= count;
             }

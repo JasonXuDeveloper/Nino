@@ -54,6 +54,22 @@ namespace Nino.Core
                 return;
             }
 
+            // Entries without references (raw or block items) and pairs holding strings: the free space to one call
+            // and the bytes written back, in registers, as main's pair loops had it; through a copy of the writer (below) each step of the cursor went through memory, the
+            // caller's stores loaded back in the call and its stores loaded back here (a top-level
+            // Dictionary<int, string> of one pair written in 1.4 times main's time). What does not fit there takes the
+            // writer's path, which grows the buffer.
+            if (!RuntimeHelpers.IsReferenceOrContainsReferences<CollectionFields.MapEntry<TKey, TValue>>() ||
+                CursorPairs)
+            {
+                int written = WriteFree(value, count, ref writer.FreeSpace(out int available), available);
+                if (written >= 0)
+                {
+                    writer.Commit(written);
+                    return;
+                }
+            }
+
             // One call: reaching the entries, the run's kind tests and its block path inlined here took the budget and
             // the registers of the generated body around it (SimpleClass's top-level write 112 to 159 stack accesses, a
             // class-init helper call; 1.2 times main's time). Through a copy of the writer, field by field: a writer
@@ -111,6 +127,38 @@ namespace Nino.Core
                 writer.WriteLength(count);
                 NinoItems.Write<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyOffset, ValueOffset, ref writer);
             }
+        }
+
+        /// <summary>
+        /// Writes the count and the pairs of a dictionary's entries into the <paramref name="available"/> bytes at
+        /// <paramref name="destination"/>, the kernels <see cref="WriteEntries"/> takes: entries without references as
+        /// one block (none free), pairs holding strings (<see cref="CursorPairs"/>) through the string run kernels.
+        /// Returns the bytes written, or -1 when they did not fit, an entry is free in a block or the entries are not
+        /// known (nothing then counts as written: the writer's path writes them all, <see cref="WriteEntries"/>). Out
+        /// of line, one call per dictionary.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int WriteFree(Dictionary<TKey, TValue> value, int count, ref byte destination, int available)
+        {
+            if (available < sizeof(int) || !CollectionFields.Run(value, count, out var run))
+                return -1;
+            if (!RuntimeHelpers.IsReferenceOrContainsReferences<CollectionFields.MapEntry<TKey, TValue>>())
+            {
+                // NinoRuns.Write's block, its one capacity check against the free space.
+                int block = NinoKind.Stride<CollectionFields.MapEntry<TKey, TValue>, NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>();
+                if (block <= 0 || run.InUse != NinoRun.AllInUse || (long)count * block > available - sizeof(int))
+                    return -1;
+                NinoUnsafe.Write(ref destination, count);
+                NinoElements.WriteBlock<CollectionFields.MapEntry<TKey, TValue>, NinoMapEntryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(
+                    ref Unsafe.Add(ref destination, sizeof(int)),
+                    ref Unsafe.As<byte, CollectionFields.MapEntry<TKey, TValue>>(ref run.First), count);
+                return sizeof(int) + count * block;
+            }
+
+            NinoUnsafe.Write(ref destination, count);
+            ulong left = NinoItems.WriteFree<TKey, TValue, TKeyFormatter, TValueFormatter>(run, KeyOffset, ValueOffset,
+                ref Unsafe.Add(ref destination, sizeof(int)), available - sizeof(int));
+            return left >> 32 != 0 ? -1 : available - (int)left;
         }
 
         /// <summary>The count and the pairs through the enumerator, out of line, the writer by value and
@@ -470,6 +518,19 @@ namespace Nino.Core
             var run = new NinoRun(ref Unsafe.As<CollectionFields.MapEntry<TKey, TValue>, byte>(ref entry), length, 0,
                 NinoRun.NoKey, NinoRun.AllInUse);
             bool walk = HashTables.Plan<TKey, TValue>.Walks;
+            // Keyed by strings where the dictionary guards its own buckets (.NET's randomized string hashing): each
+            // pair added inline through the dictionary (GuardedPairAdds).
+            if (!insert && !walk && NinoKind<TKeyFormatter>.Strings)
+            {
+                if (NinoKind<TValueFormatter>.Strings)
+                    return NinoItems.Read<TKey, TValue, TKeyFormatter, TValueFormatter, NinoStringRuns.GuardedPairAdds>(
+                        run, KeyOffset, ValueOffset, ref data, end,
+                        new NinoStringRuns.GuardedPairAdds(Unsafe.As<Dictionary<string, string>>(dictionary)));
+                return NinoItems.Read<TKey, TValue, TKeyFormatter, TValueFormatter,
+                    NinoStringRuns.GuardedKeyAdds<TValue>>(run, KeyOffset, ValueOffset, ref data, end,
+                    new NinoStringRuns.GuardedKeyAdds<TValue>(Unsafe.As<Dictionary<string, TValue>>(dictionary)));
+            }
+
             // Told by the formatters' types: typeof(TKey) of a class is no constant in code shared over it.
             if (NinoKind<TKeyFormatter>.Strings && NinoKind<TValueFormatter>.Strings)
                 return NinoItems.Read<TKey, TValue, TKeyFormatter, TValueFormatter, NinoStringRuns.PairAdds>(

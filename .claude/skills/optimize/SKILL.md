@@ -219,9 +219,11 @@ says which CPUs and cases moved.
   Beside a string, a slot's value (a raw `T?`) is an item in its single value's
   bytes (`NinoSlotItem` over two internal non-generic members of `INinoFormatter<T>`, `WriteAt`/`ReadAt`, implemented by
   `UnmanagedNullableFormatter`): `NinoCursor.Item` is the one predicate of what may sit beside a string. A raw run Nino
-  checks (bools, Untrusted mode) is checked in the data out of line and then copied as one block in `NinoRuns.Read`
-  (`CheckRaw`), never sent to the per-value loop: nothing the check rejects is stored, so a rejected read leaves an
-  existing array as it was. Write every collection that is not one run through the gather seam, never element by
+  checks (bools, Untrusted mode) goes through the one kernel `NinoChecks.CopyValues` from every collection
+  (`NinoRuns.Read`'s raw branch, `Reader.ReadUnmanagedRaw`, the raw array and list formatters), never the per-value
+  loop: into fresh storage (new, published only once read: pass `fresh` from the caller that knows) checked while
+  copied from 4 KiB, into existing values checked first, so a rejected read leaves an existing array as it was
+  (vectors-checks.md, the fused bullet). Write every collection that is not one run through the gather seam, never element by
   element (#355, `CompilerServices`, hidden): a package outside Nino.Core (Nino.Immutable) says only how its
   collection is walked, an `INinoGatherSource<T>` struct handed to `NinoGathered.Write` (or `WriteReversed` for a
   stack walked from its top), and Nino.Core's run loops write each chunk (raw values as one block or straight into the
@@ -451,7 +453,15 @@ says which CPUs and cases moved.
   byte or type id, then the block). Local, alternated, against main 9540e0bb at 1/3/32/1000 elements, Tier1:
   `List<ShallowUser>` wrote in 0.69/0.86/0.88/0.83 and read in 0.96/0.99/0.90/0.87; Comment wrote in 0.84-0.93
   and read in 0.92-1.00 (its read hits the JIT's "too many locals", #456); FlatOuter wrote in 0.65/0.82/0.81/0.83
-  and read in 0.85-0.95; Outer wrote in 0.70-0.75 and read in 0.94-0.99 (guidance; a runner A/B decides).
+  and read in 0.85-0.95; Outer wrote in 0.70-0.75 and read in 0.94-0.99 (guidance; a runner A/B decides). (9) Budget
+  a flat body's locals (`FlatRules.Locals`, at most `FlatRules.MaxLocals`): over it, the heaviest nested body is read
+  through `NinoReadCall<TItem>` (`FlatItem.Called`), its `ReadAt` out of line and a root of its own, its write still
+  inline. Comment's read gave up 30 inlines as "too many locals" at Tier1 (10 in `NinoFlatRuns.Read`), none after;
+  it then read in 1.01-1.10 times main's time at 1/3/32/1000 elements and wrote in 0.82-0.88 (local, alternated).
+  (10) Never give a node of the chain an empty struct field: the JIT built such a node as a byte and an int in memory
+  and loaded it back whole (a store-forwarding stall: `WriteEntries` 5,942 perf samples with an empty `NinoStart`
+  first). Rebase a pair's run to its first item instead (`NinoRun.Items(a)`, `NinoItemFirst`, no offset of its own),
+  which also frees the offset's register.
 - **Let bools, raw structs without padding and `NinoNullable<T>` members join a flat class's blocks, their read
   checks a `TCheck` type argument over the block's bytes, never an item each** (#444: `NinoBlockAt<TMember, TCheck>`,
   `INinoBlockCheck`, the generated `__C_<member>`; `NinoBlockCheck.Bools` ORs the bool bytes and throws once on a bit

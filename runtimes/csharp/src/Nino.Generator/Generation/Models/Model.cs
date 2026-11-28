@@ -506,8 +506,10 @@ internal enum FlatItemKind
 /// <param name="NestedClass">For <see cref="FlatItemKind.Nested"/>, whether the member type is a class.</param>
 /// <param name="NestedChecks">For <see cref="FlatItemKind.Nested"/>, whether the member type's body has a startup check
 /// (<see cref="FlatModel.Checks"/>): the chain of blocks nests its blocks, under this body's check, which includes it.</param>
+/// <param name="Called">For <see cref="FlatItemKind.Nested"/>, whether its read is out of line (Nino.Core's NinoReadCall):
+/// the chain past <see cref="FlatRules.MaxLocals"/> with it inline (#456).</param>
 internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool Property = false, string Nested = "",
-    bool NestedClass = false, bool NestedChecks = false)
+    bool NestedClass = false, bool NestedChecks = false, bool Called = false)
 {
     /// <summary>Whether the member's value is a reference (a string, a nested class): a property's local copy is then
     /// NinoReference, never the class itself as a type argument (code shared over classes, Nino.Core's NinoReference).</summary>
@@ -532,8 +534,11 @@ internal sealed record FlatItem(FlatItemKind Kind, int Member, int Count, bool P
 /// <param name="Sealed">A sealed class: nested, its presence byte (NinoFlat's Sealed), else its type id (Typed).</param>
 /// <param name="NestOnly">A class whose body is one raw block (<see cref="TypeModel.RawBody"/>, #452): its chain only
 /// nested in other flat bodies, its own runs and bodies as they were (no hooks).</param>
+/// <param name="Locals">The locals its chain's read takes inlined whole (FlatRules.Locals), its nested bodies read out
+/// of line (<see cref="FlatItem.Called"/>) counted as calls: at most <see cref="FlatRules.MaxLocals"/> where it can be.</param>
 internal sealed record FlatModel(EquatableArray<FlatItem> Items, bool ValueType = false, bool Generic = false,
-    NinoFormat Format = NinoFormat.Positional, int Depth = 0, int Levels = 0, bool Sealed = false, bool NestOnly = false)
+    NinoFormat Format = NinoFormat.Positional, int Depth = 0, int Levels = 0, bool Sealed = false, bool NestOnly = false,
+    int Locals = 0)
 {
     /// <summary>
     /// Whether only runs take the chain, one value its member-by-member body: a struct, a generic type, a

@@ -389,6 +389,24 @@ namespace Nino.Core
                 return i;
             }
 
+            // A destination off its 16-byte grid (a run after a 4-byte count: 4 or 12 bytes off) has the elements'
+            // results moved onto it (CopySpreadRealigned): a quarter of the stores would split a cache line.
+            if (AdvSimd.Arm64.IsSupported && total >= 64)
+            {
+                switch (NinoUnsafe.BytesToAligned(ref destination, 16))
+                {
+                    case 4:
+                        CopySpreadRealigned(ref destination, ref source, total, 4);
+                        return total;
+                    case 8:
+                        CopySpreadRealigned(ref destination, ref source, total, 8);
+                        return total;
+                    case 12:
+                        CopySpreadRealigned(ref destination, ref source, total, 12);
+                        return total;
+                }
+            }
+
             // Cursors bumped, so the two vectors of a step are at constant offsets (ldp, stp).
             nuint left = total;
             for (; left >= 32; left -= 32)
@@ -412,6 +430,47 @@ namespace Nino.Core
             if (left != 0)
                 Spread(Vector128.LoadUnsafe(ref source, left - 16), spread).StoreUnsafe(ref destination, left - 16);
             return total;
+        }
+
+        /// <summary>
+        /// <see cref="CopySpread"/> of a stride that tiles the vector (64 bytes or more) into a destination
+        /// <paramref name="head"/> bytes short of its 16-byte grid (4, 8 or 12, a constant once inlined): each
+        /// vector cleared where its elements start, as the other loops do, then two consecutive results joined onto
+        /// the grid (ext, one operation on either vector pipe), so every store but the first and the last two is
+        /// aligned and none crosses a cache line. A hypothesis for Neoverse-N2, where a raw <c>long?</c> run wrote 2.8
+        /// times as slowly as MemoryPack's copy whatever the arithmetic (structure loads and tbl alike, #270): the
+        /// runs Nino writes after a count are 4 bytes off the grid, and a quarter of their 16-byte stores split a line.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopySpreadRealigned(ref byte destination, ref byte source, nuint total,
+            [System.Diagnostics.CodeAnalysis.ConstantExpected(Min = 1, Max = 15)] byte head)
+        {
+            var spread = SpreadFlags;
+            ref byte start = ref destination;
+            ref byte from = ref source;
+            var previous = Spread(Vector128.LoadUnsafe(ref source), spread);
+            previous.StoreUnsafe(ref destination);
+            // previous holds the elements at source; the store at destination + head takes its last bytes and the
+            // next result's first.
+            ref byte last = ref Unsafe.Add(ref source, total - 48);
+            ref byte target = ref Unsafe.Add(ref destination, head);
+            while (!Unsafe.IsAddressGreaterThan(ref source, ref last))
+            {
+                var a = Spread(Vector128.LoadUnsafe(ref source, 16), spread);
+                var b = Spread(Vector128.LoadUnsafe(ref source, 32), spread);
+                AdvSimd.ExtractVector128(previous, a, head).StoreUnsafe(ref target);
+                AdvSimd.ExtractVector128(a, b, head).StoreUnsafe(ref target, 16);
+                previous = b;
+                source = ref Unsafe.Add(ref source, 32);
+                target = ref Unsafe.Add(ref target, 32);
+            }
+
+            if (!Unsafe.IsAddressGreaterThan(ref source, ref Unsafe.Add(ref last, 16)))
+                AdvSimd.ExtractVector128(previous, Spread(Vector128.LoadUnsafe(ref source, 16), spread), head)
+                    .StoreUnsafe(ref target);
+            // The aligned stores reach past total - 32: the last two vectors as they lie (whole elements).
+            Spread(Vector128.LoadUnsafe(ref from, total - 32), spread).StoreUnsafe(ref start, total - 32);
+            Spread(Vector128.LoadUnsafe(ref from, total - 16), spread).StoreUnsafe(ref start, total - 16);
         }
 
         /// <summary><see cref="CopySpread"/> out of line, for <see cref="WriteSlots(ref byte, ReadOnlySpan{T?})"/>.</summary>

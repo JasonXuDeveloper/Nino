@@ -54,6 +54,29 @@ namespace Nino.Core
                     NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.MinPairSize, out int length))
                 return;
 
+            // Pairs holding a string: the whole read out of line, the reader by value and returned (see ListFormatter,
+            // and why the formatters are tested here).
+            if (typeof(TKeyFormatter) == typeof(StringFormatter) || typeof(TKeyFormatter) == typeof(Utf8StringFormatter) ||
+                typeof(TValueFormatter) == typeof(StringFormatter) || typeof(TValueFormatter) == typeof(Utf8StringFormatter))
+            {
+                reader = ReadStrings(ref value, length, reader);
+                return;
+            }
+
+            Fill(ref value, length, ref reader);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadStrings(scoped ref TDictionary value, int length, Reader reader)
+        {
+            Fill(ref value, length, ref reader);
+            return reader;
+        }
+
+        /// <summary>Fills <paramref name="value"/> (created if null) with <paramref name="length"/> pairs.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Fill(ref TDictionary value, int length, ref Reader reader)
+        {
             if (value == null && typeof(TDictionary) == typeof(Dictionary<TKey, TValue>))
             {
                 // A new plain dictionary, sized for the pairs: filled without the merge of Refill.

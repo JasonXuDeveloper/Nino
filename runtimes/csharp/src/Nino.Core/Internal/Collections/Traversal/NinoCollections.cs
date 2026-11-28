@@ -199,7 +199,7 @@ namespace Nino.Core.Internal
             bool read = false;
             try
             {
-                NinoRuns.Read<T, TFormatter>(span, ref reader);
+                NinoRuns.Read<T, TFormatter>(span, ref reader, fresh: true);
                 read = true;
             }
             finally
