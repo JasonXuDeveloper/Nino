@@ -43,7 +43,8 @@ namespace Nino.Core
             var span = MemoryMarshal.CreateSpan(ref NinoUnsafe.GetArrayDataReference(items), length);
             if (!NinoElements.ReadOverwrites<T, TFormatter>() && !RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 span.Clear();
-            NinoRuns.Read<T, TFormatter>(span, ref reader, prechecked: true);
+            // Fresh: slots past the count of an empty collection, published by the caller once read.
+            NinoRuns.Read<T, TFormatter>(span, ref reader, prechecked: true, fresh: true);
             return items;
         }
     }

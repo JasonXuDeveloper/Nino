@@ -384,7 +384,8 @@ NinoKernelHook.cs            registered native function pointers and call thresh
 ### Internal/Validation/
 
 ```
-NinoChecks.cs                checks of values Nino never writes (bools other than 0 or 1) where each costs least
+NinoChecks.cs                checks of values Nino never writes (bools other than 0 or 1) where each costs least, and
+                             CopyValues, the raw-run kernel of values Nino checks (fused into the copy for new storage)
 NinoLimits.cs                the settings read paths check, frozen as static readonly fields
 NinoSeededHash.cs            SipHash-1-3 comparers for the tables Nino creates in Untrusted mode
 NinoThrow.cs                 throw helpers, out of line (NinoDataException for the data, InvalidOperationException else)

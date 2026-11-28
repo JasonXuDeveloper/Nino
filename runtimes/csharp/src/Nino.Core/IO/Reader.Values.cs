@@ -318,11 +318,18 @@ namespace Nino.Core
 
         /// <summary>Copies a block of unmanaged values (no length prefix) into <paramref name="destination"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ReadUnmanagedRaw<T>(Span<T> destination) where T : unmanaged
+        public void ReadUnmanagedRaw<T>(Span<T> destination) where T : unmanaged => ReadUnmanagedRaw(destination, false);
+
+        /// <summary>
+        /// <see cref="ReadUnmanagedRaw{T}(Span{T})"/> into <paramref name="fresh"/> storage (new, published by the caller
+        /// once read), where values Nino checks are checked while they are copied (<see cref="NinoChecks.CopyValues{T}"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void ReadUnmanagedRaw<T>(Span<T> destination, bool fresh) where T : unmanaged
         {
             if (!NinoLayout<T>.CopiesAsIs)
             {
-                this = ReadUnmanagedOther(destination, this);
+                this = ReadUnmanagedOther(destination, this, fresh);
                 return;
             }
 
@@ -334,20 +341,21 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// <see cref="ReadUnmanagedRaw{T}"/> for values not copied as they are (<see cref="NinoLayout{T}.CopiesAsIs"/>):
-        /// bools, checked in the data before one block copy (a byte other than 0 or 1 is invalid data), and values of a
-        /// layout this runtime converts, one by one. Out of line, with the reader by value.
+        /// <see cref="ReadUnmanagedRaw{T}(Span{T})"/> for values not copied as they are (<see cref="NinoLayout{T}.CopiesAsIs"/>):
+        /// bools and Untrusted mode's values through the checked copy (<see cref="NinoChecks.CopyValues{T}"/>, a byte
+        /// other than 0 or 1 is invalid data), and values of a layout this runtime converts, one by one. Out of line,
+        /// with the reader by value.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadUnmanagedOther<T>(Span<T> destination, Reader reader) where T : unmanaged
+        private static Reader ReadUnmanagedOther<T>(Span<T> destination, Reader reader, bool fresh) where T : unmanaged
         {
             if (NinoLayout<T>.IsCanonical)
             {
                 int count = destination.Length;
                 ref byte src = ref reader.ReadElements(count, Unsafe.SizeOf<T>());
-                NinoChecks.Values<T>(ref src, count, Unsafe.SizeOf<T>());
-                NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)), ref src,
-                    (uint)count * (uint)Unsafe.SizeOf<T>());
+                if (count != 0)
+                    NinoChecks.CopyValues<T>(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)),
+                        ref src, count, fresh);
                 return reader;
             }
 
