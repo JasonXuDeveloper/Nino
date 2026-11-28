@@ -48,6 +48,31 @@ namespace Nino.Core
                 return;
             }
 
+            // Strings: the whole read out of line, the reader by value and returned (ReadEach's way). Inlined into a
+            // generated body, the list's steps took that body's locals: a version-tolerant class with two lists of
+            // strings left its keyed loop's member reads as calls (ProfileCache read in 1.34 times main's time). The
+            // formatters tested here, not through NinoCursor.Own: the importer folds only a test it sees, and with the
+            // test in a call it imported the inline read as well, which spent the same locals.
+            if (typeof(TFormatter) == typeof(StringFormatter) || typeof(TFormatter) == typeof(Utf8StringFormatter))
+            {
+                reader = ReadStrings(ref value, length, reader);
+                return;
+            }
+
+            Fill(ref value, length, ref reader);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadStrings(scoped ref TList value, int length, Reader reader)
+        {
+            Fill(ref value, length, ref reader);
+            return reader;
+        }
+
+        /// <summary>Fills <paramref name="value"/> (created if null) with <paramref name="length"/> elements.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Fill(ref TList value, int length, ref Reader reader)
+        {
             var list = value;
             // Values each read in full: neither a new list's backing array nor an existing one's new slots need be
             // cleared first.
