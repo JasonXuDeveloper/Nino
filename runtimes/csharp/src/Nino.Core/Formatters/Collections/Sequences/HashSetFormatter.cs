@@ -44,6 +44,11 @@ namespace Nino.Core
                 return;
             }
 
+            // The entries' kind, asked before the return below so that the run's write further down folds it at
+            // Tier1 (a no-op there): slots whose sets have no free entry never reach that write, which then compiled
+            // the slot branch it never takes, a boxed call to the entry formatter's WriteSlots (asm.py --boxes).
+            _ = NinoKind.Of<CollectionFields.SetEntry<T>, NinoSetEntryFormatter<T, TFormatter>>();
+
             // Slots whose memory is their wire form after a pass over them: out of line.
             if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot && run.InUse == NinoRun.AllInUse &&
                 default(TFormatter).SlotsWriteInPlace)

@@ -349,10 +349,6 @@ says which CPUs and cases moved.
   of line, 1.16, 1.12, 1.05 and 0.87 (local x64, alternated). Copy the cursor, not the whole writer (`CopyTo` of both
   took SimpleClass's `__WriteTop` from 78 to 194 stack accesses). Find it with `perf script -F ip,sym,symoff` against
   `DOTNET_JitDisasmWithCodeBytes` offsets: a hot wide load at a method's entry right after the caller's stores.
-- **Never compare a generic `T` with `null` where `T` may be a `Nullable<U>` on a hot path.** The JIT boxed it per call
-  in `HashTables.Hash` (inlined into every set's fill): NullableHashSetInts deserialized in 15 times main's time; testing
-  the constant first (`!set && key == null`: a set hashes its null through the comparer, as 0) removed the box. The no-boxing rule
-  is the owner's: no box anywhere.
 - **Reach a generated class's members from a kernel through one accessor struct per member, never through a static
   field or table** (#355, the generator seam; `FlatEmitter`, `NinoFlat<TLayout, TBody>`). A flat class (raw members,
   bools, strings) is one chain of items nested in type arguments, each item's member a `readonly struct` whose
@@ -509,6 +505,35 @@ says which CPUs and cases moved.
   readonly` field read directly, never through `??`, and keep it never null; the inventory of the indirect calls that
   stay (another assembly's `[NinoType]`, shared generic code, the netstandard block loops, user-extensible points, one
   per top-level call in shared code) and why.
+- **Never box** (the owner's rule): nothing on a read or write path, nor on a branch of one that FullOpts code compiles
+  before the field guarding it is set, boxes a value type. Test a value of a type parameter for null with
+  `NinoUnsafe.IsNull`, never `== null`. Its design, each part measured: `default(T) != null` first, which optimized
+  code folds for every value type, so only a `T?` reads anything (without it `HashTables.Link<NinoNullable<int>>` grew
+  486 -> 761 bytes); then one load of the presence byte at the `static readonly` offset `NinoPresence<T>` found, a
+  constant once the class is initialized (a static found on first use instead kept a load, a call and the recycling
+  of a value known to be default in every top-level read of a `ManagedStruct?`, 657 -> 932 bytes, and
+  `Nullable<T>.Equals(object)` boxed nothing but stayed a call, `HashTables.Hash<int?>` 1 -> 6 stack accesses); where the
+  class is not yet initialized when the caller compiles, a class-init helper remains, so a null test on a branch that
+  may not run at Tier0 gets a read of `NinoPresence<T>.Offset` on one that does (`HashTables.Hash`: without it
+  `Link<int?>` went 24 -> 59 stack accesses). In a Debug build, which CI's tests run, `default(T) != null` is a real box
+  (24 B per `int` key of a `Dictionary<int, int?>` read), so Debug asks the offset (-1 for any other type) instead.
+  `== null`: on a `T?` the JIT
+  removes that box only where the boxed value has no side effects, and .NET 11's JIT kept it in an inlined call (#449: `HashTables.Hash` boxed every non-null `int?` of a
+  `HashSet<int?>` read, 46,152 B against 22,176 per 1,000 and 2.2x main, cc8f4132; the dictionary path of the same
+  test still boxed in a `Dictionary<int?, int>` read, and `NinoRecycler.Discard` a `ManagedStruct?` replaced by null
+  in `NinoRuns.ReadEach`, 61694e6b; on #355's branch the same box made NullableHashSetInts deserialize in 15 times
+  main's time until `HashTables.Hash` tested the constant first, `!set && key == null`).
+  .NET 8 and 10 folded every one of them, so measure on .NET 11 too (`AllocationTests` runs on net11.0; a program on
+  .NET 10 saw none). Never use the formatter in a default interface member (`GetType()` there kept the struct boxed on
+  every unfolded branch that reaches it), never pass a struct as `object` (`Unsafe.As<Array>(value)`) or an interface,
+  and hand a constructor that takes an `IEnumerable<T>` a `RentedItems<T>`, never an `ArraySegment<T>`: the
+  benchmark's listings went from 10 boxing methods to 0 at Tier1 and from 92 to 0 in FullOpts code (asm.py `dump
+  --boxes`, which names the type of each inline box: a listing alone shows it as a `CORINFO_HELP_NEWSFAST` like any
+  `new`). By design and listed apart (`BOXES_BY_DESIGN` in asm.py): a C# union's case (the language stores it as
+  `object`), the startup checks' `object` keys, registration by reflection, the one `INinoRawArrayFormatter` object
+  per type. Not Nino's: .NET 11.0's `Dictionary` boxes a `T?` key in every lookup and insert the JIT inlines into the
+  caller (1,000 keys read into an existing `Dictionary<int?, int>`: 24,000 B; none on .NET 10), and a user struct
+  without `IEquatable<T>` is boxed by the runtime's comparer as a set's or dictionary's key.
 - **Bounds checks and vector loops** ([references/vectors.md](references/vectors.md), the index of the vector files):
   index through a ref to the first element and `Unsafe.Add` behind the one length check, and reuse a length proof
   instead of checking twice; dispatch 512/256/128/scalar from `NinoSimd`; bump `ref` cursors and count down (with the
@@ -573,6 +598,8 @@ a file and a line above. Go, Rust and TypeScript techniques go to `optimize-runt
   outside the benchmark suite takes, such as `(byte, int)` for the 64-byte permutes, need a small program of their own).
   A clean loop is loads (`ldp`), lookups, stores (`stp`) and the cursor adds; `stp`/`ldp` to `[fp, ...]`, `mul` or
   `mov v..` in it are the signs above.
+- A box: `CORINFO_HELP_BOX_NULLABLE` (a `T?`), or `CORINFO_HELP_NEWSFAST` of a value type's method table, which only
+  `asm.py dump --boxes` can name; read the branch it sits on before calling it dead.
 - The signs in any listing: `Reader:Skip`, `Reader:CopyTo` or `NinoUnsafe:Read` as calls (the budget or the local limit ran out: `asm.py --inline` names which, references/jit.md);
   `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
   reader or writer was not kept in registers).
