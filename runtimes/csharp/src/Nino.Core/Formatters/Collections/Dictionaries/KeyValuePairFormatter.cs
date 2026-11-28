@@ -34,7 +34,7 @@ namespace Nino.Core
         private static bool Fixed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => !NinoUnsafe.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>() && Size > 0;
+            get => !RuntimeHelpers.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>() && Size > 0;
         }
 
         // A pair whose key or value dispatches subtypes dispatches them too (its items' bits).

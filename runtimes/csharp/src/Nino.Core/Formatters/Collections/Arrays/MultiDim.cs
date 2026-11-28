@@ -144,7 +144,7 @@ namespace Nino.Core
         /// </summary>
         public static void Fill<T>(T[] items, ref T first)
         {
-            if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
                 items.AsSpan().CopyTo(MemoryMarshal.CreateSpan(ref first, items.Length));
                 return;

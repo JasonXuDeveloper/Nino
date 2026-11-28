@@ -559,7 +559,7 @@ internal sealed partial class BodyEmitter
             // Its items' sizes are known at run time: -1 where one has none, and without reading them for a value with
             // references (code shared over a class, where each would be a lookup), which is never of a fixed size.
             var tests = _m.Members.Where(IsItem).Select(m => ItemSize(m) + " < 0")
-                .Prepend($"{CoreCompilerServices}NinoUnsafe.IsReferenceOrContainsReferences<{T}>()");
+                .Prepend($"{CompilerServices}RuntimeHelpers.IsReferenceOrContainsReferences<{T}>()");
             size = $"{string.Join(" || ", tests)} ? -1 : {size}";
         }
 

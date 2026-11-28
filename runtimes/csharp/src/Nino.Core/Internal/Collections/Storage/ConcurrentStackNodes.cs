@@ -64,7 +64,7 @@ namespace Nino.Core.Internal
             // versions are trusted to keep that (the owner's call): CI runs the tests that prove it
             // (ConcurrentStackKeepsTheCapturedChainAcrossPopsAndCompaction) on each new runtime it adds.
             if (!RuntimeFeature.IsDynamicCodeSupported || Environment.Version.Major < 8 ||
-                Type.GetType("Mono.RuntimeStructs") != null || NinoUnsafe.IsReferenceOrContainsReferences<T>())
+                Type.GetType("Mono.RuntimeStructs") != null || RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 return false;
 
             const BindingFlags fields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic |
