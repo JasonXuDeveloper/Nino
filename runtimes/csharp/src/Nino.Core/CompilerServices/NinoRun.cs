@@ -135,6 +135,10 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Value<T>(ref byte value) where T : class => Unsafe.As<byte, T>(ref value);
 
+        /// <summary>The slot at <paramref name="value"/>, a reference a read fills in place.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref T Slot<T>(ref byte value) where T : class => ref Unsafe.As<byte, T>(ref value);
+
         /// <summary>
         /// Writes each value of <paramref name="run"/> (and its key) through <typeparamref name="TFormatter"/>'s
         /// <c>Serialize</c>, with the caller's writer: what a generated loop over a run does once the writer is too deep
