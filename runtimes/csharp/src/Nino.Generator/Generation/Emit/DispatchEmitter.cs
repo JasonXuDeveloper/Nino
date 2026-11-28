@@ -495,8 +495,8 @@ internal static class DispatchEmitter
     /// <c>__WriteFlat</c>: a flat root's run of <see cref="FlatRunLength"/> values or more through its flat kernels,
     /// unless more than one of its first <see cref="FlatRunProbe"/> values is a subtype (each leaves the kernels for the
     /// dispatch and enters them again); returns whether it wrote (#440). Against the loop (local x64, alternated): a run
-    /// of the root's own objects wrote in 0.69, 0.60 and 0.84 of its time at 16, 32 and 1,000 values, one in 13 a subtype
-    /// in 0.85, 0.78 and 0.90, every other one on par. Out of line on a copy of the run: inline, with the run passed by
+    /// of the root's own objects wrote in 0.63, 0.56 and 0.80 of its time at 16, 32 and 1,000 values, one in 13 a subtype
+    /// in 0.85, 0.75 and 0.77, every other one on par. Out of line on a copy of the run: inline, with the run passed by
     /// <c>in</c>, runs of one to three values, which keep the loop, took 1.08 to 1.27 times as long; from four values a
     /// four-value run took 1.5 (the copy and the probe), and without the probe a run alternating with subtypes took 1.6
     /// to 2.3.
